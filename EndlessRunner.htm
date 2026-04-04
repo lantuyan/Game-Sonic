@@ -144,15 +144,27 @@
 			.endlessrunner-pleasewait-spinner div:nth-child(11){transform:rotate(300deg);animation-delay:-0.1s}
 			.endlessrunner-pleasewait-spinner div:nth-child(12){transform:rotate(330deg);animation-delay:0s}
 			@keyframes endlessrunner-pleasewait-spinner{0%{opacity:1}100%{opacity:0}}
+			.endlessrunner-play-overlay{position:fixed;left:0;top:0;right:0;bottom:0;display:none;align-items:center;justify-content:center;z-index:700;background:rgba(4,17,38,0.72);backdrop-filter:blur(4px)}
+			.endlessrunner-play-button{width:110px;height:110px;border-radius:50%;background:linear-gradient(to bottom, #5cbbee, #0046a9);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 40px rgba(92,187,238,0.5);padding:5px;transition:transform 0.12s ease}
+			.endlessrunner-play-button:hover{transform:scale(1.08)}
+			.endlessrunner-play-button-inner{width:100%;height:100%;border-radius:50%;background:linear-gradient(to bottom, #3681D7, #2467C3);display:flex;align-items:center;justify-content:center}
+			.endlessrunner-play-icon{width:0;height:0;border-top:22px solid transparent;border-bottom:22px solid transparent;border-left:38px solid white;margin-left:8px}
 		</style>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
 	</head>
 	<body>
 		<div class="endlessrunner-container"></div>
+		<div class="endlessrunner-play-overlay" id="endlessrunner-play-overlay">
+			<div class="endlessrunner-play-button" id="endlessrunner-play-button">
+				<div class="endlessrunner-play-button-inner">
+					<div class="endlessrunner-play-icon"></div>
+				</div>
+			</div>
+		</div>
 		<div class="endlessrunner-about-label" id="about"></div>
 		<div class="endlessrunner-soundhandler-container">
 			<div class="endlessrunner-soundhandler-wrapper">
-				<div class="endlessrunner-soundhandler-off" id="endlessrunner-soundhandler"></div>
+				<div class="endlessrunner-soundhandler-on" id="endlessrunner-soundhandler"></div>
 			</div>
 		</div>
 		<div class="endlessrunner-score">
@@ -250,7 +262,7 @@
 			var OBSTACLES_POSITION_X = [-(PLANE_WIDTH - PADDING) / 2, 0, (PLANE_WIDTH - PADDING) / 2];
 			var OBSTACLES_POSITION_Z = -PLANE_LENGTH / 2;
 
-			var soundEnabled = false;
+			var soundEnabled = true;
 
 			var camera;
 			var containerWidth;
@@ -2094,6 +2106,21 @@
 					document.getElementById("endlessrunner-gameover-twitter-container").addEventListener("click",function(event){window.open("https://www.twitter.com/share?url=" + encodeURIComponent(URL_TO_SHARE));});
 					}
 
+				// SETTING WHAT WILL HAPPEN WHEN THE USER CLICKS THE PLAY BUTTON
+				function handlePlayButton()
+					{
+					document.getElementById("endlessrunner-play-overlay").style.display = "none";
+					setTimeout(function()
+						{
+						startGame();
+						document.getElementById("about").style.display = "block";
+						setTimeout(function(){document.getElementById("about").className = "endlessrunner-about-label endlessrunner-about-hidden";}, 3000);
+						setTimeout(function(){document.getElementById("about").style.display = "none";}, 4500);
+						}, 100);
+					}
+				document.getElementById("endlessrunner-play-button").addEventListener("click", handlePlayButton);
+				document.getElementById("endlessrunner-play-button").addEventListener("touchstart", function(event){event.preventDefault();handlePlayButton();});
+
 				["A","B","C","D"].forEach(function(answerKey)
 					{
 					var answerButton = document.getElementById("endlessrunner-quiz-answer-" + answerKey);
@@ -2160,32 +2187,11 @@
 						// HIDING THE LOADING SPLASH
 						document.getElementsByClassName("endlessrunner-pleasewait")[0].style.display = "none";
 
-						// SHOWING THE GAME CONTAINER
+						// SHOWING THE GAME CONTAINER (3D SCENE IN BACKGROUND)
 						document.getElementsByClassName("endlessrunner-container")[0].style.display = "block";
 
-						// SHOWING THE SCORE LABEL
-						document.getElementsByClassName("endlessrunner-score")[0].style.display = "block";
-
-						// SHOWING THE SOUND HANDLER CONTAINER
-						document.getElementsByClassName("endlessrunner-soundhandler-container")[0].style.display = "block";
-
-						// SHOWING THE ABOUT BOX
-						document.getElementById("about").style.display = "block";
-
-						// STARTING THE GAME
-						startGame();
-
-						// FADING OUT THE ABOUT BOX
-						setTimeout(function()
-							{
-							document.getElementById("about").className = "endlessrunner-about-label endlessrunner-about-hidden";
-							}, 3000);
-
-						// HIDING THE ABOUT BOX
-						setTimeout(function()
-							{
-							document.getElementById("about").style.display = "none";
-							}, 4500);
+						// SHOWING THE PLAY BUTTON OVERLAY
+						document.getElementById("endlessrunner-play-overlay").style.display = "flex";
 						})
 					.catch(function(err)
 						{

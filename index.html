@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+		<title>Endless Runner</title>
+		<link rel="manifest" href="EndlessRunner.json" />
+		<link rel="icon" sizes="16x16" type="image/png" href="EndlessRunnerFavIcon_16x16.png" />
+		<link rel="icon" sizes="192x192" type="image/png" href="EndlessRunnerFavIcon_192x192.png" />
+		<style>
+			html,body{width:100%;height:100%;margin:0}
+			body{display:flex;align-items:center;justify-content:center;background:#050b16;color:#ffffff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+			.endlessrunner-root-loader{font-size:18px;letter-spacing:.04em;opacity:.9;text-align:center;padding:24px}
+		</style>
+	</head>
+	<body>
+		<div class="endlessrunner-root-loader">Loading game...</div>
+		<script>
+			fetch("EndlessRunner.htm", { cache: "no-store" })
+				.then(function(response)
+					{
+					if (response.ok!==true)
+						{
+						throw new Error("Unable to load EndlessRunner.htm");
+						}
+
+					return response.text();
+					})
+				.then(function(html)
+					{
+					document.open();
+					document.write(html);
+					document.close();
+					})
+				.catch(function(error)
+					{
+					document.body.innerHTML = "<div class=\"endlessrunner-root-loader\">Failed to load game.<br /><br />" + error.message + "</div>";
+					});
+		</script>
+	</body>
+</html>

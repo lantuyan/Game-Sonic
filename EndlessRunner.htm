@@ -43,6 +43,12 @@
 			@keyframes endlessrunner-flashanim{0%{opacity:0.55}100%{opacity:0}}
 			.endlessrunner-damage-flash{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(220,0,0,0.55);pointer-events:none;z-index:997;display:none}
 			.endlessrunner-damage-flash.active{display:block;animation:endlessrunner-flashanim 0.5s ease-out forwards}
+			@keyframes endlessrunner-correctflashanim{0%{opacity:0.5}100%{opacity:0}}
+			.endlessrunner-correct-flash{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,210,80,0.5);pointer-events:none;z-index:997;display:none}
+			.endlessrunner-correct-flash.active{display:block;animation:endlessrunner-correctflashanim 0.6s ease-out forwards}
+			@keyframes endlessrunner-scorepop{0%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-90px) scale(1.5)}}
+			.endlessrunner-score-popup{position:fixed;left:50%;top:38%;pointer-events:none;z-index:999;display:none;font-size:2.2em;font-weight:900;color:#ffe000;text-shadow:0 0 12px rgba(255,180,0,0.9),0 2px 8px rgba(0,0,0,0.8);white-space:nowrap}
+			.endlessrunner-score-popup.active{display:block;animation:endlessrunner-scorepop 0.9s ease-out forwards}
 			.endlessrunner-quiz-overlay{position:fixed;left:0;top:0;right:0;bottom:0;padding:24px;box-sizing:border-box;display:none;align-items:center;justify-content:center;background:rgba(4,17,38,0.8);backdrop-filter:blur(5px);z-index:1200}
 			.endlessrunner-quiz-panel{width:min(680px,100%);background:linear-gradient(180deg, rgba(11,53,111,0.97), rgba(3,24,54,0.98));border:1px solid rgba(255,255,255,0.12);border-radius:28px;box-shadow:0 28px 60px rgba(0,0,0,0.45);padding:24px;color:#ffffff}
 			.endlessrunner-quiz-header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
@@ -175,6 +181,8 @@
 		</div>
 		<div class="endlessrunner-hearts" id="endlessrunner-hearts"><span id="endlessrunner-heart-1">&#9829;</span><span id="endlessrunner-heart-2">&#9829;</span><span id="endlessrunner-heart-3">&#9829;</span></div>
 		<div class="endlessrunner-damage-flash" id="endlessrunner-damage-flash"></div>
+		<div class="endlessrunner-correct-flash" id="endlessrunner-correct-flash"></div>
+		<div class="endlessrunner-score-popup" id="endlessrunner-score-popup"></div>
 		<div class="endlessrunner-quiz-overlay" id="endlessrunner-quiz-overlay" role="dialog" aria-modal="true">
 			<div class="endlessrunner-quiz-panel">
 				<div class="endlessrunner-quiz-header">
@@ -731,6 +739,8 @@
 				{
 				score = score + questionData.point;
 				updateScoreDisplay();
+				playCorrect();
+				showCorrectEffect(questionData.point);
 				hideQuestionOverlay();
 				}
 
@@ -1759,6 +1769,47 @@
 					catch(err)
 					{
 					}
+				}
+
+			function playCorrect()
+				{
+				try
+					{
+					if (soundEnabled==true)
+						{
+						var t = audioContextSound.currentTime;
+						var notes = [523, 659, 784, 1047];
+						notes.forEach(function(freq, i) {
+							var osc = audioContextSound.createOscillator();
+							var gain = audioContextSound.createGain();
+							osc.connect(gain);
+							gain.connect(audioContextSound.destination);
+							osc.type = "sine";
+							osc.frequency.setValueAtTime(freq, t + i * 0.1);
+							gain.gain.setValueAtTime(0.28, t + i * 0.1);
+							gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.3);
+							osc.start(t + i * 0.1);
+							osc.stop(t + i * 0.1 + 0.35);
+							});
+						}
+					}
+					catch(err)
+					{
+					}
+				}
+
+			function showCorrectEffect(points)
+				{
+				var flash = document.getElementById("endlessrunner-correct-flash");
+				flash.className = "endlessrunner-correct-flash";
+				void flash.offsetWidth;
+				flash.className = "endlessrunner-correct-flash active";
+
+				var popup = document.getElementById("endlessrunner-score-popup");
+				popup.textContent = "+" + points + " POINTS!";
+				popup.className = "endlessrunner-score-popup";
+				void popup.offsetWidth;
+				popup.className = "endlessrunner-score-popup active";
 				}
 
 			function playMusic()

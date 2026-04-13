@@ -7,6 +7,11 @@ DEFAULT_DOMAIN="vannampham.sixpilot.technology"
 DEFAULT_PORT="3000"
 ENV_FILE=".env"
 ECOSYSTEM_FILE="ecosystem.config.cjs"
+CERTBOT_EMAIL=""
+WEB_ROOT=""
+SSL_CERT_FILE=""
+SSL_KEY_FILE=""
+SSL_PROVIDER="none"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -29,6 +34,10 @@ fi
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+can_prompt() {
+    [ -t 0 ] && [ -t 1 ]
 }
 
 require_apt() {
@@ -104,10 +113,138 @@ ensure_npm() {
     $SUDO_PREFIX apt-get install -y -qq npm
 }
 
+ensure_certbot() {
+    if command_exists certbot; then
+        return
+    fi
+
+    require_apt
+    log_warning "Installing certbot..."
+    $SUDO_PREFIX apt-get update -qq
+    $SUDO_PREFIX apt-get install -y -qq certbot python3-certbot-nginx
+}
+
+ensure_web_root() {
+    WEB_ROOT="/var/www/${DOMAIN}"
+    $SUDO_PREFIX mkdir -p "${WEB_ROOT}/.well-known/acme-challenge"
+    $SUDO_PREFIX chmod 755 /var/www >/dev/null 2>&1 || true
+    $SUDO_PREFIX chmod -R 755 "$WEB_ROOT" >/dev/null 2>&1 || true
+}
+
+detect_ssl_paths() {
+    local origin_cert="/etc/nginx/ssl/${DOMAIN}/origin.crt"
+    local origin_key="/etc/nginx/ssl/${DOMAIN}/origin.key"
+    local le_cert="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+    local le_key="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
+    SSL_CERT_FILE=""
+    SSL_KEY_FILE=""
+    SSL_PROVIDER="none"
+
+    if [ -f "$origin_cert" ] && [ -f "$origin_key" ]; then
+        SSL_CERT_FILE="$origin_cert"
+        SSL_KEY_FILE="$origin_key"
+        SSL_PROVIDER="cloudflare-origin"
+        return
+    fi
+
+    if [ -f "$le_cert" ] && [ -f "$le_key" ]; then
+        SSL_CERT_FILE="$le_cert"
+        SSL_KEY_FILE="$le_key"
+        SSL_PROVIDER="letsencrypt"
+    fi
+}
+
+write_cloudflare_origin_cert() {
+    local cert_dir="/etc/nginx/ssl/${DOMAIN}"
+    local tmp_cert
+    local tmp_key
+
+    tmp_cert="$(mktemp)"
+    tmp_key="$(mktemp)"
+
+    echo
+    log_info "Paste Cloudflare Origin Certificate for ${DOMAIN}, then press Ctrl+D."
+    cat > "$tmp_cert"
+    echo
+    log_info "Paste Cloudflare Origin Private Key for ${DOMAIN}, then press Ctrl+D."
+    cat > "$tmp_key"
+    echo
+
+    if [ ! -s "$tmp_cert" ] || [ ! -s "$tmp_key" ]; then
+        rm -f "$tmp_cert" "$tmp_key"
+        log_warning "Certificate or key was empty. Skipping Cloudflare Origin setup."
+        return 1
+    fi
+
+    $SUDO_PREFIX mkdir -p "$cert_dir"
+    $SUDO_PREFIX cp "$tmp_cert" "${cert_dir}/origin.crt"
+    $SUDO_PREFIX cp "$tmp_key" "${cert_dir}/origin.key"
+    $SUDO_PREFIX chmod 644 "${cert_dir}/origin.crt"
+    $SUDO_PREFIX chmod 600 "${cert_dir}/origin.key"
+
+    rm -f "$tmp_cert" "$tmp_key"
+    log_success "Saved Cloudflare Origin certificate for ${DOMAIN}"
+    return 0
+}
+
+provision_https_certificate() {
+    local reply
+
+    detect_ssl_paths
+    if [ "$SSL_PROVIDER" != "none" ]; then
+        return 0
+    fi
+
+    ensure_web_root
+
+    if [ -n "$CERTBOT_EMAIL" ]; then
+        ensure_certbot
+        log_info "Requesting Let's Encrypt certificate for ${DOMAIN}..."
+        if $SUDO_PREFIX certbot certonly --webroot -w "$WEB_ROOT" -d "$DOMAIN" --non-interactive --agree-tos --keep-until-expiring --expand -m "$CERTBOT_EMAIL"; then
+            detect_ssl_paths
+            if [ "$SSL_PROVIDER" = "letsencrypt" ]; then
+                log_success "Let's Encrypt certificate is ready for ${DOMAIN}"
+                return 0
+            fi
+        fi
+        log_warning "Let's Encrypt provisioning did not create a usable certificate."
+    fi
+
+    if can_prompt; then
+        read -r -p "No SSL certificate found for ${DOMAIN}. Configure Cloudflare Origin Certificate now? [y/N]: " reply
+        case "$reply" in
+            y|Y|yes|YES|Yes)
+                if write_cloudflare_origin_cert; then
+                    detect_ssl_paths
+                    if [ "$SSL_PROVIDER" = "cloudflare-origin" ]; then
+                        return 0
+                    fi
+                fi
+                ;;
+        esac
+    fi
+
+    return 1
+}
+
+reload_or_start_nginx() {
+    if command_exists systemctl; then
+        if $SUDO_PREFIX systemctl is-active --quiet nginx; then
+            $SUDO_PREFIX systemctl reload nginx
+        else
+            $SUDO_PREFIX systemctl start nginx
+        fi
+    else
+        $SUDO_PREFIX service nginx restart
+    fi
+}
+
 load_runtime_values() {
     DOMAIN="$(read_env_value DOMAIN)"
     PORT="$(read_env_value PORT)"
     BASE_URL="$(read_env_value BASE_URL)"
+    CERTBOT_EMAIL="$(read_env_value CERTBOT_EMAIL)"
     JWT_SECRET_VALUE="$(read_env_value JWT_SECRET)"
     ADMIN_PASSWORD_HASH_VALUE="$(read_env_value ADMIN_PASSWORD_HASH)"
 
@@ -122,6 +259,8 @@ load_runtime_values() {
     if [ -z "$BASE_URL" ]; then
         BASE_URL="https://${DOMAIN}"
     fi
+
+    WEB_ROOT="/var/www/${DOMAIN}"
 }
 
 validate_runtime_values() {
@@ -245,27 +384,32 @@ restart_pm2_app() {
 render_nginx_config() {
     local nginx_conf="/etc/nginx/sites-available/${DOMAIN}"
     local nginx_link="/etc/nginx/sites-enabled/${DOMAIN}"
-    local cert_dir="/etc/nginx/ssl/${DOMAIN}"
-    local cert_file="${cert_dir}/origin.crt"
-    local key_file="${cert_dir}/origin.key"
     local tmp_file
-    local has_ssl="false"
     local file
 
-    if [ -f "$cert_file" ] && [ -f "$key_file" ]; then
-        has_ssl="true"
-    fi
+    ensure_web_root
+    detect_ssl_paths
 
     tmp_file="$(mktemp)"
 
-    if [ "$has_ssl" = "true" ]; then
+    if [ "$SSL_PROVIDER" != "none" ]; then
         cat > "$tmp_file" <<EOF
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN};
 
-    return 301 https://\$host\$request_uri;
+    access_log /var/log/nginx/${DOMAIN}.access.log;
+    error_log /var/log/nginx/${DOMAIN}.error.log;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${WEB_ROOT};
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
 }
 
 server {
@@ -276,8 +420,8 @@ server {
     access_log /var/log/nginx/${DOMAIN}.access.log;
     error_log /var/log/nginx/${DOMAIN}.error.log;
 
-    ssl_certificate ${cert_file};
-    ssl_certificate_key ${key_file};
+    ssl_certificate ${SSL_CERT_FILE};
+    ssl_certificate_key ${SSL_KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
@@ -308,6 +452,11 @@ server {
 
     access_log /var/log/nginx/${DOMAIN}.access.log;
     error_log /var/log/nginx/${DOMAIN}.error.log;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${WEB_ROOT};
+        default_type text/plain;
+    }
 
     client_max_body_size 10m;
 
@@ -349,18 +498,10 @@ EOF
         exit 1
     fi
 
-    if command_exists systemctl; then
-        if $SUDO_PREFIX systemctl is-active --quiet nginx; then
-            $SUDO_PREFIX systemctl reload nginx
-        else
-            $SUDO_PREFIX systemctl start nginx
-        fi
-    else
-        $SUDO_PREFIX service nginx restart
-    fi
+    reload_or_start_nginx
 
-    if [ "$has_ssl" = "true" ]; then
-        log_success "Nginx reloaded with HTTPS"
+    if [ "$SSL_PROVIDER" != "none" ]; then
+        log_success "Nginx reloaded with HTTPS using ${SSL_PROVIDER}"
     else
         log_success "Nginx reloaded with HTTP"
     fi
@@ -406,7 +547,18 @@ restart_pm2_app
 log_step "6. Reloading Nginx"
 render_nginx_config
 
-log_step "7. Running health check"
+log_step "7. Provisioning HTTPS"
+INITIAL_SSL_PROVIDER="$SSL_PROVIDER"
+if provision_https_certificate; then
+    detect_ssl_paths
+    if [ "$SSL_PROVIDER" != "$INITIAL_SSL_PROVIDER" ]; then
+        render_nginx_config
+    fi
+else
+    detect_ssl_paths
+fi
+
+log_step "8. Running health check"
 run_health_check
 
 echo
@@ -415,5 +567,10 @@ echo "App name:   ${APP_NAME}"
 echo "Domain:     ${DOMAIN}"
 echo "Base URL:   ${BASE_URL}"
 echo "Port:       ${PORT}"
+if [ "$SSL_PROVIDER" != "none" ]; then
+    echo "HTTPS:      enabled (${SSL_PROVIDER})"
+else
+    echo "HTTPS:      disabled (HTTP only)"
+fi
 echo "PM2 logs:   pm2 logs ${APP_NAME}"
 echo "PM2 status: pm2 status ${APP_NAME}"

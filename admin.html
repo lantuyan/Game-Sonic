@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="vi">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Admin câu hỏi</title>
+		<link rel="icon" sizes="16x16" type="image/png" href="EndlessRunnerFavIcon_16x16.png" />
+		<style>
+			:root{
+				--bg:#081423;
+				--panel:#10243b;
+				--panel-alt:#13304f;
+				--line:rgba(255,255,255,.12);
+				--text:#f3f7fb;
+				--muted:#9db1c7;
+				--accent:#58c4ff;
+				--accent-strong:#1d8fe1;
+				--danger:#ff6f7d;
+				--success:#33d196;
+				--warning:#f4c95d;
+				--shadow:0 18px 44px rgba(0,0,0,.28);
+				--radius:18px;
+			}
+			*{box-sizing:border-box}
+			html,body{margin:0;min-height:100%;background:
+				radial-gradient(circle at top left, rgba(88,196,255,.18), transparent 28%),
+				radial-gradient(circle at top right, rgba(51,209,150,.12), transparent 22%),
+				linear-gradient(180deg, #07111d 0%, var(--bg) 100%);
+				color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+			a{color:var(--accent)}
+			button,input,select,textarea{font:inherit}
+			button{border:none;border-radius:12px;padding:11px 14px;cursor:pointer;transition:transform .12s ease, opacity .12s ease}
+			button:hover{transform:translateY(-1px)}
+			button:disabled{cursor:not-allowed;opacity:.6;transform:none}
+			input,select,textarea{
+				width:100%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);
+				border-radius:12px;padding:11px 12px;outline:none
+			}
+			textarea{min-height:100px;resize:vertical}
+			.auth-shell{
+				min-height:100vh;display:flex;align-items:center;justify-content:center;
+				padding:24px;background:
+				radial-gradient(circle at top left, rgba(88,196,255,.18), transparent 28%),
+				radial-gradient(circle at top right, rgba(51,209,150,.12), transparent 22%),
+				linear-gradient(180deg, #07111d 0%, var(--bg) 100%)
+			}
+			.auth-card{
+				width:min(100%, 420px);padding:28px;border:1px solid var(--line);border-radius:24px;
+				background:linear-gradient(180deg, rgba(17,41,67,.96), rgba(9,24,40,.96));box-shadow:var(--shadow)
+			}
+			.auth-card h1{margin:0 0 10px;font-size:30px}
+			.auth-card p{margin:0 0 18px;color:var(--muted);line-height:1.55}
+			.auth-actions{
+				display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+				gap:12px;align-items:stretch;margin-top:16px
+			}
+			.auth-error{margin-top:14px;color:#ffd6dc;min-height:20px}
+			.button-home{
+				position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+				padding:13px 18px;border-radius:14px;text-decoration:none;
+				background:rgba(255,255,255,.06);
+				color:var(--text);border:1px solid rgba(88,196,255,.26);
+				font-size:16px;font-weight:700;letter-spacing:.01em;
+				box-shadow:0 10px 24px rgba(0,0,0,.18);
+				transition:transform .12s ease, background-color .12s ease, border-color .12s ease, box-shadow .12s ease
+			}
+			.button-home:hover{
+				transform:translateY(-1px);
+				background:rgba(88,196,255,.12);
+				border-color:rgba(88,196,255,.42);
+				box-shadow:0 14px 28px rgba(0,0,0,.22)
+			}
+			.button-home::before{
+				content:"";
+				width:10px;height:10px;flex:0 0 10px;
+				border-left:3px solid currentColor;border-bottom:3px solid currentColor;
+				transform:rotate(45deg);margin-left:1px
+			}
+			.auth-actions .button-primary,
+			.auth-actions .button-home{
+				width:100%;min-width:0;min-height:54px;justify-content:center
+			}
+			.page{max-width:1440px;margin:0 auto;padding:28px 20px 40px}
+			.hero{
+				display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+				margin-bottom:20px;padding:26px;border:1px solid var(--line);border-radius:24px;
+				background:linear-gradient(180deg, rgba(17,41,67,.95), rgba(9,24,40,.95));
+				box-shadow:var(--shadow)
+			}
+			.hero h1{margin:0 0 8px;font-size:34px;letter-spacing:.02em}
+			.hero p{margin:0;color:var(--muted);max-width:760px;line-height:1.55}
+			.hero-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+			.button-primary{background:linear-gradient(135deg, var(--accent), var(--accent-strong));color:#032542;font-weight:700}
+			.button-secondary{background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--line)}
+			.button-danger{background:rgba(255,111,125,.16);color:#ffdbe0;border:1px solid rgba(255,111,125,.4)}
+			.button-success{background:rgba(51,209,150,.16);color:#dffbf0;border:1px solid rgba(51,209,150,.35)}
+			.button-warning{background:rgba(244,201,93,.16);color:#fff2cf;border:1px solid rgba(244,201,93,.35)}
+			.layout{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
+			.layout > *,.sidebar,.content,.panel{min-width:0}
+			.sidebar,.content{display:grid;gap:20px;align-content:start}
+			.panel{
+				border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg, rgba(16,36,59,.92), rgba(10,23,38,.96));
+				box-shadow:var(--shadow);padding:20px
+			}
+			.panel h2{margin:0 0 14px;font-size:19px}
+			.level-switcher{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+			.level-btn{background:rgba(255,255,255,.06);color:var(--text);border:1px solid transparent;font-weight:700}
+			.level-btn.active{background:rgba(88,196,255,.15);border-color:rgba(88,196,255,.45);color:#dff4ff}
+			.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+			.kpi{
+				padding:14px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)
+			}
+			.kpi-label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+			.kpi-value{font-size:24px;font-weight:800}
+			.level-meta{font-size:13px;color:var(--muted);line-height:1.55}
+			.time-grid,.question-grid{display:grid;gap:12px}
+			.time-grid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+			.time-card{padding:14px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+			.time-card strong{display:block;margin-bottom:8px;text-transform:capitalize}
+			.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+			.question-grid .full{grid-column:1 / -1}
+			.answer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+			.field label{display:block;margin-bottom:7px;font-size:13px;color:var(--muted)}
+			.form-actions{display:flex;gap:10px;flex-wrap:wrap}
+			.status{
+				display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
+				font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase
+			}
+			.status-correct{background:rgba(51,209,150,.16);color:#dcfff0}
+			.status-wrong{background:rgba(255,111,125,.16);color:#ffe0e4}
+			.status-timeout{background:rgba(244,201,93,.16);color:#fff0c4}
+			.status-shown{background:rgba(88,196,255,.14);color:#daf5ff}
+			.table-wrap{max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:14px}
+			table{width:100%;border-collapse:collapse}
+			.table-compact{min-width:100%}
+			.table-wide{min-width:980px}
+			th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+			th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,.03)}
+			tbody tr:hover{background:rgba(255,255,255,.03)}
+			.actions{display:flex;gap:8px;flex-wrap:wrap}
+			.actions button{padding:8px 11px;border-radius:10px;font-size:13px}
+			.answers-list{display:grid;gap:4px;font-size:13px;color:#dfe9f3}
+			.answers-list span{display:block}
+			.muted{color:var(--muted)}
+			.empty{padding:18px;color:var(--muted);text-align:center}
+			.notice{
+				padding:12px 14px;border-radius:12px;font-size:14px;line-height:1.45;margin-bottom:14px;border:1px solid var(--line)
+			}
+			.notice-info{background:rgba(88,196,255,.1);color:#dff4ff}
+			.notice-success{background:rgba(51,209,150,.12);color:#dbfff0}
+			.notice-error{background:rgba(255,111,125,.14);color:#ffe3e7}
+			.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+			.small{font-size:13px}
+			.hidden{display:none}
+			@media (max-width: 760px){
+				.hero{padding:20px;flex-direction:column}
+				.kpis,.answer-grid,.form-row{grid-template-columns:1fr}
+				.page{padding:18px 14px 28px}
+				.auth-actions{grid-template-columns:1fr}
+				.auth-actions > *{width:100%}
+				.button-home{width:100%;justify-content:center}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="admin-auth-shell" class="auth-shell">
+			<section class="auth-card">
+				<h1>Đăng nhập admin</h1>
+				<p>Nhập mật khẩu để vào trang quản lý câu hỏi.</p>
+				<form id="admin-auth-form">
+					<div class="field">
+						<label for="admin-password-input">Mật khẩu</label>
+						<input id="admin-password-input" type="password" placeholder="Nhập mật khẩu admin" autocomplete="current-password" required />
+					</div>
+					<div class="auth-actions">
+						<button class="button-primary" type="submit">Vào trang admin</button>
+						<a class="button-home" href="index.html">Về màn hình chính</a>
+					</div>
+				</form>
+				<div id="admin-auth-error" class="auth-error"></div>
+			</section>
+		</div>
+
+		<div id="admin-page" class="page hidden">
+			<header class="hero">
+				<div>
+					<h1>Trang admin câu hỏi</h1>
+					<p>Trang này quản lý câu hỏi theo từng lớp, lưu trạng thái câu đã hiển thị/trả lời, và cập nhật dữ liệu cục bộ của trình duyệt cho game. Sau khi chỉnh xong, quay lại game và chọn lại lớp để thấy thay đổi.</p>
+				</div>
+				<div class="hero-actions">
+					<a class="button-home" href="index.html">Về màn hình chính</a>
+				</div>
+			</header>
+
+			<div id="notice" class="notice notice-info hidden"></div>
+
+			<div class="layout">
+				<aside class="sidebar">
+					<section class="panel">
+						<h2>Chọn lớp</h2>
+						<div id="level-switcher" class="level-switcher"></div>
+						<div class="kpis" style="margin-top:16px;">
+							<div class="kpi">
+								<span class="kpi-label">Tổng số câu</span>
+								<div id="kpi-total" class="kpi-value">0</div>
+							</div>
+							<div class="kpi">
+								<span class="kpi-label">Chưa hiện</span>
+								<div id="kpi-remaining" class="kpi-value">0</div>
+							</div>
+							<div class="kpi">
+								<span class="kpi-label">Đã trả lời</span>
+								<div id="kpi-answered" class="kpi-value">0</div>
+							</div>
+						</div>
+						<p id="level-meta" class="level-meta" style="margin:16px 0 0;"></p>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Điểm theo loại câu hỏi</h2>
+							<button id="save-points-button" class="button-primary" type="button">Lưu điểm</button>
+						</div>
+						<div id="point-settings-grid" class="time-grid"></div>
+						<p class="level-meta" style="margin:14px 0 0;">Lưu điểm sẽ cập nhật toàn bộ câu hỏi cùng loại trong lớp hiện tại.</p>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Thời gian theo loại câu hỏi</h2>
+							<button id="save-times-button" class="button-primary" type="button">Lưu thời gian</button>
+						</div>
+						<div id="time-settings-grid" class="time-grid"></div>
+						<p class="level-meta" style="margin:14px 0 0;">Lưu thời gian sẽ cập nhật toàn bộ câu hỏi cùng loại trong lớp hiện tại.</p>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Danh sách đã trả lời</h2>
+							<button id="reset-answered-button" class="button-warning" type="button">Reset lớp hiện tại</button>
+						</div>
+						<p class="level-meta" style="margin:0 0 14px;">Reset sẽ xoá lịch sử câu đã hiện/trả lời của lớp đang chọn để game quay về trạng thái ban đầu.</p>
+						<div id="answered-summary" class="small muted" style="margin-bottom:10px;"></div>
+						<div class="table-wrap">
+							<table class="table-compact">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Loại</th>
+										<th>Trạng thái</th>
+										<th>Lần cuối</th>
+									</tr>
+								</thead>
+								<tbody id="answered-table-body"></tbody>
+							</table>
+						</div>
+					</section>
+				</aside>
+
+				<div class="content">
+					<section class="panel">
+						<div class="toolbar">
+							<h2 id="question-form-title" style="margin:0;">Thêm câu hỏi mới</h2>
+							<button id="reset-form-button" class="button-secondary" type="button">Xoá form</button>
+						</div>
+						<form id="question-form" class="question-grid">
+							<div class="form-row">
+								<div class="field">
+									<label for="question-id">Mã câu hỏi</label>
+									<input id="question-id" name="question-id" type="text" placeholder="Ví dụ: 6q101" required />
+								</div>
+								<div class="field">
+									<label for="question-difficulty">Loại câu hỏi</label>
+									<select id="question-difficulty" name="question-difficulty">
+										<option value="easy">easy</option>
+										<option value="medium">medium</option>
+										<option value="hard">hard</option>
+										<option value="expert">expert</option>
+										<option value="general">general</option>
+									</select>
+								</div>
+							</div>
+							<div class="field full">
+								<label for="question-text">Nội dung câu hỏi</label>
+								<textarea id="question-text" name="question-text" placeholder="Nhập nội dung câu hỏi..." required></textarea>
+							</div>
+							<div class="answer-grid full">
+								<div class="field">
+									<label for="answer-A">Đáp án A</label>
+									<input id="answer-A" name="answer-A" data-answer-key="A" type="text" required />
+								</div>
+								<div class="field">
+									<label for="answer-B">Đáp án B</label>
+									<input id="answer-B" name="answer-B" data-answer-key="B" type="text" required />
+								</div>
+								<div class="field">
+									<label for="answer-C">Đáp án C (tuỳ chọn)</label>
+									<input id="answer-C" name="answer-C" data-answer-key="C" type="text" />
+								</div>
+								<div class="field">
+									<label for="answer-D">Đáp án D (tuỳ chọn)</label>
+									<input id="answer-D" name="answer-D" data-answer-key="D" type="text" />
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="field">
+									<label for="correct-answer">Đáp án đúng</label>
+									<select id="correct-answer" name="correct-answer"></select>
+								</div>
+								<div class="field">
+									<label for="question-point">Điểm thưởng</label>
+									<input id="question-point" name="question-point" type="number" min="0" step="1" required />
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="field">
+									<label for="question-time">Thời gian (giây)</label>
+									<input id="question-time" name="question-time" type="number" min="1" step="1" required />
+								</div>
+								<div class="field">
+									<label>Lớp hiện tại</label>
+									<input id="current-level-label" type="text" disabled />
+								</div>
+							</div>
+							<div class="form-actions full">
+								<button id="save-question-button" class="button-primary" type="submit">Lưu câu hỏi</button>
+								<button id="delete-editing-button" class="button-danger hidden" type="button">Xoá câu đang sửa</button>
+							</div>
+						</form>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Danh sách câu hỏi</h2>
+							<div class="small muted">Bấm sửa để nạp dữ liệu lên form phía trên.</div>
+						</div>
+						<div class="table-wrap">
+							<table class="table-wide">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Loại</th>
+										<th>Câu hỏi</th>
+										<th>Đáp án</th>
+										<th>Đúng</th>
+										<th>Điểm</th>
+										<th>Thời gian</th>
+										<th>Trạng thái</th>
+										<th>Hành động</th>
+									</tr>
+								</thead>
+								<tbody id="question-table-body"></tbody>
+							</table>
+						</div>
+					</section>
+				</div>
+			</div>
+		</div>
+
+		<script src="questionBank.js"></script>
+		<script>
+			var ADMIN_PASSWORD = "admin123";
+			var ADMIN_AUTH_KEY = "endlessrunner-admin-auth-v1";
+			var appState = {
+				level: "lop6",
+				questions: [],
+				answeredEntries: [],
+				editingQuestionId: null,
+				editingQuestionIndex: -1,
+				isInitialized: false
+			};
+
+			function escapeHTML(value) {
+				return String(value == null ? "" : value)
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#39;");
+			}
+
+			function showNotice(message, type) {
+				var notice = document.getElementById("notice");
+				notice.textContent = message;
+				notice.className = "notice notice-" + (type || "info");
+				notice.classList.remove("hidden");
+			}
+
+			function hideNotice() {
+				document.getElementById("notice").className = "notice notice-info hidden";
+				document.getElementById("notice").textContent = "";
+			}
+
+			function isAdminAuthenticated() {
+				try {
+					return window.sessionStorage.getItem(ADMIN_AUTH_KEY) === "true";
+				} catch (error) {
+					return false;
+				}
+			}
+
+			function setAdminAuthenticated(value) {
+				try {
+					if (value === true) {
+						window.sessionStorage.setItem(ADMIN_AUTH_KEY, "true");
+					} else {
+						window.sessionStorage.removeItem(ADMIN_AUTH_KEY);
+					}
+				} catch (error) {
+				}
+			}
+
+			function showAuthError(message) {
+				document.getElementById("admin-auth-error").textContent = message || "";
+			}
+
+			function unlockAdminPage() {
+				document.getElementById("admin-auth-shell").classList.add("hidden");
+				document.getElementById("admin-page").classList.remove("hidden");
+				showAuthError("");
+				if (appState.isInitialized !== true) {
+					initializeAdminPage();
+				}
+			}
+
+			function handleAdminLoginSubmit(event) {
+				event.preventDefault();
+				var passwordInput = document.getElementById("admin-password-input");
+				if (passwordInput.value !== ADMIN_PASSWORD) {
+					setAdminAuthenticated(false);
+					showAuthError("Mật khẩu chưa đúng.");
+					passwordInput.select();
+					return;
+				}
+
+				setAdminAuthenticated(true);
+				passwordInput.value = "";
+				unlockAdminPage();
+			}
+
+			function requireAdminAccess() {
+				document.getElementById("admin-auth-form").addEventListener("submit", handleAdminLoginSubmit);
+
+				if (isAdminAuthenticated() === true) {
+					unlockAdminPage();
+				} else {
+					document.getElementById("admin-password-input").focus();
+				}
+			}
+
+			function capitalize(value) {
+				var text = String(value || "");
+				if (text === "") {
+					return "";
+				}
+
+				return text.charAt(0).toUpperCase() + text.slice(1);
+			}
+
+			function getSuggestedTimeForDifficulty(difficulty) {
+				var settings = QuestionBank.getTimeSettings(appState.level, appState.questions);
+				var normalizedDifficulty = String(difficulty || "").trim().toLowerCase();
+
+				if (settings[normalizedDifficulty] != null) {
+					return String(settings[normalizedDifficulty]);
+				}
+
+				return "12";
+			}
+
+			function getSuggestedPointForDifficulty(difficulty) {
+				var settings = QuestionBank.getPointSettings(appState.level, appState.questions);
+				var normalizedDifficulty = String(difficulty || "").trim().toLowerCase();
+
+				if (settings[normalizedDifficulty] != null) {
+					return String(settings[normalizedDifficulty]);
+				}
+
+				return "10";
+			}
+
+			function formatTimestamp(value) {
+				if (typeof value !== "string" || value === "") {
+					return "Chưa có";
+				}
+
+				var date = new Date(value);
+				if (isNaN(date.getTime())) {
+					return value;
+				}
+
+				return date.toLocaleString("vi-VN");
+			}
+
+			function getAnsweredEntriesMap() {
+				var map = {};
+				appState.answeredEntries.forEach(function (entry) {
+					map[entry.id] = entry;
+				});
+				return map;
+			}
+
+			function getRemainingQuestionsCount() {
+				return QuestionBank.filterAvailableQuestions(appState.level, appState.questions).length;
+			}
+
+			function renderLevelButtons() {
+				var container = document.getElementById("level-switcher");
+				container.innerHTML = "";
+
+				QuestionBank.LEVELS.forEach(function (level) {
+					var button = document.createElement("button");
+					button.type = "button";
+					button.className = "level-btn" + (level === appState.level ? " active" : "");
+					button.textContent = QuestionBank.LEVEL_LABELS[level] || level;
+					button.addEventListener("click", function () {
+						switchLevel(level);
+					});
+					container.appendChild(button);
+				});
+			}
+
+			function renderOverview() {
+				document.getElementById("current-level-label").value = QuestionBank.LEVEL_LABELS[appState.level] || appState.level;
+				document.getElementById("kpi-total").textContent = appState.questions.length;
+				document.getElementById("kpi-remaining").textContent = getRemainingQuestionsCount();
+				document.getElementById("kpi-answered").textContent = appState.answeredEntries.length;
+				document.getElementById("level-meta").textContent = "Lớp hiện tại: " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ". Nếu bạn chỉnh câu hỏi tại đây, game sẽ dùng dữ liệu mới của trình duyệt này.";
+				document.getElementById("answered-summary").textContent = appState.answeredEntries.length === 0
+					? "Chưa có câu nào được ghi nhận cho lớp này."
+					: "Đã ghi nhận " + appState.answeredEntries.length + " câu đã hiện/trả lời.";
+			}
+
+			function getDifficultyKeys(settings) {
+				var summary = QuestionBank.getDifficultySummary(appState.questions);
+				var keys = [];
+
+				summary.forEach(function (item) {
+					if (keys.indexOf(item.difficulty) === -1) {
+						keys.push(item.difficulty);
+					}
+				});
+
+				Object.keys(settings).forEach(function (difficulty) {
+					if (keys.indexOf(difficulty) === -1) {
+						keys.push(difficulty);
+					}
+				});
+
+				keys.sort(function (left, right) {
+					var leftIndex = QuestionBank.DIFFICULTY_ORDER.indexOf(left);
+					var rightIndex = QuestionBank.DIFFICULTY_ORDER.indexOf(right);
+
+					if (leftIndex === -1 && rightIndex === -1) {
+						return left.localeCompare(right);
+					}
+
+					if (leftIndex === -1) {
+						return 1;
+					}
+
+					if (rightIndex === -1) {
+						return -1;
+					}
+
+					return leftIndex - rightIndex;
+				});
+
+				return keys;
+			}
+
+			function getTimeDifficultyKeys() {
+				return getDifficultyKeys(QuestionBank.getTimeSettings(appState.level, appState.questions));
+			}
+
+			function getPointDifficultyKeys() {
+				return getDifficultyKeys(QuestionBank.getPointSettings(appState.level, appState.questions));
+			}
+
+			function renderPointSettings() {
+				var container = document.getElementById("point-settings-grid");
+				var settings = QuestionBank.getPointSettings(appState.level, appState.questions);
+				var keys = getPointDifficultyKeys();
+
+				container.innerHTML = "";
+
+				if (keys.length === 0) {
+					container.innerHTML = "<div class=\"empty\" style=\"grid-column:1 / -1;\">Chưa có dữ liệu loại câu hỏi.</div>";
+					return;
+				}
+
+				keys.forEach(function (difficulty) {
+					var card = document.createElement("div");
+					card.className = "time-card";
+					var inputId = "point-setting-" + difficulty;
+					card.innerHTML = ""
+						+ "<label for=\"" + escapeHTML(inputId) + "\" class=\"small muted\">" + escapeHTML(capitalize(difficulty)) + "</label>"
+						+ "<input id=\"" + escapeHTML(inputId) + "\" name=\"" + escapeHTML(inputId) + "\" type=\"number\" min=\"0\" step=\"1\" data-point-difficulty=\"" + escapeHTML(difficulty) + "\" value=\"" + escapeHTML(settings[difficulty]) + "\" />";
+					container.appendChild(card);
+				});
+			}
+
+			function renderTimeSettings() {
+				var container = document.getElementById("time-settings-grid");
+				var settings = QuestionBank.getTimeSettings(appState.level, appState.questions);
+				var keys = getTimeDifficultyKeys();
+
+				container.innerHTML = "";
+
+				if (keys.length === 0) {
+					container.innerHTML = "<div class=\"empty\" style=\"grid-column:1 / -1;\">Chưa có dữ liệu loại câu hỏi.</div>";
+					return;
+				}
+
+				keys.forEach(function (difficulty) {
+					var card = document.createElement("div");
+					card.className = "time-card";
+					var inputId = "time-setting-" + difficulty;
+					card.innerHTML = ""
+						+ "<label for=\"" + escapeHTML(inputId) + "\" class=\"small muted\">" + escapeHTML(capitalize(difficulty)) + "</label>"
+						+ "<input id=\"" + escapeHTML(inputId) + "\" name=\"" + escapeHTML(inputId) + "\" type=\"number\" min=\"1\" step=\"1\" data-time-difficulty=\"" + escapeHTML(difficulty) + "\" value=\"" + escapeHTML(settings[difficulty]) + "\" />";
+					container.appendChild(card);
+				});
+			}
+
+			function renderCorrectAnswerOptions(selectedAnswer) {
+				var select = document.getElementById("correct-answer");
+				var currentValue = selectedAnswer || select.value || "A";
+				var html = "";
+
+				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
+					var answerValue = document.getElementById("answer-" + answerKey).value.trim();
+					if (answerKey === "A" || answerKey === "B" || answerValue !== "") {
+						html += "<option value=\"" + answerKey + "\">" + answerKey + "</option>";
+					}
+				});
+
+				select.innerHTML = html;
+
+				if (select.querySelector("option[value=\"" + currentValue + "\"]")) {
+					select.value = currentValue;
+				}
+			}
+
+			function resetQuestionForm() {
+				appState.editingQuestionId = null;
+				appState.editingQuestionIndex = -1;
+				document.getElementById("question-form-title").textContent = "Thêm câu hỏi mới";
+				document.getElementById("save-question-button").textContent = "Lưu câu hỏi";
+				document.getElementById("delete-editing-button").classList.add("hidden");
+				document.getElementById("question-form").reset();
+				document.getElementById("question-difficulty").value = "easy";
+				document.getElementById("question-point").value = getSuggestedPointForDifficulty("easy");
+				document.getElementById("question-time").value = getSuggestedTimeForDifficulty("easy");
+				renderCorrectAnswerOptions("A");
+			}
+
+			function fillFormForQuestion(question, questionIndex) {
+				appState.editingQuestionId = question.id;
+				appState.editingQuestionIndex = questionIndex;
+				document.getElementById("question-form-title").textContent = "Sửa câu hỏi " + question.id;
+				document.getElementById("save-question-button").textContent = "Cập nhật câu hỏi";
+				document.getElementById("delete-editing-button").classList.remove("hidden");
+				document.getElementById("question-id").value = question.id;
+				document.getElementById("question-difficulty").value = question.difficulty || "general";
+				document.getElementById("question-text").value = question.question;
+				document.getElementById("question-point").value = String(question.point);
+				document.getElementById("question-time").value = String(question.time);
+				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
+					document.getElementById("answer-" + answerKey).value = question.answers[answerKey] || "";
+				});
+				renderCorrectAnswerOptions(question.correctAnswer);
+				window.scrollTo({ top: 0, behavior: "smooth" });
+			}
+
+			function buildQuestionFromForm() {
+				var rawQuestion = {
+					id: document.getElementById("question-id").value.trim(),
+					difficulty: document.getElementById("question-difficulty").value,
+					question: document.getElementById("question-text").value.trim(),
+					answers: {},
+					correctAnswer: document.getElementById("correct-answer").value,
+					point: Number(document.getElementById("question-point").value),
+					time: Number(document.getElementById("question-time").value)
+				};
+
+				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
+					var answerValue = document.getElementById("answer-" + answerKey).value.trim();
+					if (answerValue !== "") {
+						rawQuestion.answers[answerKey] = answerValue;
+					}
+				});
+
+				return QuestionBank.validateQuestion(rawQuestion, "Admin question", 0);
+			}
+
+			function renderQuestionTable() {
+				var tableBody = document.getElementById("question-table-body");
+				var answeredMap = getAnsweredEntriesMap();
+
+				if (appState.questions.length === 0) {
+					tableBody.innerHTML = "<tr><td colspan=\"9\" class=\"empty\">Chưa có câu hỏi nào.</td></tr>";
+					return;
+				}
+
+				tableBody.innerHTML = appState.questions.map(function (question, index) {
+					var answeredEntry = answeredMap[question.id] || null;
+					var statusClass = answeredEntry ? "status-" + escapeHTML(answeredEntry.status || "shown") : "status-shown";
+					var statusText = answeredEntry ? escapeHTML(answeredEntry.status || "shown") : "chưa hiện";
+					var answersHTML = QuestionBank.QUESTION_ANSWER_KEYS
+						.filter(function (answerKey) { return question.answers[answerKey] != null; })
+						.map(function (answerKey) {
+							return "<span><strong>" + answerKey + ".</strong> " + escapeHTML(question.answers[answerKey]) + "</span>";
+						})
+						.join("");
+
+					return ""
+						+ "<tr>"
+						+ "<td><strong>" + escapeHTML(question.id) + "</strong></td>"
+						+ "<td>" + escapeHTML(question.difficulty) + "</td>"
+						+ "<td>" + escapeHTML(question.question) + "</td>"
+						+ "<td><div class=\"answers-list\">" + answersHTML + "</div></td>"
+						+ "<td><strong>" + escapeHTML(question.correctAnswer) + "</strong></td>"
+						+ "<td>" + escapeHTML(question.point) + "</td>"
+						+ "<td>" + escapeHTML(question.time) + "s</td>"
+						+ "<td><span class=\"status " + statusClass + "\">" + statusText + "</span></td>"
+						+ "<td>"
+						+ "<div class=\"actions\">"
+						+ "<button type=\"button\" class=\"button-secondary\" data-action=\"edit\" data-index=\"" + index + "\">Sửa</button>"
+						+ "<button type=\"button\" class=\"button-danger\" data-action=\"delete\" data-index=\"" + index + "\">Xoá</button>"
+						+ "</div>"
+						+ "</td>"
+						+ "</tr>";
+				}).join("");
+
+				tableBody.querySelectorAll("button[data-action=\"edit\"]").forEach(function (button) {
+					button.addEventListener("click", function () {
+						var questionIndex = Number(button.getAttribute("data-index"));
+						fillFormForQuestion(appState.questions[questionIndex], questionIndex);
+					});
+				});
+
+				tableBody.querySelectorAll("button[data-action=\"delete\"]").forEach(function (button) {
+					button.addEventListener("click", function () {
+						var questionIndex = Number(button.getAttribute("data-index"));
+						deleteQuestionByIndex(questionIndex);
+					});
+				});
+			}
+
+			function renderAnsweredTable() {
+				var tableBody = document.getElementById("answered-table-body");
+
+				if (appState.answeredEntries.length === 0) {
+					tableBody.innerHTML = "<tr><td colspan=\"4\" class=\"empty\">Chưa có câu nào được ghi nhận.</td></tr>";
+					return;
+				}
+
+				tableBody.innerHTML = appState.answeredEntries.map(function (entry) {
+					var status = entry.status || "shown";
+					return ""
+						+ "<tr>"
+						+ "<td><strong>" + escapeHTML(entry.id) + "</strong><br /><span class=\"small muted\">" + escapeHTML(entry.question) + "</span></td>"
+						+ "<td>" + escapeHTML(entry.difficulty || "general") + "</td>"
+						+ "<td><span class=\"status status-" + escapeHTML(status) + "\">" + escapeHTML(status) + "</span></td>"
+						+ "<td>" + escapeHTML(formatTimestamp(entry.lastAnsweredAt || entry.lastShownAt)) + "</td>"
+						+ "</tr>";
+				}).join("");
+			}
+
+			function setBusyButtons(disabled) {
+				document.querySelectorAll("button").forEach(function (button) {
+					button.disabled = disabled;
+				});
+			}
+
+			function refreshScreen() {
+				renderLevelButtons();
+				renderOverview();
+				renderPointSettings();
+				renderTimeSettings();
+				renderQuestionTable();
+				renderAnsweredTable();
+				renderCorrectAnswerOptions();
+
+				if (appState.editingQuestionId != null) {
+					var currentIndex = appState.questions.findIndex(function (question) {
+						return question.id === appState.editingQuestionId;
+					});
+
+					if (currentIndex === -1) {
+						resetQuestionForm();
+					} else {
+						appState.editingQuestionIndex = currentIndex;
+					}
+				} else {
+					document.getElementById("question-point").value = getSuggestedPointForDifficulty(document.getElementById("question-difficulty").value);
+					document.getElementById("question-time").value = getSuggestedTimeForDifficulty(document.getElementById("question-difficulty").value);
+				}
+			}
+
+			function loadCurrentLevelData() {
+				setBusyButtons(true);
+				hideNotice();
+
+				return Promise.all([
+					QuestionBank.getQuestions(appState.level),
+					Promise.resolve(QuestionBank.getAnsweredEntries(appState.level))
+				])
+					.then(function (results) {
+						appState.questions = results[0];
+						appState.answeredEntries = results[1];
+						refreshScreen();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể tải dữ liệu.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function switchLevel(level) {
+				if (level === appState.level) {
+					return;
+				}
+
+				appState.level = level;
+				resetQuestionForm();
+				loadCurrentLevelData();
+			}
+
+			function deleteQuestionByIndex(questionIndex) {
+				if (appState.questions.length <= 1) {
+					showNotice("Mỗi lớp phải còn ít nhất 1 câu hỏi. Không thể xoá câu cuối cùng.", "error");
+					return;
+				}
+
+				var question = appState.questions[questionIndex];
+				if (!question) {
+					return;
+				}
+
+				if (window.confirm("Xoá câu hỏi \"" + question.id + "\"?") !== true) {
+					return;
+				}
+
+				var nextQuestions = appState.questions.slice();
+				nextQuestions.splice(questionIndex, 1);
+
+				setBusyButtons(true);
+				Promise.resolve(QuestionBank.saveQuestions(appState.level, nextQuestions))
+					.then(function () {
+						if (appState.editingQuestionId === question.id) {
+							resetQuestionForm();
+						}
+						showNotice("Đã xoá câu hỏi " + question.id + ".", "success");
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể xoá câu hỏi.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleQuestionSubmit(event) {
+				event.preventDefault();
+				hideNotice();
+
+				var normalizedQuestion;
+				try {
+					normalizedQuestion = buildQuestionFromForm();
+				} catch (error) {
+					showNotice(error.message || "Dữ liệu câu hỏi chưa hợp lệ.", "error");
+					return;
+				}
+
+				var nextQuestions = appState.questions.slice();
+				var insertIndex = appState.editingQuestionIndex;
+
+				if (insertIndex >= 0) {
+					nextQuestions.splice(insertIndex, 1);
+				} else {
+					insertIndex = nextQuestions.length;
+				}
+
+				if (nextQuestions.some(function (question) { return question.id === normalizedQuestion.id; })) {
+					showNotice("ID câu hỏi \"" + normalizedQuestion.id + "\" đã tồn tại trong lớp này.", "error");
+					return;
+				}
+
+				nextQuestions.splice(insertIndex, 0, normalizedQuestion);
+
+				setBusyButtons(true);
+				Promise.resolve(QuestionBank.saveQuestions(appState.level, nextQuestions))
+					.then(function () {
+						showNotice(appState.editingQuestionId == null ? "Đã thêm câu hỏi mới." : "Đã cập nhật câu hỏi " + normalizedQuestion.id + ".", "success");
+						resetQuestionForm();
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể lưu câu hỏi.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleDeleteEditingQuestion() {
+				if (appState.editingQuestionIndex < 0) {
+					return;
+				}
+
+				deleteQuestionByIndex(appState.editingQuestionIndex);
+			}
+
+			function handleSaveTimes() {
+				hideNotice();
+
+				var settings = {};
+				document.querySelectorAll("[data-time-difficulty]").forEach(function (input) {
+					settings[input.getAttribute("data-time-difficulty")] = Number(input.value);
+				});
+
+				setBusyButtons(true);
+				QuestionBank.updateQuestionsTimeByDifficulty(appState.level, settings)
+					.then(function () {
+						showNotice("Đã cập nhật thời gian theo loại câu hỏi.", "success");
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể cập nhật thời gian.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleSavePoints() {
+				hideNotice();
+
+				var settings = {};
+				document.querySelectorAll("[data-point-difficulty]").forEach(function (input) {
+					settings[input.getAttribute("data-point-difficulty")] = Number(input.value);
+				});
+
+				setBusyButtons(true);
+				QuestionBank.updateQuestionsPointByDifficulty(appState.level, settings)
+					.then(function () {
+						showNotice("Đã cập nhật điểm theo loại câu hỏi.", "success");
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể cập nhật điểm.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleResetAnswered() {
+				if (window.confirm("Reset danh sách đã trả lời của lớp hiện tại?") !== true) {
+					return;
+				}
+
+				hideNotice();
+				QuestionBank.resetAnsweredQuestions(appState.level);
+				showNotice("Đã reset danh sách đã trả lời của lớp hiện tại.", "success");
+				loadCurrentLevelData();
+			}
+
+			function bindEvents() {
+				document.getElementById("question-form").addEventListener("submit", handleQuestionSubmit);
+				document.getElementById("reset-form-button").addEventListener("click", function () {
+					resetQuestionForm();
+					hideNotice();
+				});
+				document.getElementById("question-difficulty").addEventListener("change", function (event) {
+					document.getElementById("question-point").value = getSuggestedPointForDifficulty(event.target.value);
+					document.getElementById("question-time").value = getSuggestedTimeForDifficulty(event.target.value);
+				});
+				document.getElementById("delete-editing-button").addEventListener("click", handleDeleteEditingQuestion);
+				document.getElementById("save-points-button").addEventListener("click", handleSavePoints);
+				document.getElementById("save-times-button").addEventListener("click", handleSaveTimes);
+				document.getElementById("reset-answered-button").addEventListener("click", handleResetAnswered);
+				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
+					document.getElementById("answer-" + answerKey).addEventListener("input", function () {
+						renderCorrectAnswerOptions();
+					});
+				});
+			}
+
+			function initializeAdminPage() {
+				appState.isInitialized = true;
+				bindEvents();
+				resetQuestionForm();
+				loadCurrentLevelData();
+			}
+
+			requireAdminAccess();
+		</script>
+	</body>
+</html>

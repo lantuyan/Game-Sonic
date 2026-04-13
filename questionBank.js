@@ -1,30 +1,24 @@
 (function (global) {
 	"use strict";
 
-	var LEVELS = ["lop6", "lop7", "lop8"];
-	var LEVEL_LABELS = {
-		lop6: "Lop 6",
-		lop7: "Lop 7",
-		lop8: "Lop 8"
-	};
-	var QUESTION_ANSWER_KEYS = ["A", "B", "C", "D"];
-	var DIFFICULTY_ORDER = ["easy", "medium", "hard", "expert"];
+	if (global.QuestionModel == null) {
+		throw new Error("QuestionModel is required before loading questionBank.js.");
+	}
+
+	var QuestionModel = global.QuestionModel;
+	var LEVELS = QuestionModel.LEVELS.slice();
+	var LEVEL_LABELS = QuestionModel.cloneData(QuestionModel.LEVEL_LABELS);
+	var QUESTION_ANSWER_KEYS = QuestionModel.QUESTION_ANSWER_KEYS.slice();
+	var DIFFICULTY_ORDER = QuestionModel.DIFFICULTY_ORDER.slice();
 	var STORAGE_KEYS = {
-		questions: "endlessrunner-question-bank-v1",
-		answered: "endlessrunner-question-progress-v1",
-		timeSettings: "endlessrunner-question-time-settings-v1",
-		pointSettings: "endlessrunner-question-point-settings-v1"
-	};
-	var questionFilesByLevel = {
-		lop6: "questions/lop6.json",
-		lop7: "questions/lop7.json",
-		lop8: "questions/lop8.json"
+		answered: "endlessrunner-question-progress-v1"
 	};
 	var inMemoryStorage = {};
-	var baseQuestionsPromiseByLevel = {};
+	var levelBundleCache = {};
+	var levelBundlePromiseByLevel = {};
 
 	function cloneData(value) {
-		return JSON.parse(JSON.stringify(value));
+		return QuestionModel.cloneData(value);
 	}
 
 	function canUseLocalStorage() {
@@ -33,7 +27,7 @@
 			global.localStorage.setItem(storageKey, storageKey);
 			global.localStorage.removeItem(storageKey);
 			return true;
-		} catch (err) {
+		} catch (error) {
 			return false;
 		}
 	}
@@ -45,7 +39,7 @@
 
 		try {
 			rawValue = localStorageAvailable ? global.localStorage.getItem(key) : inMemoryStorage[key];
-		} catch (err) {
+		} catch (error) {
 			rawValue = inMemoryStorage[key];
 		}
 
@@ -55,7 +49,7 @@
 
 		try {
 			return JSON.parse(rawValue);
-		} catch (err) {
+		} catch (error) {
 			return cloneData(fallbackValue);
 		}
 	}
@@ -67,16 +61,10 @@
 			if (localStorageAvailable) {
 				global.localStorage.setItem(key, serializedValue);
 			}
-		} catch (err) {
+		} catch (error) {
 		}
 
 		inMemoryStorage[key] = serializedValue;
-	}
-
-	function createEmptyQuestionsState() {
-		return {
-			levels: {}
-		};
 	}
 
 	function createEmptyAnsweredState() {
@@ -85,176 +73,145 @@
 		};
 	}
 
-	function createEmptyTimeSettingsState() {
-		return {
-			levels: {}
-		};
-	}
-
-	function createEmptyPointSettingsState() {
-		return {
-			levels: {}
-		};
-	}
-
-	function getQuestionFileForLevel(level) {
-		return questionFilesByLevel[level] || null;
-	}
-
 	function assertLevel(level) {
-		if (LEVELS.indexOf(level) === -1) {
-			throw new Error("Unknown question level: \"" + level + "\".");
-		}
+		QuestionModel.assertLevel(level);
 	}
 
-	function normalizeDifficulty(value) {
-		var normalizedValue = String(value == null ? "" : value).trim().toLowerCase();
-
-		if (normalizedValue === "") {
-			return "general";
-		}
-
-		return normalizedValue;
+	function createLevelApiPath(level, suffix) {
+		return "/api/levels/" + encodeURIComponent(level) + "/" + suffix;
 	}
 
-	function normalizePositiveNumber(value, fieldName, questionId, minimumValue, mustBeInteger) {
-		var numericValue = Number(value);
-
-		if (isFinite(numericValue) === false || numericValue < minimumValue) {
-			throw new Error("Question \"" + questionId + "\" has an invalid \"" + fieldName + "\" value.");
-		}
-
-		if (mustBeInteger === true && Math.floor(numericValue) !== numericValue) {
-			throw new Error("Question \"" + questionId + "\" must use an integer \"" + fieldName + "\" value.");
-		}
-
-		return numericValue;
-	}
-
-	function validateQuestion(questionData, sourceLabel, questionIndex) {
-		if (questionData == null || typeof questionData !== "object" || Array.isArray(questionData) === true) {
-			throw new Error("Question #" + (questionIndex + 1) + " must be an object.");
-		}
-
-		var questionId = String(questionData.id || "").trim();
-		if (questionId === "") {
-			throw new Error("Question #" + (questionIndex + 1) + " is missing a valid \"id\".");
-		}
-
-		var questionText = String(questionData.question || "").trim();
-		if (questionText === "") {
-			throw new Error("Question \"" + questionId + "\" is missing a valid \"question\".");
-		}
-
-		if (questionData.answers == null || typeof questionData.answers !== "object" || Array.isArray(questionData.answers) === true) {
-			throw new Error("Question \"" + questionId + "\" is missing a valid \"answers\" object.");
-		}
-
-		var normalizedAnswers = {};
-		var availableAnswers = [];
-
-		QUESTION_ANSWER_KEYS.forEach(function (answerKey, answerIndex) {
-			var rawAnswer = Object.prototype.hasOwnProperty.call(questionData.answers, answerKey) ? questionData.answers[answerKey] : "";
-			var answerText = String(rawAnswer == null ? "" : rawAnswer).trim();
-
-			if (answerText === "") {
-				return;
+	function parseJsonResponse(response) {
+		return response.text().then(function (responseText) {
+			if (responseText.trim() === "") {
+				return {};
 			}
 
-			if (answerIndex !== availableAnswers.length) {
-				throw new Error("Question \"" + questionId + "\" must define answers in order starting from \"A\" without gaps.");
+			try {
+				return JSON.parse(responseText);
+			} catch (error) {
+				throw new Error("Server returned invalid JSON.");
+			}
+		});
+	}
+
+	function fetchJson(url, options) {
+		return fetch(url, Object.assign({
+			cache: "no-store",
+			credentials: "same-origin"
+		}, options || {}))
+			.then(function (response) {
+				return parseJsonResponse(response).then(function (payload) {
+					if (response.ok !== true) {
+						throw new Error(payload && payload.error ? payload.error : "Request failed (HTTP " + response.status + ").");
+					}
+
+					return payload;
+				});
+			});
+	}
+
+	function normalizeSettings(fieldName, settings) {
+		return QuestionModel.normalizeSettings(settings || {}, fieldName);
+	}
+
+	function normalizeLevelBundle(level, bundle) {
+		var normalizedBundle = bundle != null && typeof bundle === "object" ? bundle : {};
+		var questions = QuestionModel.validateQuestionsData(normalizedBundle.questions, "Question bank for " + level);
+		var pointSettings = normalizeSettings("point", normalizedBundle.pointSettings);
+		var timeSettings = normalizeSettings("time", normalizedBundle.timeSettings);
+
+		QuestionModel.getDifficultySummary(questions).forEach(function (item) {
+			if (pointSettings[item.difficulty] == null) {
+				pointSettings[item.difficulty] = item.point;
 			}
 
-			normalizedAnswers[answerKey] = answerText;
-			availableAnswers.push(answerKey);
+			if (timeSettings[item.difficulty] == null) {
+				timeSettings[item.difficulty] = item.time;
+			}
 		});
 
-		if (availableAnswers.length < 2) {
-			throw new Error("Question \"" + questionId + "\" must define at least two answers.");
-		}
-
-		var correctAnswer = String(questionData.correctAnswer || "").trim().toUpperCase();
-		if (availableAnswers.indexOf(correctAnswer) === -1) {
-			throw new Error("Question \"" + questionId + "\" has an invalid \"correctAnswer\".");
-		}
-
 		return {
-			id: questionId,
-			difficulty: normalizeDifficulty(questionData.difficulty),
-			question: questionText,
-			answers: normalizedAnswers,
-			availableAnswers: availableAnswers,
-			correctAnswer: correctAnswer,
-			point: normalizePositiveNumber(questionData.point, "point", questionId, 0, false),
-			time: normalizePositiveNumber(questionData.time, "time", questionId, 1, true)
+			questions: questions,
+			pointSettings: pointSettings,
+			timeSettings: timeSettings
 		};
 	}
 
-	function validateQuestionsData(data, sourceLabel) {
-		if (Array.isArray(data) === false) {
-			throw new Error(sourceLabel + " must contain an array of questions.");
-		}
-
-		if (data.length === 0) {
-			throw new Error(sourceLabel + " is empty.");
-		}
-
-		var usedIds = {};
-		return data.map(function (questionData, index) {
-			var normalizedQuestion = validateQuestion(questionData, sourceLabel, index);
-
-			if (usedIds[normalizedQuestion.id] === true) {
-				throw new Error(sourceLabel + " contains a duplicate id: \"" + normalizedQuestion.id + "\".");
-			}
-
-			usedIds[normalizedQuestion.id] = true;
-			return normalizedQuestion;
-		});
+	function cacheLevelBundle(level, bundle) {
+		levelBundleCache[level] = cloneData(bundle);
+		return cloneData(levelBundleCache[level]);
 	}
 
-	function fetchBaseQuestions(level) {
+	function requestLevelBundle(level) {
 		assertLevel(level);
 
-		if (baseQuestionsPromiseByLevel[level] == null) {
-			var questionFile = getQuestionFileForLevel(level);
+		return fetchJson(createLevelApiPath(level, "question-bank"))
+			.then(function (bundle) {
+				return cacheLevelBundle(level, normalizeLevelBundle(level, bundle));
+			});
+	}
 
-			baseQuestionsPromiseByLevel[level] = fetch(questionFile, { cache: "no-store" })
-				.then(function (response) {
-					if (response.ok !== true) {
-						throw new Error(questionFile + " could not be loaded (HTTP " + response.status + ").");
-					}
+	function getLevelBundle(level, options) {
+		assertLevel(level);
 
-					return response.text();
+		var forceReload = options != null && options.forceReload === true;
+
+		if (forceReload !== true && levelBundleCache[level] != null) {
+			return Promise.resolve(cloneData(levelBundleCache[level]));
+		}
+
+		if (forceReload === true || levelBundlePromiseByLevel[level] == null) {
+			levelBundlePromiseByLevel[level] = requestLevelBundle(level)
+				.catch(function (error) {
+					delete levelBundlePromiseByLevel[level];
+					throw error;
 				})
-				.then(function (responseText) {
-					var trimmedResponseText = responseText.trim();
-
-					if (trimmedResponseText === "") {
-						throw new Error(questionFile + " is empty.");
-					}
-
-					var parsedQuestions;
-					try {
-						parsedQuestions = JSON.parse(trimmedResponseText);
-					} catch (err) {
-						throw new Error(questionFile + " contains invalid JSON.");
-					}
-
-					return validateQuestionsData(parsedQuestions, questionFile);
+				.then(function (bundle) {
+					levelBundlePromiseByLevel[level] = Promise.resolve(cloneData(bundle));
+					return bundle;
 				});
 		}
 
-		return baseQuestionsPromiseByLevel[level].then(function (questions) {
-			return cloneData(questions);
+		return levelBundlePromiseByLevel[level].then(function (bundle) {
+			return cloneData(bundle);
 		});
 	}
 
-	function getSavedQuestionsState() {
-		return readStorage(STORAGE_KEYS.questions, createEmptyQuestionsState());
+	function sendLevelUpdate(level, suffix, payload) {
+		assertLevel(level);
+
+		return fetchJson(createLevelApiPath(level, suffix), {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(payload)
+		}).then(function (bundle) {
+			return cacheLevelBundle(level, normalizeLevelBundle(level, bundle));
+		});
 	}
 
-	function saveQuestionsState(state) {
-		writeStorage(STORAGE_KEYS.questions, state);
+	function getQuestions(level) {
+		return getLevelBundle(level).then(function (bundle) {
+			return cloneData(bundle.questions);
+		});
+	}
+
+	function saveQuestions(level, questions) {
+		var normalizedQuestions = QuestionModel.validateQuestionsData(questions, "Questions for " + level);
+
+		return sendLevelUpdate(level, "questions", {
+			questions: normalizedQuestions
+		}).then(function (bundle) {
+			return cloneData(bundle.questions);
+		});
+	}
+
+	function restoreBaseQuestions(level) {
+		delete levelBundleCache[level];
+		delete levelBundlePromiseByLevel[level];
+		return getQuestions(level);
 	}
 
 	function getAnsweredState() {
@@ -263,63 +220,6 @@
 
 	function saveAnsweredState(state) {
 		writeStorage(STORAGE_KEYS.answered, state);
-	}
-
-	function getTimeSettingsState() {
-		return readStorage(STORAGE_KEYS.timeSettings, createEmptyTimeSettingsState());
-	}
-
-	function saveTimeSettingsState(state) {
-		writeStorage(STORAGE_KEYS.timeSettings, state);
-	}
-
-	function getPointSettingsState() {
-		return readStorage(STORAGE_KEYS.pointSettings, createEmptyPointSettingsState());
-	}
-
-	function savePointSettingsState(state) {
-		writeStorage(STORAGE_KEYS.pointSettings, state);
-	}
-
-	function getSavedQuestionsForLevel(level) {
-		assertLevel(level);
-		var state = getSavedQuestionsState();
-		var questions = state.levels[level];
-
-		if (Array.isArray(questions) === false) {
-			return null;
-		}
-
-		return validateQuestionsData(questions, "Saved questions for " + level);
-	}
-
-	function getQuestions(level) {
-		var savedQuestions = getSavedQuestionsForLevel(level);
-
-		if (savedQuestions != null) {
-			return Promise.resolve(cloneData(savedQuestions));
-		}
-
-		return fetchBaseQuestions(level);
-	}
-
-	function saveQuestions(level, questions) {
-		assertLevel(level);
-
-		var normalizedQuestions = validateQuestionsData(questions, "Questions for " + level);
-		var state = getSavedQuestionsState();
-		state.levels[level] = normalizedQuestions;
-		saveQuestionsState(state);
-
-		return cloneData(normalizedQuestions);
-	}
-
-	function restoreBaseQuestions(level) {
-		assertLevel(level);
-
-		var state = getSavedQuestionsState();
-		delete state.levels[level];
-		saveQuestionsState(state);
 	}
 
 	function getAnsweredEntriesMap(level) {
@@ -377,7 +277,7 @@
 			level: level,
 			id: question.id,
 			question: question.question,
-			difficulty: normalizeDifficulty(question.difficulty),
+			difficulty: QuestionModel.normalizeDifficulty(question.difficulty),
 			firstShownAt: currentEntry.firstShownAt || now,
 			lastShownAt: now,
 			shownCount: shownCount,
@@ -469,65 +369,30 @@
 		saveAnsweredState(state);
 	}
 
-	function getDifficultySummary(questions) {
-		var summaryMap = {};
+	function getCachedBundle(level) {
+		assertLevel(level);
 
-		questions.forEach(function (question) {
-			var difficulty = normalizeDifficulty(question.difficulty);
+		if (levelBundleCache[level] == null) {
+			return null;
+		}
 
-			if (summaryMap[difficulty] == null) {
-				summaryMap[difficulty] = {
-					difficulty: difficulty,
-					count: 0,
-					time: question.time,
-					point: question.point
-				};
-			}
-
-			summaryMap[difficulty].count += 1;
-		});
-
-		var summaryList = Object.keys(summaryMap).map(function (difficultyKey) {
-			return summaryMap[difficultyKey];
-		});
-
-		summaryList.sort(function (itemA, itemB) {
-			var indexA = DIFFICULTY_ORDER.indexOf(itemA.difficulty);
-			var indexB = DIFFICULTY_ORDER.indexOf(itemB.difficulty);
-
-			if (indexA === -1 && indexB === -1) {
-				return itemA.difficulty.localeCompare(itemB.difficulty);
-			}
-
-			if (indexA === -1) {
-				return 1;
-			}
-
-			if (indexB === -1) {
-				return -1;
-			}
-
-			return indexA - indexB;
-		});
-
-		return summaryList;
+		return cloneData(levelBundleCache[level]);
 	}
 
 	function getTimeSettings(level, questions) {
 		assertLevel(level);
 
-		var state = getTimeSettingsState();
-		var savedSettings = state.levels[level];
 		var result = {};
+		var cachedBundle = getCachedBundle(level);
 
-		if (savedSettings != null && typeof savedSettings === "object" && Array.isArray(savedSettings) === false) {
-			Object.keys(savedSettings).forEach(function (difficulty) {
-				result[difficulty] = Number(savedSettings[difficulty]);
+		if (cachedBundle != null) {
+			Object.keys(cachedBundle.timeSettings).forEach(function (difficulty) {
+				result[difficulty] = Number(cachedBundle.timeSettings[difficulty]);
 			});
 		}
 
 		if (Array.isArray(questions) === true) {
-			getDifficultySummary(questions).forEach(function (item) {
+			QuestionModel.getDifficultySummary(questions).forEach(function (item) {
 				if (result[item.difficulty] == null || isFinite(result[item.difficulty]) === false || result[item.difficulty] <= 0) {
 					result[item.difficulty] = item.time;
 				}
@@ -537,37 +402,20 @@
 		return result;
 	}
 
-	function saveTimeSettings(level, settings) {
-		assertLevel(level);
-
-		var normalizedSettings = {};
-		Object.keys(settings || {}).forEach(function (difficulty) {
-			var normalizedDifficulty = normalizeDifficulty(difficulty);
-			normalizedSettings[normalizedDifficulty] = normalizePositiveNumber(settings[difficulty], "time", "time:" + normalizedDifficulty, 1, true);
-		});
-
-		var state = getTimeSettingsState();
-		state.levels[level] = normalizedSettings;
-		saveTimeSettingsState(state);
-
-		return cloneData(normalizedSettings);
-	}
-
 	function getPointSettings(level, questions) {
 		assertLevel(level);
 
-		var state = getPointSettingsState();
-		var savedSettings = state.levels[level];
 		var result = {};
+		var cachedBundle = getCachedBundle(level);
 
-		if (savedSettings != null && typeof savedSettings === "object" && Array.isArray(savedSettings) === false) {
-			Object.keys(savedSettings).forEach(function (difficulty) {
-				result[difficulty] = Number(savedSettings[difficulty]);
+		if (cachedBundle != null) {
+			Object.keys(cachedBundle.pointSettings).forEach(function (difficulty) {
+				result[difficulty] = Number(cachedBundle.pointSettings[difficulty]);
 			});
 		}
 
 		if (Array.isArray(questions) === true) {
-			getDifficultySummary(questions).forEach(function (item) {
+			QuestionModel.getDifficultySummary(questions).forEach(function (item) {
 				if (result[item.difficulty] == null || isFinite(result[item.difficulty]) === false || result[item.difficulty] < 0) {
 					result[item.difficulty] = item.point;
 				}
@@ -577,20 +425,20 @@
 		return result;
 	}
 
-	function savePointSettings(level, settings) {
-		assertLevel(level);
-
-		var normalizedSettings = {};
-		Object.keys(settings || {}).forEach(function (difficulty) {
-			var normalizedDifficulty = normalizeDifficulty(difficulty);
-			normalizedSettings[normalizedDifficulty] = normalizePositiveNumber(settings[difficulty], "point", "point:" + normalizedDifficulty, 0, false);
+	function saveTimeSettings(level, settings) {
+		return sendLevelUpdate(level, "settings/time", {
+			settings: normalizeSettings("time", settings)
+		}).then(function (bundle) {
+			return cloneData(bundle.timeSettings);
 		});
+	}
 
-		var state = getPointSettingsState();
-		state.levels[level] = normalizedSettings;
-		savePointSettingsState(state);
-
-		return cloneData(normalizedSettings);
+	function savePointSettings(level, settings) {
+		return sendLevelUpdate(level, "settings/point", {
+			settings: normalizeSettings("point", settings)
+		}).then(function (bundle) {
+			return cloneData(bundle.pointSettings);
+		});
 	}
 
 	function applyTimeSettingsToQuestions(questions, settings) {
@@ -598,10 +446,10 @@
 
 		return questions.map(function (question) {
 			var normalizedQuestion = cloneData(question);
-			var difficulty = normalizeDifficulty(normalizedQuestion.difficulty);
+			var difficulty = QuestionModel.normalizeDifficulty(normalizedQuestion.difficulty);
 
 			if (normalizedSettings[difficulty] != null) {
-				normalizedQuestion.time = normalizePositiveNumber(normalizedSettings[difficulty], "time", normalizedQuestion.id, 1, true);
+				normalizedQuestion.time = QuestionModel.normalizePositiveNumber(normalizedSettings[difficulty], "time", normalizedQuestion.id, 1, true);
 			}
 
 			return normalizedQuestion;
@@ -613,10 +461,10 @@
 
 		return questions.map(function (question) {
 			var normalizedQuestion = cloneData(question);
-			var difficulty = normalizeDifficulty(normalizedQuestion.difficulty);
+			var difficulty = QuestionModel.normalizeDifficulty(normalizedQuestion.difficulty);
 
 			if (normalizedSettings[difficulty] != null) {
-				normalizedQuestion.point = normalizePositiveNumber(normalizedSettings[difficulty], "point", normalizedQuestion.id, 0, false);
+				normalizedQuestion.point = QuestionModel.normalizePositiveNumber(normalizedSettings[difficulty], "point", normalizedQuestion.id, 0, false);
 			}
 
 			return normalizedQuestion;
@@ -624,18 +472,14 @@
 	}
 
 	function updateQuestionsTimeByDifficulty(level, settings) {
-		return getQuestions(level).then(function (questions) {
-			var savedSettings = saveTimeSettings(level, settings);
-			var updatedQuestions = applyTimeSettingsToQuestions(questions, savedSettings);
-			return saveQuestions(level, updatedQuestions);
+		return saveTimeSettings(level, settings).then(function () {
+			return getQuestions(level);
 		});
 	}
 
 	function updateQuestionsPointByDifficulty(level, settings) {
-		return getQuestions(level).then(function (questions) {
-			var savedSettings = savePointSettings(level, settings);
-			var updatedQuestions = applyPointSettingsToQuestions(questions, savedSettings);
-			return saveQuestions(level, updatedQuestions);
+		return savePointSettings(level, settings).then(function () {
+			return getQuestions(level);
 		});
 	}
 
@@ -644,10 +488,11 @@
 		LEVEL_LABELS: cloneData(LEVEL_LABELS),
 		QUESTION_ANSWER_KEYS: QUESTION_ANSWER_KEYS.slice(),
 		DIFFICULTY_ORDER: DIFFICULTY_ORDER.slice(),
-		getQuestionFileForLevel: getQuestionFileForLevel,
-		validateQuestion: validateQuestion,
-		validateQuestionsData: validateQuestionsData,
-		fetchBaseQuestions: fetchBaseQuestions,
+		validateQuestion: QuestionModel.validateQuestion,
+		validateQuestionsData: QuestionModel.validateQuestionsData,
+		getDifficultySummary: QuestionModel.getDifficultySummary,
+		fetchBaseQuestions: getQuestions,
+		getLevelBundle: getLevelBundle,
 		getQuestions: getQuestions,
 		saveQuestions: saveQuestions,
 		restoreBaseQuestions: restoreBaseQuestions,
@@ -658,14 +503,13 @@
 		markQuestionShown: markQuestionShown,
 		markQuestionResult: markQuestionResult,
 		resetAnsweredQuestions: resetAnsweredQuestions,
-		getDifficultySummary: getDifficultySummary,
 		getPointSettings: getPointSettings,
 		savePointSettings: savePointSettings,
 		getTimeSettings: getTimeSettings,
 		saveTimeSettings: saveTimeSettings,
 		applyPointSettingsToQuestions: applyPointSettingsToQuestions,
+		applyTimeSettingsToQuestions: applyTimeSettingsToQuestions,
 		updateQuestionsTimeByDifficulty: updateQuestionsTimeByDifficulty,
-		updateQuestionsPointByDifficulty: updateQuestionsPointByDifficulty,
-		applyTimeSettingsToQuestions: applyTimeSettingsToQuestions
+		updateQuestionsPointByDifficulty: updateQuestionsPointByDifficulty
 	};
 })(window);

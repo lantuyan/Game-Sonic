@@ -4,11 +4,9 @@ const filesToCache = [
 	"admin.html",
 	"EndlessRunner.htm",
 	"EndlessRunner.js",
+	"shared/questionModel.js",
 	"questionBank.js",
 	"EndlessRunner.json",
-	"questions/lop6.json",
-	"questions/lop7.json",
-	"questions/lop8.json",
 	"EndlessRunner.png",
 	"EndlessRunnerFavIcon_16x16.png",
 	"EndlessRunnerFavIcon_192x192.png",
@@ -16,75 +14,73 @@ const filesToCache = [
 	"EndlessRunnerShare.png"
 ];
 
-const staticCacheName = "endlessrunner-v7";
+const staticCacheName = "endlessrunner-static-v8";
+const apiCacheName = "endlessrunner-api-v1";
 
 self.addEventListener("install", event => {
 	event.waitUntil(
 		caches.open(staticCacheName)
-		.then(cache => {
-			return cache.addAll(filesToCache);
-		})
-		.then(() => self.skipWaiting())
+			.then(cache => cache.addAll(filesToCache))
+			.then(() => self.skipWaiting())
 	);
 });
 
 self.addEventListener("activate", event => {
 	event.waitUntil(
 		caches.keys()
-		.then(cacheNames => Promise.all(
-			cacheNames
-				.filter(cacheName => cacheName !== staticCacheName)
-				.map(cacheName => caches.delete(cacheName))
-		))
-		.then(() => self.clients.claim())
+			.then(cacheNames => Promise.all(
+				cacheNames
+					.filter(cacheName => cacheName !== staticCacheName && cacheName !== apiCacheName)
+					.map(cacheName => caches.delete(cacheName))
+			))
+			.then(() => self.clients.claim())
 	);
 });
 
 self.addEventListener("fetch", event => {
-	const requestUrl = new URL(event.request.url);
-	const isRootNavigationRequest = event.request.mode === "navigate" && (requestUrl.pathname.endsWith("/") || requestUrl.pathname.endsWith("/index.html"));
+	const request = event.request;
+	const requestUrl = new URL(request.url);
+	const isRootNavigationRequest = request.mode === "navigate" && (requestUrl.pathname.endsWith("/") || requestUrl.pathname.endsWith("/index.html"));
 	const isGameShellRequest = requestUrl.pathname.endsWith("/EndlessRunner.htm") || requestUrl.pathname === "/EndlessRunner.htm";
 	const isAdminShellRequest = requestUrl.pathname.endsWith("/admin.html") || requestUrl.pathname === "/admin.html";
-	const isQuestionsRequest = requestUrl.pathname.indexOf("/questions/") !== -1 && requestUrl.pathname.endsWith(".json");
+	const isQuestionBankApiRequest = request.method === "GET" && /^\/api\/levels\/[^/]+\/question-bank$/.test(requestUrl.pathname);
+	const isApiRequest = requestUrl.pathname.startsWith("/api/");
 
 	if (isRootNavigationRequest || isGameShellRequest || isAdminShellRequest) {
 		event.respondWith(
-			fetch(event.request)
-			.then(networkResponse => {
-				if (networkResponse && networkResponse.ok) {
-					const networkResponseClone = networkResponse.clone();
-					caches.open(staticCacheName).then(cache => cache.put(event.request, networkResponseClone));
-				}
-				return networkResponse;
-			})
-			.catch(() => caches.match(event.request).then(response => response || caches.match("./")))
+			fetch(request)
+				.then(networkResponse => {
+					if (networkResponse && networkResponse.ok) {
+						caches.open(staticCacheName).then(cache => cache.put(request, networkResponse.clone()));
+					}
+					return networkResponse;
+				})
+				.catch(() => caches.match(request).then(response => response || caches.match("./")))
 		);
 		return;
 	}
 
-	if (isQuestionsRequest) {
+	if (isQuestionBankApiRequest) {
 		event.respondWith(
-			fetch(event.request)
-			.then(networkResponse => {
-				if (networkResponse && networkResponse.ok) {
-					const networkResponseClone = networkResponse.clone();
-					caches.open(staticCacheName).then(cache => cache.put(event.request, networkResponseClone));
-				}
-				return networkResponse;
-			})
-			.catch(() => caches.match(event.request))
+			fetch(request)
+				.then(networkResponse => {
+					if (networkResponse && networkResponse.ok) {
+						caches.open(apiCacheName).then(cache => cache.put(request, networkResponse.clone()));
+					}
+					return networkResponse;
+				})
+				.catch(() => caches.match(request).then(response => response || Promise.reject(new Error("Question bank request failed."))))
 		);
+		return;
+	}
+
+	if (isApiRequest) {
+		event.respondWith(fetch(request));
 		return;
 	}
 
 	event.respondWith(
-		caches.match(event.request)
-		.then(response => {
-			if (response) {
-				return response;
-			}
-			return fetch(event.request);
-		}).catch(() => {
-		})
+		caches.match(request)
+			.then(response => response || fetch(request))
 	);
 });

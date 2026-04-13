@@ -1,12 +1,53 @@
 # Endless Runner
 
-Endless Runner game developed in JavaScript.
+Endless Runner game developed in JavaScript, now running with a small Node.js backend and SQLite question database.
 
 ![alt screenshot](https://raw.githubusercontent.com/lrusso/EndlessRunner/master/EndlessRunner.png)
 
-## Web
+## Local setup
 
-https://lrusso.github.io/EndlessRunner/EndlessRunner.htm
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Generate an admin password hash:
+
+```bash
+npm run hash-password -- your-admin-password
+```
+
+3. Create `.env` from `.env.example` and fill:
+
+```env
+PORT=3000
+JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_PASSWORD_HASH=paste-generated-hash-here
+```
+
+4. Start the app:
+
+```bash
+npm start
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+## Development notes
+
+- Frontend assets are still plain HTML/JS files served by the backend.
+- Question data is stored in SQLite at `.runtime/game-sonic-running.sqlite`.
+- `questions/lop6.json`, `lop7.json`, `lop8.json` are used only to seed the database the first time an empty DB starts.
+- Admin login is now validated by the backend and stored in an `HttpOnly` cookie.
+- Player progress for shown/answered questions is still stored locally in the browser.
+
+## Scripts
+
+- `npm start`: start the production-style server
+- `npm run dev`: start the server in watch mode
+- `npm test`: run integration tests
+- `npm run hash-password -- <password>`: generate a bcrypt hash for `.env`
 
 ## Disclaimer
 

@@ -163,10 +163,10 @@
 		</style>
 	</head>
 	<body>
-		<div id="admin-auth-shell" class="auth-shell">
-			<section class="auth-card">
-				<h1>Đăng nhập admin</h1>
-				<p>Nhập mật khẩu để vào trang quản lý câu hỏi.</p>
+			<div id="admin-auth-shell" class="auth-shell">
+				<section class="auth-card">
+					<h1>Đăng nhập admin</h1>
+					<p>Nhập mật khẩu admin của server để vào trang quản lý câu hỏi.</p>
 				<form id="admin-auth-form">
 					<div class="field">
 						<label for="admin-password-input">Mật khẩu</label>
@@ -181,16 +181,17 @@
 			</section>
 		</div>
 
-		<div id="admin-page" class="page hidden">
-			<header class="hero">
-				<div>
-					<h1>Trang admin câu hỏi</h1>
-					<p>Trang này quản lý câu hỏi theo từng lớp, lưu trạng thái câu đã hiển thị/trả lời, và cập nhật dữ liệu cục bộ của trình duyệt cho game. Sau khi chỉnh xong, quay lại game và chọn lại lớp để thấy thay đổi.</p>
-				</div>
-				<div class="hero-actions">
-					<a class="button-home" href="index.html">Về màn hình chính</a>
-				</div>
-			</header>
+			<div id="admin-page" class="page hidden">
+				<header class="hero">
+					<div>
+						<h1>Trang admin câu hỏi</h1>
+						<p>Trang này quản lý question bank theo từng lớp trên server. Dữ liệu câu hỏi được lưu trong database; trạng thái câu đã hiển thị hoặc trả lời vẫn chỉ lưu cục bộ trên từng trình duyệt chơi game.</p>
+					</div>
+					<div class="hero-actions">
+						<button id="admin-logout-button" class="button-secondary" type="button">Đăng xuất</button>
+						<a class="button-home" href="index.html">Về màn hình chính</a>
+					</div>
+				</header>
 
 			<div id="notice" class="notice notice-info hidden"></div>
 
@@ -357,13 +358,12 @@
 			</div>
 		</div>
 
-		<script src="questionBank.js"></script>
-		<script>
-			var ADMIN_PASSWORD = "admin123";
-			var ADMIN_AUTH_KEY = "endlessrunner-admin-auth-v1";
-			var appState = {
-				level: "lop6",
-				questions: [],
+			<script src="shared/questionModel.js"></script>
+			<script src="questionBank.js"></script>
+			<script>
+				var appState = {
+					level: "lop6",
+					questions: [],
 				answeredEntries: [],
 				editingQuestionId: null,
 				editingQuestionIndex: -1,
@@ -386,67 +386,113 @@
 				notice.classList.remove("hidden");
 			}
 
-			function hideNotice() {
-				document.getElementById("notice").className = "notice notice-info hidden";
-				document.getElementById("notice").textContent = "";
-			}
-
-			function isAdminAuthenticated() {
-				try {
-					return window.sessionStorage.getItem(ADMIN_AUTH_KEY) === "true";
-				} catch (error) {
-					return false;
+				function hideNotice() {
+					document.getElementById("notice").className = "notice notice-info hidden";
+					document.getElementById("notice").textContent = "";
 				}
-			}
 
-			function setAdminAuthenticated(value) {
-				try {
-					if (value === true) {
-						window.sessionStorage.setItem(ADMIN_AUTH_KEY, "true");
-					} else {
-						window.sessionStorage.removeItem(ADMIN_AUTH_KEY);
-					}
-				} catch (error) {
+				function requestJson(url, options) {
+					return fetch(url, Object.assign({
+						credentials: "same-origin"
+					}, options || {}))
+						.then(function (response) {
+							return response.text().then(function (responseText) {
+								var payload = {};
+
+								if (responseText.trim() !== "") {
+									try {
+										payload = JSON.parse(responseText);
+									} catch (error) {
+										throw new Error("Server trả về dữ liệu không hợp lệ.");
+									}
+								}
+
+								if (response.ok !== true) {
+									throw new Error(payload.error || "Yêu cầu thất bại (HTTP " + response.status + ").");
+								}
+
+								return payload;
+							});
+						});
 				}
+
+				function showAuthShell() {
+					document.getElementById("admin-auth-shell").classList.remove("hidden");
+					document.getElementById("admin-page").classList.add("hidden");
+				}
+
+				function showAuthError(message) {
+					document.getElementById("admin-auth-error").textContent = message || "";
 			}
 
-			function showAuthError(message) {
-				document.getElementById("admin-auth-error").textContent = message || "";
-			}
-
-			function unlockAdminPage() {
-				document.getElementById("admin-auth-shell").classList.add("hidden");
-				document.getElementById("admin-page").classList.remove("hidden");
-				showAuthError("");
+				function unlockAdminPage() {
+					document.getElementById("admin-auth-shell").classList.add("hidden");
+					document.getElementById("admin-page").classList.remove("hidden");
+					showAuthError("");
 				if (appState.isInitialized !== true) {
 					initializeAdminPage();
 				}
 			}
 
-			function handleAdminLoginSubmit(event) {
-				event.preventDefault();
-				var passwordInput = document.getElementById("admin-password-input");
-				if (passwordInput.value !== ADMIN_PASSWORD) {
-					setAdminAuthenticated(false);
-					showAuthError("Mật khẩu chưa đúng.");
-					passwordInput.select();
-					return;
+				function handleAdminLoginSubmit(event) {
+					event.preventDefault();
+					var passwordInput = document.getElementById("admin-password-input");
+					var submitButton = event.submitter || document.querySelector("#admin-auth-form button[type=\"submit\"]");
+
+					showAuthError("");
+					submitButton.disabled = true;
+
+					requestJson("/api/admin/login", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json"
+						},
+						body: JSON.stringify({
+							password: passwordInput.value
+						})
+					})
+						.then(function () {
+							passwordInput.value = "";
+							unlockAdminPage();
+						})
+						.catch(function (error) {
+							showAuthError(error.message || "Không thể đăng nhập admin.");
+							passwordInput.select();
+						})
+						.finally(function () {
+							submitButton.disabled = false;
+						});
 				}
 
-				setAdminAuthenticated(true);
-				passwordInput.value = "";
-				unlockAdminPage();
-			}
+				function requireAdminAccess() {
+					document.getElementById("admin-auth-form").addEventListener("submit", handleAdminLoginSubmit);
+					showAuthShell();
 
-			function requireAdminAccess() {
-				document.getElementById("admin-auth-form").addEventListener("submit", handleAdminLoginSubmit);
+					requestJson("/api/admin/session")
+						.then(function (payload) {
+							if (payload.authenticated === true) {
+								unlockAdminPage();
+								return;
+							}
 
-				if (isAdminAuthenticated() === true) {
-					unlockAdminPage();
-				} else {
-					document.getElementById("admin-password-input").focus();
+							document.getElementById("admin-password-input").focus();
+						})
+						.catch(function (error) {
+							showAuthError(error.message || "Không thể kiểm tra phiên đăng nhập.");
+						});
 				}
-			}
+
+				function handleAdminLogout() {
+					requestJson("/api/admin/logout", {
+						method: "POST"
+					})
+						.then(function () {
+							window.location.reload();
+						})
+						.catch(function (error) {
+							showNotice(error.message || "Không thể đăng xuất.", "error");
+						});
+				}
 
 			function capitalize(value) {
 				var text = String(value || "");
@@ -520,15 +566,15 @@
 				});
 			}
 
-			function renderOverview() {
-				document.getElementById("current-level-label").value = QuestionBank.LEVEL_LABELS[appState.level] || appState.level;
-				document.getElementById("kpi-total").textContent = appState.questions.length;
-				document.getElementById("kpi-remaining").textContent = getRemainingQuestionsCount();
-				document.getElementById("kpi-answered").textContent = appState.answeredEntries.length;
-				document.getElementById("level-meta").textContent = "Lớp hiện tại: " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ". Nếu bạn chỉnh câu hỏi tại đây, game sẽ dùng dữ liệu mới của trình duyệt này.";
-				document.getElementById("answered-summary").textContent = appState.answeredEntries.length === 0
-					? "Chưa có câu nào được ghi nhận cho lớp này."
-					: "Đã ghi nhận " + appState.answeredEntries.length + " câu đã hiện/trả lời.";
+				function renderOverview() {
+					document.getElementById("current-level-label").value = QuestionBank.LEVEL_LABELS[appState.level] || appState.level;
+					document.getElementById("kpi-total").textContent = appState.questions.length;
+					document.getElementById("kpi-remaining").textContent = getRemainingQuestionsCount();
+					document.getElementById("kpi-answered").textContent = appState.answeredEntries.length;
+					document.getElementById("level-meta").textContent = "Lớp hiện tại: " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ". Question bank lưu trên server; danh sách đã hiện hoặc trả lời vẫn là dữ liệu cục bộ của trình duyệt này.";
+					document.getElementById("answered-summary").textContent = appState.answeredEntries.length === 0
+						? "Chưa có câu nào được ghi nhận cho lớp này."
+						: "Đã ghi nhận " + appState.answeredEntries.length + " câu đã hiện/trả lời.";
 			}
 
 			function getDifficultyKeys(settings) {
@@ -799,19 +845,19 @@
 				}
 			}
 
-			function loadCurrentLevelData() {
-				setBusyButtons(true);
-				hideNotice();
+				function loadCurrentLevelData() {
+					setBusyButtons(true);
+					hideNotice();
 
-				return Promise.all([
-					QuestionBank.getQuestions(appState.level),
-					Promise.resolve(QuestionBank.getAnsweredEntries(appState.level))
-				])
-					.then(function (results) {
-						appState.questions = results[0];
-						appState.answeredEntries = results[1];
-						refreshScreen();
-					})
+					return Promise.all([
+						QuestionBank.getLevelBundle(appState.level, { forceReload: true }),
+						Promise.resolve(QuestionBank.getAnsweredEntries(appState.level))
+					])
+						.then(function (results) {
+							appState.questions = results[0].questions;
+							appState.answeredEntries = results[1];
+							refreshScreen();
+						})
 					.catch(function (error) {
 						showNotice(error.message || "Không thể tải dữ liệu.", "error");
 					})
@@ -971,11 +1017,12 @@
 				loadCurrentLevelData();
 			}
 
-			function bindEvents() {
-				document.getElementById("question-form").addEventListener("submit", handleQuestionSubmit);
-				document.getElementById("reset-form-button").addEventListener("click", function () {
-					resetQuestionForm();
-					hideNotice();
+				function bindEvents() {
+					document.getElementById("question-form").addEventListener("submit", handleQuestionSubmit);
+					document.getElementById("admin-logout-button").addEventListener("click", handleAdminLogout);
+					document.getElementById("reset-form-button").addEventListener("click", function () {
+						resetQuestionForm();
+						hideNotice();
 				});
 				document.getElementById("question-difficulty").addEventListener("change", function (event) {
 					document.getElementById("question-point").value = getSuggestedPointForDifficulty(event.target.value);

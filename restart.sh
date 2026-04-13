@@ -40,6 +40,19 @@ can_prompt() {
     [ -t 0 ] && [ -t 1 ]
 }
 
+path_exists() {
+    if [ -e "$1" ]; then
+        return 0
+    fi
+
+    if [ -n "$SUDO_PREFIX" ]; then
+        $SUDO_PREFIX test -e "$1" 2>/dev/null
+        return $?
+    fi
+
+    return 1
+}
+
 require_apt() {
     if ! command_exists apt-get; then
         log_error "This script currently supports Debian/Ubuntu servers only."
@@ -141,14 +154,14 @@ detect_ssl_paths() {
     SSL_KEY_FILE=""
     SSL_PROVIDER="none"
 
-    if [ -f "$origin_cert" ] && [ -f "$origin_key" ]; then
+    if path_exists "$origin_cert" && path_exists "$origin_key"; then
         SSL_CERT_FILE="$origin_cert"
         SSL_KEY_FILE="$origin_key"
         SSL_PROVIDER="cloudflare-origin"
         return
     fi
 
-    if [ -f "$le_cert" ] && [ -f "$le_key" ]; then
+    if path_exists "$le_cert" && path_exists "$le_key"; then
         SSL_CERT_FILE="$le_cert"
         SSL_KEY_FILE="$le_key"
         SSL_PROVIDER="letsencrypt"

@@ -14,8 +14,22 @@ const filesToCache = [
 	"EndlessRunnerShare.png"
 ];
 
-const staticCacheName = "endlessrunner-static-v8";
+const staticCacheName = "endlessrunner-static-v9";
 const apiCacheName = "endlessrunner-api-v1";
+const coreStaticAssets = new Set([
+	"/",
+	"/index.html",
+	"/admin.html",
+	"/EndlessRunner.htm",
+	"/EndlessRunner.js",
+	"/shared/questionModel.js",
+	"/questionBank.js",
+	"/EndlessRunner.json"
+]);
+
+function isCoreStaticAssetRequest(requestUrl) {
+	return requestUrl.origin === self.location.origin && coreStaticAssets.has(requestUrl.pathname);
+}
 
 self.addEventListener("install", event => {
 	event.waitUntil(
@@ -45,8 +59,9 @@ self.addEventListener("fetch", event => {
 	const isAdminShellRequest = requestUrl.pathname.endsWith("/admin.html") || requestUrl.pathname === "/admin.html";
 	const isQuestionBankApiRequest = request.method === "GET" && /^\/api\/levels\/[^/]+\/question-bank$/.test(requestUrl.pathname);
 	const isApiRequest = requestUrl.pathname.startsWith("/api/");
+	const isCoreStaticAsset = request.method === "GET" && isCoreStaticAssetRequest(requestUrl);
 
-	if (isRootNavigationRequest || isGameShellRequest || isAdminShellRequest) {
+	if (isRootNavigationRequest || isGameShellRequest || isAdminShellRequest || isCoreStaticAsset) {
 		event.respondWith(
 			fetch(request)
 				.then(networkResponse => {

@@ -51,6 +51,7 @@ test("health endpoint and seeded question bank are available", async function ()
 		assert.equal(bundleResponse.body.questions[0].id, "6q001");
 		assert.ok(bundleResponse.body.pointSettings.easy > 0);
 		assert.ok(bundleResponse.body.timeSettings.easy > 0);
+		assert.equal(bundleResponse.body.gameSpeed, 1.0);
 	} finally {
 		context.cleanup();
 	}
@@ -140,7 +141,7 @@ test("question bank writes persist across restarts and duplicate ids are rejecte
 	}
 });
 
-test("difficulty settings update requires auth and updates returned bundle", async function () {
+test("difficulty settings update requires auth and applies to all levels", async function () {
 	var context = createTestContext();
 	var agent = request.agent(context.runtime.app);
 
@@ -155,22 +156,72 @@ test("difficulty settings update requires auth and updates returned bundle", asy
 			.send({ password: "admin123" })
 			.expect(200);
 
-		var pointResponse = await agent
-			.put("/api/levels/lop6/settings/point")
-			.send({ settings: { easy: 99 } })
+			var pointResponse = await agent
+				.put("/api/levels/lop6/settings/point")
+				.send({ settings: { easy: 99 } })
+				.expect(200);
+
+			assert.equal(pointResponse.body.pointSettings.easy, 99);
+			assert.equal(pointResponse.body.questions[0].point, 99);
+
+			var pointBundleLop7 = await request(context.runtime.app)
+				.get("/api/levels/lop7/question-bank")
+				.expect(200);
+			var pointBundleLop8 = await request(context.runtime.app)
+				.get("/api/levels/lop8/question-bank")
+				.expect(200);
+
+			assert.equal(pointBundleLop7.body.pointSettings.easy, 99);
+			assert.equal(pointBundleLop7.body.questions[0].point, 99);
+			assert.equal(pointBundleLop8.body.pointSettings.easy, 99);
+			assert.equal(pointBundleLop8.body.questions[0].point, 99);
+
+			var timeResponse = await agent
+				.put("/api/levels/lop6/settings/time")
+				.send({ settings: { easy: 33 } })
+				.expect(200);
+
+			assert.equal(timeResponse.body.timeSettings.easy, 33);
+			assert.equal(timeResponse.body.questions[0].time, 33);
+
+			var timeBundleLop7 = await request(context.runtime.app)
+				.get("/api/levels/lop7/question-bank")
+				.expect(200);
+			var timeBundleLop8 = await request(context.runtime.app)
+				.get("/api/levels/lop8/question-bank")
+				.expect(200);
+
+			assert.equal(timeBundleLop7.body.timeSettings.easy, 33);
+			assert.equal(timeBundleLop7.body.questions[0].time, 33);
+			assert.equal(timeBundleLop8.body.timeSettings.easy, 33);
+			assert.equal(timeBundleLop8.body.questions[0].time, 33);
+
+			var speedResponse = await agent
+				.put("/api/levels/lop6/settings/speed")
+				.send({ value: 1.6 })
 			.expect(200);
 
-		assert.equal(pointResponse.body.pointSettings.easy, 99);
-		assert.equal(pointResponse.body.questions[0].point, 99);
+		assert.equal(speedResponse.body.gameSpeed, 1.6);
 
-		var timeResponse = await agent
-			.put("/api/levels/lop6/settings/time")
-			.send({ settings: { easy: 33 } })
-			.expect(200);
+		context.runtime.close();
+		context.runtime = createApp(context.config);
 
-		assert.equal(timeResponse.body.timeSettings.easy, 33);
-		assert.equal(timeResponse.body.questions[0].time, 33);
-	} finally {
-		context.cleanup();
-	}
-});
+			var persistedBundleResponse = await request(context.runtime.app)
+				.get("/api/levels/lop6/question-bank")
+				.expect(200);
+
+			assert.equal(persistedBundleResponse.body.gameSpeed, 1.6);
+
+			var persistedBundleLop7 = await request(context.runtime.app)
+				.get("/api/levels/lop7/question-bank")
+				.expect(200);
+			var persistedBundleLop8 = await request(context.runtime.app)
+				.get("/api/levels/lop8/question-bank")
+				.expect(200);
+
+			assert.equal(persistedBundleLop7.body.gameSpeed, 1.6);
+			assert.equal(persistedBundleLop8.body.gameSpeed, 1.6);
+		} finally {
+			context.cleanup();
+		}
+	});

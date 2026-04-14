@@ -14,6 +14,7 @@ function createDatabase(config) {
 
 	initializeSchema(db);
 	seedIfEmpty(db, config.rootDir);
+	ensureLevelSettingsRows(db);
 
 	return {
 		close: function () {
@@ -29,11 +30,15 @@ function createDatabase(config) {
 		},
 		updatePointSettingsForLevel: function (level, settings) {
 			QuestionModel.assertLevel(level);
-			return updateDifficultySettingsForLevel(db, level, settings, "point");
+			return updateDifficultySettingsForAllLevels(db, settings, "point", level);
 		},
 		updateTimeSettingsForLevel: function (level, settings) {
 			QuestionModel.assertLevel(level);
-			return updateDifficultySettingsForLevel(db, level, settings, "time");
+			return updateDifficultySettingsForAllLevels(db, settings, "time", level);
+		},
+		updateGameSpeedForLevel: function (level, value) {
+			QuestionModel.assertLevel(level);
+			return updateGameSpeedForAllLevels(db, value, level);
 		}
 	};
 }
@@ -65,6 +70,11 @@ function initializeSchema(db) {
 			"default_time INTEGER," +
 			"updated_at TEXT NOT NULL," +
 			"PRIMARY KEY (level, difficulty)" +
+		");" +
+		"CREATE TABLE IF NOT EXISTS level_settings (" +
+			"level TEXT NOT NULL PRIMARY KEY," +
+			"game_speed REAL NOT NULL," +
+			"updated_at TEXT NOT NULL" +
 		");"
 	);
 }
@@ -91,6 +101,13 @@ function seedIfEmpty(db, rootDir) {
 			"default_time = excluded.default_time, " +
 			"updated_at = excluded.updated_at"
 	);
+	var upsertLevelSettings = db.prepare(
+		"INSERT INTO level_settings (level, game_speed, updated_at) " +
+		"VALUES (@level, @gameSpeed, @updatedAt) " +
+		"ON CONFLICT(level) DO UPDATE SET " +
+			"game_speed = excluded.game_speed, " +
+			"updated_at = excluded.updated_at"
+	);
 
 	var seedTransaction = db.transaction(function () {
 		QuestionModel.LEVELS.forEach(function (level) {
@@ -113,10 +130,37 @@ function seedIfEmpty(db, rootDir) {
 					updatedAt: now
 				});
 			});
+
+			upsertLevelSettings.run({
+				level: level,
+				gameSpeed: QuestionModel.GAME_SPEED_DEFAULT,
+				updatedAt: now
+			});
 		});
 	});
 
 	seedTransaction();
+}
+
+function ensureLevelSettingsRows(db) {
+	var now = new Date().toISOString();
+	var upsertLevelSettings = db.prepare(
+		"INSERT INTO level_settings (level, game_speed, updated_at) " +
+		"VALUES (@level, @gameSpeed, @updatedAt) " +
+		"ON CONFLICT(level) DO NOTHING"
+	);
+
+	var transaction = db.transaction(function () {
+		QuestionModel.LEVELS.forEach(function (level) {
+			upsertLevelSettings.run({
+				level: level,
+				gameSpeed: QuestionModel.GAME_SPEED_DEFAULT,
+				updatedAt: now
+			});
+		});
+	});
+
+	transaction();
 }
 
 function toQuestionInsertRecord(level, question, sortOrder, createdAt, updatedAt) {
@@ -195,6 +239,18 @@ function getStoredSettings(db, level) {
 	};
 }
 
+function getStoredGameSpeed(db, level) {
+	var row = db.prepare(
+		"SELECT game_speed FROM level_settings WHERE level = ?"
+	).get(level);
+
+	if (row == null) {
+		return QuestionModel.GAME_SPEED_DEFAULT;
+	}
+
+	return QuestionModel.normalizeGameSpeed(row.game_speed);
+}
+
 function buildLevelBundle(db, level) {
 	var questions = getQuestionsForLevel(db, level);
 	var storedSettings = getStoredSettings(db, level);
@@ -214,7 +270,8 @@ function buildLevelBundle(db, level) {
 	return {
 		questions: questions,
 		pointSettings: pointSettings,
-		timeSettings: timeSettings
+		timeSettings: timeSettings,
+		gameSpeed: getStoredGameSpeed(db, level)
 	};
 }
 
@@ -255,7 +312,7 @@ function replaceQuestionsForLevel(db, level, questions) {
 	return buildLevelBundle(db, level);
 }
 
-function updateDifficultySettingsForLevel(db, level, settings, fieldName) {
+function updateDifficultySettingsForAllLevels(db, settings, fieldName, levelToReturn) {
 	var normalizedSettings = QuestionModel.normalizeSettings(settings, fieldName);
 	var now = new Date().toISOString();
 	var upsertStatement;
@@ -286,23 +343,52 @@ function updateDifficultySettingsForLevel(db, level, settings, fieldName) {
 	}
 
 	var updateTransaction = db.transaction(function () {
-		Object.keys(normalizedSettings).forEach(function (difficulty) {
-			var value = normalizedSettings[difficulty];
-			var statementValues = {
-				level: level,
-				difficulty: difficulty,
-				value: value,
-				updatedAt: now
-			};
+		QuestionModel.LEVELS.forEach(function (level) {
+			Object.keys(normalizedSettings).forEach(function (difficulty) {
+				var value = normalizedSettings[difficulty];
+				var statementValues = {
+					level: level,
+					difficulty: difficulty,
+					value: value,
+					updatedAt: now
+				};
 
-			upsertStatement.run(statementValues);
-			updateQuestionStatement.run(statementValues);
+				upsertStatement.run(statementValues);
+				updateQuestionStatement.run(statementValues);
+			});
 		});
 	});
 
 	updateTransaction();
 
-	return buildLevelBundle(db, level);
+	return buildLevelBundle(db, levelToReturn);
+}
+
+function updateGameSpeedForAllLevels(db, value, levelToReturn) {
+	var normalizedValue = QuestionModel.normalizeGameSpeed(value);
+	var now = new Date().toISOString();
+
+	var upsertStatement = db.prepare(
+		"INSERT INTO level_settings (level, game_speed, updated_at) " +
+		"VALUES (@level, @gameSpeed, @updatedAt) " +
+		"ON CONFLICT(level) DO UPDATE SET " +
+			"game_speed = excluded.game_speed, " +
+			"updated_at = excluded.updated_at"
+	);
+
+	var updateTransaction = db.transaction(function () {
+		QuestionModel.LEVELS.forEach(function (level) {
+			upsertStatement.run({
+				level: level,
+				gameSpeed: normalizedValue,
+				updatedAt: now
+			});
+		});
+	});
+
+	updateTransaction();
+
+	return buildLevelBundle(db, levelToReturn);
 }
 
 module.exports = {

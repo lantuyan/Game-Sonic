@@ -10,12 +10,16 @@
 
 	var LEVELS = ["lop6", "lop7", "lop8"];
 	var LEVEL_LABELS = {
-		lop6: "Lop 6",
-		lop7: "Lop 7",
-		lop8: "Lop 8"
+		lop6: "Lớp 6",
+		lop7: "Lớp 7",
+		lop8: "Lớp 8"
 	};
 	var QUESTION_ANSWER_KEYS = ["A", "B", "C", "D"];
 	var DIFFICULTY_ORDER = ["easy", "medium", "hard", "expert"];
+	var GAME_SPEED_MIN = 0.5;
+	var GAME_SPEED_MAX = 2.0;
+	var GAME_SPEED_STEP = 0.1;
+	var GAME_SPEED_DEFAULT = 1.0;
 
 	function cloneData(value) {
 		return JSON.parse(JSON.stringify(value));
@@ -195,11 +199,32 @@
 		return normalizedSettings;
 	}
 
+	function normalizeGameSpeed(value) {
+		var numericValue = Number(value);
+
+		if (isFinite(numericValue) === false) {
+			throw new Error("Game speed must be a valid number.");
+		}
+
+		numericValue = Math.round(numericValue / GAME_SPEED_STEP) * GAME_SPEED_STEP;
+		numericValue = Number(numericValue.toFixed(1));
+
+		if (numericValue < GAME_SPEED_MIN || numericValue > GAME_SPEED_MAX) {
+			throw new Error("Game speed must be between " + GAME_SPEED_MIN.toFixed(1) + " and " + GAME_SPEED_MAX.toFixed(1) + ".");
+		}
+
+		return numericValue;
+	}
+
 	return {
 		LEVELS: LEVELS.slice(),
 		LEVEL_LABELS: cloneData(LEVEL_LABELS),
 		QUESTION_ANSWER_KEYS: QUESTION_ANSWER_KEYS.slice(),
 		DIFFICULTY_ORDER: DIFFICULTY_ORDER.slice(),
+		GAME_SPEED_MIN: GAME_SPEED_MIN,
+		GAME_SPEED_MAX: GAME_SPEED_MAX,
+		GAME_SPEED_STEP: GAME_SPEED_STEP,
+		GAME_SPEED_DEFAULT: GAME_SPEED_DEFAULT,
 		cloneData: cloneData,
 		assertLevel: assertLevel,
 		normalizeDifficulty: normalizeDifficulty,
@@ -207,6 +232,7 @@
 		validateQuestion: validateQuestion,
 		validateQuestionsData: validateQuestionsData,
 		getDifficultySummary: getDifficultySummary,
-		normalizeSettings: normalizeSettings
+		normalizeSettings: normalizeSettings,
+		normalizeGameSpeed: normalizeGameSpeed
 	};
 });

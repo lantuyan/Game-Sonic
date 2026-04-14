@@ -104,8 +104,17 @@
 			}
 			.panel h2{margin:0 0 14px;font-size:19px}
 			.level-switcher{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-			.level-btn{background:rgba(255,255,255,.06);color:var(--text);border:1px solid transparent;font-weight:700}
-			.level-btn.active{background:rgba(88,196,255,.15);border-color:rgba(88,196,255,.45);color:#dff4ff}
+			.level-btn{
+				position:relative;overflow:hidden;min-height:54px;
+				background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+				color:var(--text);border:1px solid rgba(255,255,255,.08);font-weight:800;
+				box-shadow:inset 0 1px 0 rgba(255,255,255,.06)
+			}
+			.level-btn.active{
+				background:linear-gradient(135deg, rgba(88,196,255,.26), rgba(29,143,225,.32));
+				border-color:rgba(88,196,255,.62);color:#f4fbff;
+				box-shadow:0 14px 30px rgba(16,86,145,.28), inset 0 1px 0 rgba(255,255,255,.16)
+			}
 			.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 			.kpi{
 				padding:14px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)
@@ -223,7 +232,7 @@
 							<button id="save-points-button" class="button-primary" type="button">Lưu điểm</button>
 						</div>
 						<div id="point-settings-grid" class="time-grid"></div>
-						<p class="level-meta" style="margin:14px 0 0;">Lưu điểm sẽ cập nhật toàn bộ câu hỏi cùng loại trong lớp hiện tại.</p>
+						<p class="level-meta" style="margin:14px 0 0;">Lưu điểm sẽ cập nhật toàn bộ câu hỏi cùng loại cho tất cả lớp 6, 7, 8.</p>
 					</section>
 
 					<section class="panel">
@@ -232,7 +241,21 @@
 							<button id="save-times-button" class="button-primary" type="button">Lưu thời gian</button>
 						</div>
 						<div id="time-settings-grid" class="time-grid"></div>
-						<p class="level-meta" style="margin:14px 0 0;">Lưu thời gian sẽ cập nhật toàn bộ câu hỏi cùng loại trong lớp hiện tại.</p>
+						<p class="level-meta" style="margin:14px 0 0;">Lưu thời gian sẽ cập nhật toàn bộ câu hỏi cùng loại cho tất cả lớp 6, 7, 8.</p>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Tốc độ game</h2>
+							<button id="save-speed-button" class="button-primary" type="button">Lưu tốc độ</button>
+						</div>
+						<div class="time-grid">
+							<div class="time-card">
+								<label for="game-speed-setting-input" class="small muted">Tốc độ vật thể tiến về nhân vật</label>
+								<input id="game-speed-setting-input" type="number" min="0.5" max="2.0" step="0.1" />
+							</div>
+						</div>
+						<p class="level-meta" style="margin:14px 0 0;">Giá trị từ 0.5 đến 2.0. Mốc 1.0 là tốc độ mặc định của game và sẽ áp dụng cho tất cả lớp 6, 7, 8.</p>
 					</section>
 
 					<section class="panel">
@@ -571,7 +594,7 @@
 					document.getElementById("kpi-total").textContent = appState.questions.length;
 					document.getElementById("kpi-remaining").textContent = getRemainingQuestionsCount();
 					document.getElementById("kpi-answered").textContent = appState.answeredEntries.length;
-					document.getElementById("level-meta").textContent = "Lớp hiện tại: " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ". Question bank lưu trên server; danh sách đã hiện hoặc trả lời vẫn là dữ liệu cục bộ của trình duyệt này.";
+					document.getElementById("level-meta").textContent = "Lớp hiện tại: " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ". Question bank vẫn quản lý riêng theo từng lớp, còn điểm, thời gian và tốc độ game bên dưới sẽ dùng chung cho tất cả lớp 6, 7, 8.";
 					document.getElementById("answered-summary").textContent = appState.answeredEntries.length === 0
 						? "Chưa có câu nào được ghi nhận cho lớp này."
 						: "Đã ghi nhận " + appState.answeredEntries.length + " câu đã hiện/trả lời.";
@@ -667,6 +690,16 @@
 						+ "<input id=\"" + escapeHTML(inputId) + "\" name=\"" + escapeHTML(inputId) + "\" type=\"number\" min=\"1\" step=\"1\" data-time-difficulty=\"" + escapeHTML(difficulty) + "\" value=\"" + escapeHTML(settings[difficulty]) + "\" />";
 					container.appendChild(card);
 				});
+			}
+
+			function renderGameSpeedSetting() {
+				var input = document.getElementById("game-speed-setting-input");
+				var gameSpeed = QuestionBank.getGameSpeed(appState.level);
+
+				input.min = String(QuestionBank.GAME_SPEED_MIN);
+				input.max = String(QuestionBank.GAME_SPEED_MAX);
+				input.step = String(QuestionBank.GAME_SPEED_STEP);
+				input.value = gameSpeed.toFixed(1);
 			}
 
 			function renderCorrectAnswerOptions(selectedAnswer) {
@@ -825,6 +858,7 @@
 				renderOverview();
 				renderPointSettings();
 				renderTimeSettings();
+				renderGameSpeedSetting();
 				renderQuestionTable();
 				renderAnsweredTable();
 				renderCorrectAnswerOptions();
@@ -972,8 +1006,8 @@
 
 				setBusyButtons(true);
 				QuestionBank.updateQuestionsTimeByDifficulty(appState.level, settings)
-					.then(function () {
-						showNotice("Đã cập nhật thời gian theo loại câu hỏi.", "success");
+						.then(function () {
+							showNotice("Đã cập nhật thời gian theo loại câu hỏi cho tất cả lớp 6, 7, 8.", "success");
 						return loadCurrentLevelData();
 					})
 					.catch(function (error) {
@@ -994,12 +1028,31 @@
 
 				setBusyButtons(true);
 				QuestionBank.updateQuestionsPointByDifficulty(appState.level, settings)
-					.then(function () {
-						showNotice("Đã cập nhật điểm theo loại câu hỏi.", "success");
+						.then(function () {
+							showNotice("Đã cập nhật điểm theo loại câu hỏi cho tất cả lớp 6, 7, 8.", "success");
 						return loadCurrentLevelData();
 					})
 					.catch(function (error) {
 						showNotice(error.message || "Không thể cập nhật điểm.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleSaveSpeed() {
+				hideNotice();
+
+				var speedValue = Number(document.getElementById("game-speed-setting-input").value);
+
+				setBusyButtons(true);
+				QuestionBank.saveGameSpeed(appState.level, speedValue)
+						.then(function () {
+							showNotice("Đã cập nhật tốc độ game cho tất cả lớp 6, 7, 8.", "success");
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể cập nhật tốc độ game.", "error");
 					})
 					.finally(function () {
 						setBusyButtons(false);
@@ -1031,6 +1084,7 @@
 				document.getElementById("delete-editing-button").addEventListener("click", handleDeleteEditingQuestion);
 				document.getElementById("save-points-button").addEventListener("click", handleSavePoints);
 				document.getElementById("save-times-button").addEventListener("click", handleSaveTimes);
+				document.getElementById("save-speed-button").addEventListener("click", handleSaveSpeed);
 				document.getElementById("reset-answered-button").addEventListener("click", handleResetAnswered);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
 					document.getElementById("answer-" + answerKey).addEventListener("input", function () {

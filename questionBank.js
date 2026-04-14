@@ -120,6 +120,7 @@
 		var questions = QuestionModel.validateQuestionsData(normalizedBundle.questions, "Question bank for " + level);
 		var pointSettings = normalizeSettings("point", normalizedBundle.pointSettings);
 		var timeSettings = normalizeSettings("time", normalizedBundle.timeSettings);
+		var gameSpeed = normalizedBundle.gameSpeed == null ? QuestionModel.GAME_SPEED_DEFAULT : QuestionModel.normalizeGameSpeed(normalizedBundle.gameSpeed);
 
 		QuestionModel.getDifficultySummary(questions).forEach(function (item) {
 			if (pointSettings[item.difficulty] == null) {
@@ -134,7 +135,8 @@
 		return {
 			questions: questions,
 			pointSettings: pointSettings,
-			timeSettings: timeSettings
+			timeSettings: timeSettings,
+			gameSpeed: gameSpeed
 		};
 	}
 
@@ -425,6 +427,17 @@
 		return result;
 	}
 
+	function getGameSpeed(level) {
+		assertLevel(level);
+
+		var cachedBundle = getCachedBundle(level);
+		if (cachedBundle != null && cachedBundle.gameSpeed != null) {
+			return QuestionModel.normalizeGameSpeed(cachedBundle.gameSpeed);
+		}
+
+		return QuestionModel.GAME_SPEED_DEFAULT;
+	}
+
 	function saveTimeSettings(level, settings) {
 		return sendLevelUpdate(level, "settings/time", {
 			settings: normalizeSettings("time", settings)
@@ -438,6 +451,14 @@
 			settings: normalizeSettings("point", settings)
 		}).then(function (bundle) {
 			return cloneData(bundle.pointSettings);
+		});
+	}
+
+	function saveGameSpeed(level, value) {
+		return sendLevelUpdate(level, "settings/speed", {
+			value: QuestionModel.normalizeGameSpeed(value)
+		}).then(function (bundle) {
+			return QuestionModel.normalizeGameSpeed(bundle.gameSpeed);
 		});
 	}
 
@@ -488,6 +509,10 @@
 		LEVEL_LABELS: cloneData(LEVEL_LABELS),
 		QUESTION_ANSWER_KEYS: QUESTION_ANSWER_KEYS.slice(),
 		DIFFICULTY_ORDER: DIFFICULTY_ORDER.slice(),
+		GAME_SPEED_MIN: QuestionModel.GAME_SPEED_MIN,
+		GAME_SPEED_MAX: QuestionModel.GAME_SPEED_MAX,
+		GAME_SPEED_STEP: QuestionModel.GAME_SPEED_STEP,
+		GAME_SPEED_DEFAULT: QuestionModel.GAME_SPEED_DEFAULT,
 		validateQuestion: QuestionModel.validateQuestion,
 		validateQuestionsData: QuestionModel.validateQuestionsData,
 		getDifficultySummary: QuestionModel.getDifficultySummary,
@@ -507,6 +532,8 @@
 		savePointSettings: savePointSettings,
 		getTimeSettings: getTimeSettings,
 		saveTimeSettings: saveTimeSettings,
+		getGameSpeed: getGameSpeed,
+		saveGameSpeed: saveGameSpeed,
 		applyPointSettingsToQuestions: applyPointSettingsToQuestions,
 		applyTimeSettingsToQuestions: applyTimeSettingsToQuestions,
 		updateQuestionsTimeByDifficulty: updateQuestionsTimeByDifficulty,

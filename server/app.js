@@ -104,6 +104,15 @@ function createApp(overrides) {
 		}
 	});
 
+	app.put("/api/levels/:level/settings/speed", auth.requireAdminAuth(config), function (request, response, next) {
+		try {
+			QuestionModel.assertLevel(request.params.level);
+			response.json(dataStore.updateGameSpeedForLevel(request.params.level, request.body ? request.body.value : null));
+		} catch (error) {
+			next(createError(400, error.message));
+		}
+	});
+
 	app.use(function (request, response, next) {
 		var blockedRootItems = {
 			"server": true,

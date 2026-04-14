@@ -31,12 +31,18 @@ function resolveConfig(overrides) {
 	};
 }
 
+function isPlaceholderSecret(value) {
+	var normalizedValue = String(value || "").trim().toLowerCase();
+
+	return normalizedValue === "" || normalizedValue.indexOf("replace-with-") === 0;
+}
+
 function validateConfig(config) {
-	if (config.jwtSecret.trim() === "") {
+	if (isPlaceholderSecret(config.jwtSecret)) {
 		throw new Error("Missing JWT_SECRET. Add it to .env before starting the server.");
 	}
 
-	if (config.adminPasswordHash.trim() === "") {
+	if (isPlaceholderSecret(config.adminPasswordHash)) {
 		throw new Error("Missing ADMIN_PASSWORD_HASH. Generate one with \"npm run hash-password -- <password>\" and add it to .env.");
 	}
 }

@@ -49,6 +49,19 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `npm test`: run integration tests
 - `npm run hash-password -- <password>`: generate a bcrypt hash for `.env`
 
+## Vercel deployment
+
+This project includes `vercel.json` and `api/index.js` so Vercel can run the Express app as a serverless function.
+
+Set these Environment Variables in Vercel before deploying:
+
+```env
+JWT_SECRET=use-a-long-random-secret
+ADMIN_PASSWORD_HASH=output-from-npm-run-hash-password
+```
+
+Vercel's deployment filesystem is read-only, so the app stores its SQLite runtime database under `/tmp` automatically. The public game and seeded question bank work in production; admin edits are not durable across cold starts or redeploys unless the data layer is moved to an external database.
+
 ## Disclaimer
 
 The Sonic The Hedgehog resources (images, music and sounds) are provided for educational purposes ONLY. This demo is not affiliated with or endorsed by their respective copyright holders.

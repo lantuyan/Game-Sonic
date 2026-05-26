@@ -7,7 +7,11 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
+    "vercel-build": "node scripts/vercel-build.js",
     "hash-password": "node server/scripts/hash-password.js"
+  },
+  "engines": {
+    "node": "22.x"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

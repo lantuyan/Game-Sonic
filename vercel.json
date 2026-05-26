@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm ci",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 10,
+      "includeFiles": "{*.htm,*.html,*.js,*.json,*.png,questions/**,server/**,shared/**}"
+    }
+  }
+}

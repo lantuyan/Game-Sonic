@@ -15,13 +15,14 @@ function resolveNumber(value, fallbackValue) {
 function resolveConfig(overrides) {
 	var values = overrides || {};
 	var rootDir = values.rootDir || path.resolve(__dirname, "..");
-	var runtimeDir = values.runtimeDir || path.join(rootDir, ".runtime");
+	var runtimeDir = values.runtimeDir || (process.env.VERCEL === "1" ? path.join("/tmp", "game-sonic-running") : path.join(rootDir, ".runtime"));
+	var databasePath = values.databasePath || process.env.DATABASE_PATH || path.join(runtimeDir, "game-sonic-running.sqlite");
 
 	return {
 		rootDir: rootDir,
 		staticDir: values.staticDir || rootDir,
 		runtimeDir: runtimeDir,
-		databasePath: values.databasePath || path.join(runtimeDir, "game-sonic-running.sqlite"),
+		databasePath: databasePath,
 		port: resolveNumber(values.port != null ? values.port : process.env.PORT, 3000),
 		jwtSecret: values.jwtSecret != null ? values.jwtSecret : String(process.env.JWT_SECRET || ""),
 		adminPasswordHash: values.adminPasswordHash != null ? values.adminPasswordHash : String(process.env.ADMIN_PASSWORD_HASH || ""),

@@ -188,6 +188,11 @@
 			.endlessrunner-leaderboard-divider{height:1px;background:rgba(140,180,240,0.25);margin:6px 4px}
 			.endlessrunner-leaderboard-close{margin-top:4px;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#5cbbee,#0046a9);color:#fff;font-size:16px;font-weight:800;cursor:pointer;transition:transform 0.12s ease}
 			.endlessrunner-leaderboard-close:hover{transform:scale(1.04)}
+			.endlessrunner-character-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:2px}
+			.endlessrunner-character-label{color:rgba(160,200,255,0.8);font-size:13px;text-align:center;margin-bottom:-4px}
+			.endlessrunner-character-btn{padding:8px 14px;border-radius:10px;border:1.5px solid rgba(92,187,238,0.3);background:rgba(4,17,38,0.5);color:#cfe6ff;font-size:14px;font-weight:700;cursor:pointer;transition:transform 0.1s ease}
+			.endlessrunner-character-btn:hover{transform:scale(1.05)}
+			.endlessrunner-character-btn-active{background:linear-gradient(135deg,#43e97b,#38f9d7);color:#0a3020;border-color:transparent}
 		</style>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
 	</head>
@@ -198,6 +203,13 @@
 			<div class="endlessrunner-level-panel">
 				<div class="endlessrunner-level-title">&#127891; Ch&#7885;n c&#7845;p &#273;&#7897;</div>
 				<div class="endlessrunner-level-subtitle">Nh&#7853;p bi&#7879;t danh v&#224; ch&#7885;n l&#7899;p h&#7885;c</div>
+				<div class="endlessrunner-character-label">Ch&#7885;n nh&#226;n v&#7853;t</div>
+				<div class="endlessrunner-character-row" id="endlessrunner-character-row">
+					<button class="endlessrunner-character-btn" data-character="sonic" type="button">Sonic</button>
+					<button class="endlessrunner-character-btn" data-character="robot" type="button">Robot</button>
+					<button class="endlessrunner-character-btn" data-character="xbot" type="button">Ninja</button>
+					<button class="endlessrunner-character-btn" data-character="soldier" type="button">L&#237;nh</button>
+				</div>
 				<input class="endlessrunner-nickname-input" id="endlessrunner-nickname-input" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Bi&#7879;t danh c&#7911;a b&#7841;n" />
 				<div class="endlessrunner-nickname-hint" id="endlessrunner-nickname-hint"></div>
 				<button class="endlessrunner-level-btn endlessrunner-level-btn-6" id="endlessrunner-level-btn-6" type="button">L&#7899;p 6</button>
@@ -1388,6 +1400,67 @@
 				return false;
 				}
 
+			// --- Character selection (3D GLB models) ---
+			var CHARACTERS = {
+				sonic:   { label: "Sonic",  embedded: true, scale: 11, rotationY: 66, positionY: 1 },
+				robot:   { label: "Robot",  url: "characters/RobotExpressive.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 },
+				xbot:    { label: "Ninja",  url: "characters/Xbot.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 },
+				soldier: { label: "Linh",   url: "characters/Soldier.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 }
+			};
+			var CHARACTER_ORDER = ["sonic", "robot", "xbot", "soldier"];
+			var CHARACTER_STORAGE_KEY = "endlessrunner-character-v1";
+			var selectedCharacter = "sonic";
+			var isCharacterLoading = false;
+
+			function getSelectedCharacter()
+				{
+				try { var stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY); if (stored!=null && CHARACTERS[stored]!=null) { return stored; } } catch (error) {}
+				return "sonic";
+				}
+
+			function persistSelectedCharacter(id)
+				{
+				try { window.localStorage.setItem(CHARACTER_STORAGE_KEY, id); } catch (error) {}
+				}
+
+			function findRunClip(animations)
+				{
+				if (animations==null || animations.length===0) { return null; }
+				for (var i=0; i<animations.length; i++) { if (/run/i.test(animations[i].name || "")) { return animations[i]; } }
+				return animations[0];
+				}
+
+			function applyHeroFromGltf(gltf, config)
+				{
+				if (hero!=null) { try { scene.remove(hero); } catch (error) {} }
+				if (heroActions!=null) { try { heroActions.stopAllAction(); } catch (error) {} heroActions = null; }
+				gltf.scene.traverse(function(node) { if (node instanceof THREE.Mesh) { node.castShadow = true; } });
+				hero = gltf.scene;
+				if (config.scale!=null) { hero.scale.set(config.scale, config.scale, config.scale); }
+				else if (config.targetHeight!=null) { var box = new THREE.Box3().setFromObject(hero); var size = new THREE.Vector3(); box.getSize(size); var factor = config.targetHeight / (size.y || 1); hero.scale.set(factor, factor, factor); }
+				hero.position.x = 0;
+				hero.position.y = config.positionY!=null ? config.positionY : 1;
+				hero.position.z = 490;
+				hero.rotation.y = config.rotationY!=null ? config.rotationY : 0;
+				heroActions = new THREE.AnimationMixer(hero);
+				var runClip = findRunClip(gltf.animations);
+				if (runClip!=null) { heroActions.clipAction(runClip).play(); }
+				scene.add(hero);
+				}
+
+			function loadCharacter(id, onDone)
+				{
+				var characterId = CHARACTERS[id]!=null ? id : "sonic";
+				var config = CHARACTERS[characterId];
+				selectedCharacter = characterId;
+				isCharacterLoading = true;
+				function finish() { isCharacterLoading = false; if (typeof onDone==="function") { onDone(); } }
+				try {
+					if (config.embedded===true) { new THREE.GLTFLoader().parse(sonicModel, null, function(gltf) { applyHeroFromGltf(gltf, config); finish(); }); }
+					else { new THREE.GLTFLoader().load(config.url, function(gltf) { applyHeroFromGltf(gltf, config); finish(); }, undefined, function(error) { isCharacterLoading = false; if (characterId!=="sonic") { loadCharacter("sonic", onDone); } }); }
+				} catch (error) { isCharacterLoading = false; if (characterId!=="sonic") { loadCharacter("sonic", onDone); } }
+				}
+
 			function loadGameResources()
 				{
 				// GETTING THE CONTAINER SIZE
@@ -1628,40 +1701,8 @@
 				scene.add(unusedObject2);
 
 				// LOADING THE HERO
-				heroLoader = new THREE.GLTFLoader().parse(sonicModel,null,function(gltf)
-					{
-					// SETTING THAT THE HERO MODEL WILL BE CASTING A SHADOW
-					gltf.scene.traverse(function(node)
-						{
-						if (node instanceof THREE.Mesh)
-							{
-							node.castShadow = true;
-							}
-						});
-
-					// GETTING THE HERO MODEL
-					hero = gltf.scene;
-
-					// SETTING THE HERO SCALE
-					hero.scale.set(11,11,11);
-
-					// SETTING THE HERO POSITION
-					hero.position.x = 0;
-					hero.position.y = 1;
-					hero.position.z = 490;
-
-					// SETTING THE HERO ROTATION
-					hero.rotation.y = 66;
-
-					// SETTING THE HERO ANIMATION
-					heroActions = new THREE.AnimationMixer(hero);
-					heroActions.clipAction(gltf.animations[0]).play();
-					//heroActions.clipAction(gltf.animations[0]).stop();
-					//console.log(gltf.animations); //shows all animations available
-
-					// ADDING THE HERO TO THE SCENE
-					scene.add(hero);
-					});
+				selectedCharacter = getSelectedCharacter();
+				loadCharacter(selectedCharacter);
 				}
 
 			function moveLeft()
@@ -2639,6 +2680,29 @@
 					if (lbClose!=null) { lbClose.addEventListener("click", hideLeaderboard); }
 					var lbOverlay = document.getElementById("endlessrunner-leaderboard-overlay");
 					if (lbOverlay!=null) { lbOverlay.addEventListener("click", function(event){ if (event.target===lbOverlay) { hideLeaderboard(); } }); }
+					})();
+
+				// Character selection buttons
+				(function()
+					{
+					var charButtons = document.querySelectorAll(".endlessrunner-character-btn");
+					function highlightCharacter(id) { for (var i=0;i<charButtons.length;i++) { if (charButtons[i].getAttribute("data-character")===id) { charButtons[i].classList.add("endlessrunner-character-btn-active"); } else { charButtons[i].classList.remove("endlessrunner-character-btn-active"); } } }
+					var currentCharacter = (typeof getSelectedCharacter==="function") ? getSelectedCharacter() : "sonic";
+					highlightCharacter(currentCharacter);
+					for (var i=0;i<charButtons.length;i++)
+						{
+						(function(btn)
+							{
+							btn.addEventListener("click", function()
+								{
+								var id = btn.getAttribute("data-character");
+								if (typeof loadCharacter!=="function" || isCharacterLoading===true) { return; }
+								persistSelectedCharacter(id);
+								highlightCharacter(id);
+								loadCharacter(id);
+								});
+							})(charButtons[i]);
+						}
 					})();
 
 				// SETTING WHAT WILL HAPPEN WHEN THE USER CLICKS THE PLAY BUTTON

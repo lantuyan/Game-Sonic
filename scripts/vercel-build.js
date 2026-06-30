@@ -32,3 +32,9 @@ fs.mkdirSync(publicDir, { recursive: true });
 staticFiles.forEach(function (fileName) {
 	fs.copyFileSync(path.join(rootDir, fileName), path.join(publicDir, fileName));
 });
+
+// Copy selectable character models (3D GLB) so they are served as static assets.
+var charactersSrc = path.join(rootDir, "characters");
+if (fs.existsSync(charactersSrc)) {
+	fs.cpSync(charactersSrc, path.join(publicDir, "characters"), { recursive: true });
+}

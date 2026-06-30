@@ -5,6 +5,7 @@
 // schema (server/schema.js) is guaranteed to exist before any query runs.
 
 var QuestionModel = require("../shared/questionModel");
+var applySchema = require("./schema").applySchema;
 
 var MAX_SCORE = 10000000;
 var MAX_COUNT = 1000000;
@@ -87,9 +88,39 @@ function clampNumber(value, minValue, maxValue, fallback) {
 	return Math.min(maxValue, Math.max(minValue, numericValue));
 }
 
+// When no SQL client is available (e.g. on Vercel before DATABASE_URL/Neon is
+// configured), leaderboard and skill features degrade gracefully: reads return
+// empty and writes are accepted as no-ops, so the game keeps working with no
+// errors. Persistence lights up automatically once Neon is connected.
+function createDisabledPlayerStore() {
+	return {
+		submitScore: function () {
+			return Promise.resolve({ rank: null, best: null, score: 0, disabled: true });
+		},
+		getLeaderboard: function (level) {
+			return Promise.resolve({ level: level, entries: [], me: null, disabled: true });
+		},
+		updateNickname: function (deviceId, nickname) {
+			return Promise.resolve({ deviceId: deviceId, nickname: nickname, disabled: true });
+		},
+		saveSkill: function () {
+			return Promise.resolve({ disabled: true });
+		}
+	};
+}
+
 function createPlayerStore(options) {
-	var sql = options.sql;
-	var ready = options.ready;
+	var sql = options && options.sql ? options.sql : null;
+
+	if (sql == null) {
+		return createDisabledPlayerStore();
+	}
+
+	var readyPromise = applySchema(sql);
+
+	function ready() {
+		return readyPromise;
+	}
 
 	function run(text, params) {
 		return ready().then(function () {

@@ -1,45 +1,11 @@
 "use strict";
 
-// Postgres schema for the whole app: question bank (migrated off SQLite) plus
-// player data (leaderboard + adaptive skill profiles). Idempotent — safe to run
-// on every boot and from scripts/migrate-neon.js.
-//
-// Note: the question bank columns "point"/"time" were renamed to
-// "points"/"time_limit" to avoid Postgres keyword/type ambiguity. The JSON API
-// still exposes them as point/time (mapped in db.js).
+// Postgres schema for player data (leaderboard + adaptive skill profiles) on the
+// Neon/PGlite SQL client. The question bank lives in better-sqlite3 (server/db.js),
+// so its tables are not created here. Idempotent — safe to run on every boot and
+// from scripts/migrate-neon.js.
 
 var STATEMENTS = [
-	"CREATE TABLE IF NOT EXISTS questions (" +
-		"level TEXT NOT NULL," +
-		"id TEXT NOT NULL," +
-		"sort_order INTEGER NOT NULL," +
-		"difficulty TEXT NOT NULL," +
-		"question TEXT NOT NULL," +
-		"answer_a TEXT NOT NULL," +
-		"answer_b TEXT NOT NULL," +
-		"answer_c TEXT," +
-		"answer_d TEXT," +
-		"correct_answer TEXT NOT NULL," +
-		"points REAL NOT NULL," +
-		"time_limit INTEGER NOT NULL," +
-		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
-		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
-		"PRIMARY KEY (level, id)" +
-	")",
-	"CREATE INDEX IF NOT EXISTS idx_questions_level_sort ON questions (level, sort_order)",
-	"CREATE TABLE IF NOT EXISTS difficulty_settings (" +
-		"level TEXT NOT NULL," +
-		"difficulty TEXT NOT NULL," +
-		"default_point REAL," +
-		"default_time INTEGER," +
-		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
-		"PRIMARY KEY (level, difficulty)" +
-	")",
-	"CREATE TABLE IF NOT EXISTS level_settings (" +
-		"level TEXT NOT NULL PRIMARY KEY," +
-		"game_speed REAL NOT NULL," +
-		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
-	")",
 	"CREATE TABLE IF NOT EXISTS players (" +
 		"device_id TEXT PRIMARY KEY," +
 		"nickname TEXT NOT NULL," +

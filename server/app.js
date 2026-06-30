@@ -8,6 +8,7 @@ var auth = require("./auth");
 var configModule = require("./config");
 var dbModule = require("./db");
 var playerStoreModule = require("./playerStore");
+var createSqlClient = require("./sql").createSqlClient;
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -20,7 +21,11 @@ function createApp(overrides) {
 	configModule.validateConfig(config);
 
 	var dataStore = dbModule.createDatabase(config);
-	var playerStore = playerStoreModule.createPlayerStore({ sql: dataStore.sql, ready: dataStore.ready });
+	// Player data (leaderboard/skill) uses a separate Postgres client: Neon when
+	// DATABASE_URL is set, embedded PGlite locally, or null on Vercel without Neon
+	// (features degrade gracefully). The question bank stays on better-sqlite3.
+	var playerSql = createSqlClient(config);
+	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -223,6 +228,9 @@ function createApp(overrides) {
 		app: app,
 		close: function () {
 			dataStore.close();
+			if (playerSql != null && typeof playerSql.close === "function") {
+				playerSql.close();
+			}
 		},
 		config: config
 	};

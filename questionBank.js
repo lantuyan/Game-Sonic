@@ -13,6 +13,11 @@
 	var STORAGE_KEYS = {
 		answered: "endlessrunner-question-progress-v1"
 	};
+	var PLAYER_STORAGE_KEYS = {
+		deviceId: "endlessrunner-device-id-v1",
+		nickname: "endlessrunner-nickname-v1",
+		skill: "endlessrunner-skill-profile-v1"
+	};
 	var inMemoryStorage = {};
 	var levelBundleCache = {};
 	var levelBundlePromiseByLevel = {};
@@ -504,6 +509,118 @@
 		});
 	}
 
+	function readRawString(key) {
+		try {
+			var value = localStorageAvailable ? global.localStorage.getItem(key) : inMemoryStorage[key];
+			return typeof value === "string" ? value : "";
+		} catch (error) {
+			return typeof inMemoryStorage[key] === "string" ? inMemoryStorage[key] : "";
+		}
+	}
+
+	function writeRawString(key, value) {
+		try {
+			if (localStorageAvailable) {
+				global.localStorage.setItem(key, value);
+			}
+		} catch (error) {
+		}
+
+		inMemoryStorage[key] = value;
+	}
+
+	function generateDeviceId() {
+		try {
+			if (global.crypto && typeof global.crypto.randomUUID === "function") {
+				return global.crypto.randomUUID();
+			}
+		} catch (error) {
+		}
+
+		return "dev-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+	}
+
+	function getDeviceId() {
+		var deviceId = readRawString(PLAYER_STORAGE_KEYS.deviceId);
+
+		if (deviceId === "") {
+			deviceId = generateDeviceId();
+			writeRawString(PLAYER_STORAGE_KEYS.deviceId, deviceId);
+		}
+
+		return deviceId;
+	}
+
+	function getNickname() {
+		return readRawString(PLAYER_STORAGE_KEYS.nickname);
+	}
+
+	function setNicknameLocal(name) {
+		var trimmed = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
+
+		if (trimmed.length > 24) {
+			trimmed = trimmed.slice(0, 24).trim();
+		}
+
+		writeRawString(PLAYER_STORAGE_KEYS.nickname, trimmed);
+		return trimmed;
+	}
+
+	function setNickname(name) {
+		var trimmed = setNicknameLocal(name);
+
+		if (trimmed === "") {
+			return Promise.resolve(trimmed);
+		}
+
+		return fetchJson("/api/players/" + encodeURIComponent(getDeviceId()) + "/nickname", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ nickname: trimmed })
+		}).then(function () {
+			return trimmed;
+		}).catch(function () {
+			return trimmed;
+		});
+	}
+
+	function nonNegativeInteger(value) {
+		var numericValue = Math.round(Number(value));
+		return isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
+	}
+
+	function submitScore(level, stats) {
+		assertLevel(level);
+		var data = stats || {};
+		var payload = {
+			deviceId: getDeviceId(),
+			nickname: getNickname() || "Người chơi",
+			level: level,
+			score: nonNegativeInteger(data.score),
+			correctCount: nonNegativeInteger(data.correctCount),
+			wrongCount: nonNegativeInteger(data.wrongCount),
+			timeoutCount: nonNegativeInteger(data.timeoutCount),
+			durationMs: nonNegativeInteger(data.durationMs)
+		};
+
+		return fetchJson("/api/scores", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload)
+		}).catch(function () {
+			return null;
+		});
+	}
+
+	function getLeaderboard(level) {
+		assertLevel(level);
+
+		return fetchJson("/api/levels/" + encodeURIComponent(level) + "/leaderboard?deviceId=" + encodeURIComponent(getDeviceId()))
+			.catch(function () {
+				return { level: level, entries: [], me: null };
+			});
+	}
+
 	global.QuestionBank = {
 		LEVELS: LEVELS.slice(),
 		LEVEL_LABELS: cloneData(LEVEL_LABELS),
@@ -537,6 +654,12 @@
 		applyPointSettingsToQuestions: applyPointSettingsToQuestions,
 		applyTimeSettingsToQuestions: applyTimeSettingsToQuestions,
 		updateQuestionsTimeByDifficulty: updateQuestionsTimeByDifficulty,
-		updateQuestionsPointByDifficulty: updateQuestionsPointByDifficulty
+		updateQuestionsPointByDifficulty: updateQuestionsPointByDifficulty,
+		getDeviceId: getDeviceId,
+		getNickname: getNickname,
+		setNickname: setNickname,
+		setNicknameLocal: setNicknameLocal,
+		submitScore: submitScore,
+		getLeaderboard: getLeaderboard
 	};
 })(window);

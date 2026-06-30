@@ -164,6 +164,30 @@
 			@media (max-width:700px){
 				.endlessrunner-admin-link{top:12px;right:12px;padding:12px 16px;font-size:14px}
 			}
+			.endlessrunner-nickname-input{width:220px;padding:13px 14px;border-radius:12px;border:1.5px solid rgba(92,187,238,0.35);background:rgba(4,17,38,0.6);color:#fff;font-size:16px;font-weight:600;text-align:center;outline:none;box-sizing:border-box}
+			.endlessrunner-nickname-input::placeholder{color:rgba(160,200,255,0.55);font-weight:500}
+			.endlessrunner-nickname-input:focus{border-color:rgba(92,187,238,0.85);box-shadow:0 0 16px rgba(92,187,238,0.3)}
+			.endlessrunner-nickname-hint{color:#ffd27a;font-size:12.5px;text-align:center;min-height:14px;max-width:240px}
+			.endlessrunner-level-secondary{margin-top:4px;background:none;border:none;color:rgba(160,200,255,0.92);font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;padding:6px}
+			.endlessrunner-level-secondary:hover{color:#fff}
+			.endlessrunner-gameover-rank{display:none;margin:10px auto 0;color:#ffe08a;font-size:20px;font-weight:800;text-align:center;text-shadow:0 0 18px rgba(255,200,90,0.5)}
+			.endlessrunner-gameover-actions{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:8px}
+			.endlessrunner-gameover-leaderboard-btn{padding:13px 26px;border-radius:12px;border:1px solid rgba(92,187,238,0.4);background:linear-gradient(135deg,#4facfe,#00c2fe);color:#012;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(79,172,254,0.35);transition:transform 0.12s ease}
+			.endlessrunner-gameover-leaderboard-btn:hover{transform:scale(1.05)}
+			.endlessrunner-leaderboard-overlay{position:fixed;left:0;top:0;right:0;bottom:0;display:none;align-items:center;justify-content:center;z-index:900;background:rgba(4,17,38,0.9);backdrop-filter:blur(7px)}
+			.endlessrunner-leaderboard-panel{display:flex;flex-direction:column;align-items:stretch;gap:12px;width:min(420px,92vw);max-height:84vh;padding:26px 22px;border-radius:18px;background:rgba(10,30,70,0.95);box-shadow:0 0 60px rgba(92,187,238,0.25);border:1.5px solid rgba(92,187,238,0.22)}
+			.endlessrunner-leaderboard-title{color:#fff;font-size:22px;font-weight:800;text-align:center;text-shadow:0 0 18px rgba(92,187,238,0.6)}
+			.endlessrunner-leaderboard-subtitle{color:rgba(160,200,255,0.85);font-size:14px;text-align:center;margin-top:-6px}
+			.endlessrunner-leaderboard-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding:4px;margin:0}
+			.endlessrunner-leaderboard-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.05);color:#eaf3ff;font-size:15px}
+			.endlessrunner-leaderboard-row-me{background:linear-gradient(135deg,rgba(79,172,254,0.32),rgba(0,242,254,0.22));border:1px solid rgba(92,187,238,0.6);font-weight:800}
+			.endlessrunner-leaderboard-rank{width:46px;font-weight:800;color:#ffd27a}
+			.endlessrunner-leaderboard-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+			.endlessrunner-leaderboard-score{font-weight:800;color:#7fe7c4}
+			.endlessrunner-leaderboard-empty{color:rgba(180,210,255,0.75);text-align:center;padding:24px 10px;font-size:15px}
+			.endlessrunner-leaderboard-divider{height:1px;background:rgba(140,180,240,0.25);margin:6px 4px}
+			.endlessrunner-leaderboard-close{margin-top:4px;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#5cbbee,#0046a9);color:#fff;font-size:16px;font-weight:800;cursor:pointer;transition:transform 0.12s ease}
+			.endlessrunner-leaderboard-close:hover{transform:scale(1.04)}
 		</style>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
 	</head>
@@ -173,10 +197,21 @@
 		<div class="endlessrunner-level-overlay" id="endlessrunner-level-overlay">
 			<div class="endlessrunner-level-panel">
 				<div class="endlessrunner-level-title">&#127891; Ch&#7885;n c&#7845;p &#273;&#7897;</div>
-				<div class="endlessrunner-level-subtitle">H&#227;y ch&#7885;n l&#7899;p h&#7885;c c&#7911;a b&#7841;n</div>
+				<div class="endlessrunner-level-subtitle">Nh&#7853;p bi&#7879;t danh v&#224; ch&#7885;n l&#7899;p h&#7885;c</div>
+				<input class="endlessrunner-nickname-input" id="endlessrunner-nickname-input" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Bi&#7879;t danh c&#7911;a b&#7841;n" />
+				<div class="endlessrunner-nickname-hint" id="endlessrunner-nickname-hint"></div>
 				<button class="endlessrunner-level-btn endlessrunner-level-btn-6" id="endlessrunner-level-btn-6" type="button">L&#7899;p 6</button>
 				<button class="endlessrunner-level-btn endlessrunner-level-btn-7" id="endlessrunner-level-btn-7" type="button">L&#7899;p 7</button>
 				<button class="endlessrunner-level-btn endlessrunner-level-btn-8" id="endlessrunner-level-btn-8" type="button">L&#7899;p 8</button>
+				<button class="endlessrunner-level-secondary" id="endlessrunner-level-leaderboard-btn" type="button">&#127942; Xem b&#7843;ng x&#7871;p h&#7841;ng</button>
+			</div>
+		</div>
+		<div class="endlessrunner-leaderboard-overlay" id="endlessrunner-leaderboard-overlay">
+			<div class="endlessrunner-leaderboard-panel">
+				<div class="endlessrunner-leaderboard-title">&#127942; B&#7843;ng x&#7871;p h&#7841;ng</div>
+				<div class="endlessrunner-leaderboard-subtitle" id="endlessrunner-leaderboard-subtitle"></div>
+				<div class="endlessrunner-leaderboard-list" id="endlessrunner-leaderboard-list"></div>
+				<button class="endlessrunner-leaderboard-close" id="endlessrunner-leaderboard-close" type="button">&#272;&#243;ng</button>
 			</div>
 		</div>
 		<div class="endlessrunner-play-overlay" id="endlessrunner-play-overlay">
@@ -249,6 +284,7 @@
 
 					<div class="endlessrunner-gameover-score" id="endlessrunner-gameover-score"></div>
 					<div class="endlessrunner-gameover-score-value" id="endlessrunner-gameover-score-value"></div>
+					<div class="endlessrunner-gameover-rank" id="endlessrunner-gameover-rank"></div>
 
 				</div>
 
@@ -260,6 +296,7 @@
 							<div id="endlessrunner-gameover-restart-button"></div>
 						</div>
 					</div>
+					<button class="endlessrunner-gameover-leaderboard-btn" id="endlessrunner-gameover-leaderboard-btn" type="button">&#127942; B&#7843;ng x&#7871;p h&#7841;ng</button>
 				</div>
 
 			</div>
@@ -812,7 +849,89 @@
 				document.getElementById("endlessrunner-level-overlay").style.display = "none";
 				}
 
-			function showBootError(message)
+							// --- Player session stats + leaderboard (Phase 3) ---
+				var sessionStats = null;
+
+				function resetSessionStats()
+					{
+					sessionStats = { correct: 0, wrong: 0, timeout: 0, byDifficulty: {}, startTime: Date.now() };
+					}
+
+				function recordSessionAnswer(difficulty, outcome)
+					{
+					if (sessionStats==null) { resetSessionStats(); }
+					var key = String(difficulty==null ? "general" : difficulty).toLowerCase();
+					if (sessionStats.byDifficulty[key]==null) { sessionStats.byDifficulty[key] = { correct: 0, total: 0 }; }
+					sessionStats.byDifficulty[key].total = sessionStats.byDifficulty[key].total + 1;
+					if (outcome==="correct") { sessionStats.correct = sessionStats.correct + 1; sessionStats.byDifficulty[key].correct = sessionStats.byDifficulty[key].correct + 1; }
+					else if (outcome==="timeout") { sessionStats.timeout = sessionStats.timeout + 1; }
+					else { sessionStats.wrong = sessionStats.wrong + 1; }
+					}
+
+				function escapeHtmlText(value)
+					{
+					return String(value==null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+					}
+
+				function submitGameResult()
+					{
+					var rankEl = document.getElementById("endlessrunner-gameover-rank");
+					if (rankEl!=null) { rankEl.style.display = "none"; rankEl.innerHTML = ""; }
+					if (typeof QuestionBank==="undefined" || selectedLevel==null || sessionStats==null) { return; }
+					if (typeof updateSkillAfterGame==="function") { updateSkillAfterGame(selectedLevel, sessionStats); }
+					var stats = { score: score, correctCount: sessionStats.correct, wrongCount: sessionStats.wrong, timeoutCount: sessionStats.timeout, durationMs: Date.now() - sessionStats.startTime };
+					QuestionBank.submitScore(selectedLevel, stats).then(function(result)
+						{
+						if (result!=null && result.rank!=null && rankEl!=null)
+							{
+							var label = (QuestionBank.LEVEL_LABELS && QuestionBank.LEVEL_LABELS[selectedLevel]) ? QuestionBank.LEVEL_LABELS[selectedLevel] : selectedLevel;
+							rankEl.innerHTML = "&#127942; H&#7841;ng #" + result.rank + " &#8226; " + label;
+							rankEl.style.display = "block";
+							}
+						});
+					}
+
+				function renderLeaderboardList(listEl, data)
+					{
+					var entries = data!=null && data.entries ? data.entries : [];
+					if (entries.length===0) { listEl.innerHTML = "<div class='endlessrunner-leaderboard-empty'>Ch&#432;a c&#243; ai tr&#234;n b&#7843;ng x&#7871;p h&#7841;ng. H&#227;y l&#224; ng&#432;&#7901;i &#273;&#7847;u ti&#234;n!</div>"; return; }
+					var html = "";
+					var meInList = false;
+					entries.forEach(function(entry)
+						{
+						if (entry.isMe===true) { meInList = true; }
+						var meClass = entry.isMe===true ? " endlessrunner-leaderboard-row-me" : "";
+						html += "<div class='endlessrunner-leaderboard-row" + meClass + "'><span class='endlessrunner-leaderboard-rank'>#" + entry.rank + "</span><span class='endlessrunner-leaderboard-name'>" + escapeHtmlText(entry.nickname) + "</span><span class='endlessrunner-leaderboard-score'>" + entry.score + "</span></div>";
+						});
+					if (data!=null && data.me!=null && meInList===false)
+						{
+						var myName = (typeof QuestionBank!=="undefined" && QuestionBank.getNickname()) ? QuestionBank.getNickname() : "B&#7841;n";
+						html += "<div class='endlessrunner-leaderboard-divider'></div><div class='endlessrunner-leaderboard-row endlessrunner-leaderboard-row-me'><span class='endlessrunner-leaderboard-rank'>#" + data.me.rank + "</span><span class='endlessrunner-leaderboard-name'>" + escapeHtmlText(myName) + "</span><span class='endlessrunner-leaderboard-score'>" + data.me.score + "</span></div>";
+						}
+					listEl.innerHTML = html;
+					}
+
+				function showLeaderboard(level)
+					{
+					var overlay = document.getElementById("endlessrunner-leaderboard-overlay");
+					var listEl = document.getElementById("endlessrunner-leaderboard-list");
+					var subtitleEl = document.getElementById("endlessrunner-leaderboard-subtitle");
+					if (overlay==null || listEl==null || typeof QuestionBank==="undefined") { return; }
+					var targetLevel = level!=null ? level : (selectedLevel!=null ? selectedLevel : "lop6");
+					var label = (QuestionBank.LEVEL_LABELS && QuestionBank.LEVEL_LABELS[targetLevel]) ? QuestionBank.LEVEL_LABELS[targetLevel] : targetLevel;
+					if (subtitleEl!=null) { subtitleEl.innerHTML = label; }
+					listEl.innerHTML = "<div class='endlessrunner-leaderboard-empty'>&#272;ang t&#7843;i...</div>";
+					overlay.style.display = "flex";
+					QuestionBank.getLeaderboard(targetLevel).then(function(data) { renderLeaderboardList(listEl, data); });
+					}
+
+				function hideLeaderboard()
+					{
+					var overlay = document.getElementById("endlessrunner-leaderboard-overlay");
+					if (overlay!=null) { overlay.style.display = "none"; }
+					}
+
+				function showBootError(message)
 				{
 				bootCompleted = false;
 				setLoadingSpinnerVisible(false);
@@ -972,6 +1091,7 @@
 						{
 						ensureQuestionProgressEntry(activeQuestion);
 						QuestionBank.markQuestionResult(selectedLevel, activeQuestion.id, "correct");
+							recordSessionAnswer(activeQuestion.difficulty, "correct");
 						}
 					handleCorrectAnswer(activeQuestion);
 					}
@@ -981,6 +1101,7 @@
 						{
 						ensureQuestionProgressEntry(activeQuestion);
 						QuestionBank.markQuestionResult(selectedLevel, activeQuestion.id, "wrong");
+							recordSessionAnswer(activeQuestion.difficulty, "wrong");
 						}
 					handleWrongAnswer();
 					}
@@ -1002,6 +1123,7 @@
 					{
 					ensureQuestionProgressEntry(timedOutQuestion);
 					QuestionBank.markQuestionResult(selectedLevel, timedOutQuestion.id, "timeout");
+						recordSessionAnswer(timedOutQuestion.difficulty, "timeout");
 					}
 				handleWrongAnswer();
 				}
@@ -1730,7 +1852,8 @@
 				loadQuestionsDataForLevel(selectedLevel)
 					.then(function()
 						{
-						startPreparedGame();
+						resetSessionStats();
+							startPreparedGame();
 						})
 					.catch(function(error)
 						{
@@ -1927,6 +2050,7 @@
 
 				// SHOWING THE GAME OVER CONTAINER
 				document.getElementsByClassName("endlessrunner-gameover-background")[0].style.display = "block";
+					submitGameResult();
 				updateGameRunningState();
 
 				// IMPLEMENTING THE FADE IN EFFECT FOR THE GAME OVER, SCORE, HIGHSCORE AND RESTART BUTTON
@@ -2435,6 +2559,18 @@
 						return;
 						}
 
+					var nicknameInput = document.getElementById("endlessrunner-nickname-input");
+					var typedName = nicknameInput!=null ? nicknameInput.value : "";
+					var savedName = (typeof QuestionBank!=="undefined") ? QuestionBank.getNickname() : "";
+					var chosenName = (typedName!=null && typedName.trim()!=="") ? typedName : savedName;
+					if (chosenName==null || chosenName.trim()==="")
+						{
+						var hintEl = document.getElementById("endlessrunner-nickname-hint");
+						if (hintEl!=null) { hintEl.innerHTML = "Vui l&#242;ng nh&#7853;p bi&#7879;t danh &#273;&#7875; l&#432;u &#273;i&#7875;m."; }
+						if (nicknameInput!=null) { nicknameInput.focus(); }
+						return;
+						}
+					if (typeof QuestionBank!=="undefined") { QuestionBank.setNickname(chosenName); }
 					isLevelLoading = true;
 					setLevelButtonsDisabled(true);
 					setLoadingSpinnerVisible(true);
@@ -2467,6 +2603,26 @@
 					btn.addEventListener("click", function(){ handleLevelSelect("lop" + lvl); });
 					btn.addEventListener("touchstart", function(event){ event.preventDefault(); handleLevelSelect("lop" + lvl); });
 					});
+
+				// Nickname field + leaderboard buttons (Phase 3)
+				(function()
+					{
+					var nicknameField = document.getElementById("endlessrunner-nickname-input");
+					if (nicknameField!=null && typeof QuestionBank!=="undefined")
+						{
+						var saved = QuestionBank.getNickname();
+						if (saved) { nicknameField.value = saved; }
+						nicknameField.addEventListener("input", function() { var h = document.getElementById("endlessrunner-nickname-hint"); if (h!=null) { h.innerHTML = ""; } });
+						}
+					var levelLbBtn = document.getElementById("endlessrunner-level-leaderboard-btn");
+					if (levelLbBtn!=null) { levelLbBtn.addEventListener("click", function(){ showLeaderboard(selectedLevel); }); }
+					var gameoverLbBtn = document.getElementById("endlessrunner-gameover-leaderboard-btn");
+					if (gameoverLbBtn!=null) { gameoverLbBtn.addEventListener("click", function(){ showLeaderboard(selectedLevel); }); }
+					var lbClose = document.getElementById("endlessrunner-leaderboard-close");
+					if (lbClose!=null) { lbClose.addEventListener("click", hideLeaderboard); }
+					var lbOverlay = document.getElementById("endlessrunner-leaderboard-overlay");
+					if (lbOverlay!=null) { lbOverlay.addEventListener("click", function(event){ if (event.target===lbOverlay) { hideLeaderboard(); } }); }
+					})();
 
 				// SETTING WHAT WILL HAPPEN WHEN THE USER CLICKS THE PLAY BUTTON
 				function handlePlayButton()

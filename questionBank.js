@@ -621,6 +621,180 @@
 			});
 	}
 
+	// --- Adaptive skill model (rule-based) ---
+
+	function clampValue(value, lowerBound, upperBound) {
+		return Math.min(upperBound, Math.max(lowerBound, value));
+	}
+
+	function getSkillState() {
+		return readStorage(PLAYER_STORAGE_KEYS.skill, { byLevel: {} });
+	}
+
+	function saveSkillState(state) {
+		writeStorage(PLAYER_STORAGE_KEYS.skill, state);
+	}
+
+	function maxDifficultyIndex() {
+		return Math.max(1, DIFFICULTY_ORDER.length - 1);
+	}
+
+	function getDefaultSkillProfile() {
+		var startIndex = 0.6;
+
+		return {
+			targetDifficultyIndex: startIndex,
+			skill: startIndex / maxDifficultyIndex(),
+			accuracy: null,
+			avgAnswerMs: null,
+			gamesPlayed: 0,
+			updatedAt: null
+		};
+	}
+
+	function getSkillProfile(level) {
+		assertLevel(level);
+		var state = getSkillState();
+		var stored = state && state.byLevel ? state.byLevel[level] : null;
+		var fallback = getDefaultSkillProfile();
+
+		if (stored == null || typeof stored !== "object") {
+			return fallback;
+		}
+
+		return {
+			targetDifficultyIndex: typeof stored.targetDifficultyIndex === "number" ? stored.targetDifficultyIndex : fallback.targetDifficultyIndex,
+			skill: typeof stored.skill === "number" ? stored.skill : fallback.skill,
+			accuracy: typeof stored.accuracy === "number" ? stored.accuracy : null,
+			avgAnswerMs: typeof stored.avgAnswerMs === "number" ? stored.avgAnswerMs : null,
+			gamesPlayed: typeof stored.gamesPlayed === "number" ? stored.gamesPlayed : 0,
+			updatedAt: stored.updatedAt || null
+		};
+	}
+
+	function getDifficultyWeights(level) {
+		var profile = getSkillProfile(level);
+		var target = profile.targetDifficultyIndex;
+		var weights = {};
+
+		DIFFICULTY_ORDER.forEach(function (difficulty, index) {
+			var distance = index - target;
+			weights[difficulty] = Math.exp(-(distance * distance) / 1.2) + 0.05;
+		});
+
+		return weights;
+	}
+
+	function getAdaptiveSpeedFactor(level) {
+		var profile = getSkillProfile(level);
+		return clampValue(0.8 + profile.skill * 0.5, 0.7, 1.35);
+	}
+
+	function getRecommendedSpeed(level) {
+		return clampValue(QuestionModel.GAME_SPEED_DEFAULT * getAdaptiveSpeedFactor(level), QuestionModel.GAME_SPEED_MIN, QuestionModel.GAME_SPEED_MAX);
+	}
+
+	function orderQuestionsBySkill(level, questionList) {
+		assertLevel(level);
+
+		if (Array.isArray(questionList) === false || questionList.length === 0) {
+			return [];
+		}
+
+		var weights = getDifficultyWeights(level);
+
+		// Efraimidis-Spirakis weighted shuffle: key = rand^(1/weight). Sorting
+		// ascending puts the largest keys (higher-weight, closer to the target
+		// difficulty) last, and the game pops questions from the end first.
+		return questionList.map(function (question) {
+			var difficulty = QuestionModel.normalizeDifficulty(question.difficulty);
+			var weight = weights[difficulty] != null ? weights[difficulty] : 0.2;
+
+			if (weight <= 0) {
+				weight = 0.0001;
+			}
+
+			return { question: question, key: Math.pow(Math.random(), 1 / weight) };
+		}).sort(function (left, right) {
+			return left.key - right.key;
+		}).map(function (item) {
+			return item.question;
+		});
+	}
+
+	function syncSkillProfile(level, profile) {
+		assertLevel(level);
+		var resolvedProfile = profile || getSkillProfile(level);
+
+		return fetchJson("/api/players/" + encodeURIComponent(getDeviceId()) + "/skill", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				level: level,
+				skill: resolvedProfile.skill,
+				accuracy: resolvedProfile.accuracy,
+				avgAnswerMs: resolvedProfile.avgAnswerMs,
+				recommendedSpeed: getRecommendedSpeed(level),
+				difficultyWeights: getDifficultyWeights(level),
+				gamesPlayed: resolvedProfile.gamesPlayed
+			})
+		}).catch(function () {
+			return null;
+		});
+	}
+
+	function updateSkillProfileAfterGame(level, session) {
+		assertLevel(level);
+		var data = session || {};
+		var correct = nonNegativeInteger(data.correct);
+		var wrong = nonNegativeInteger(data.wrong);
+		var timeout = nonNegativeInteger(data.timeout);
+		var total = correct + wrong + timeout;
+		var profile = getSkillProfile(level);
+
+		if (total > 0) {
+			var accuracy = correct / total;
+			var target = profile.targetDifficultyIndex;
+
+			if (accuracy >= 0.8) {
+				target += 0.4;
+			} else if (accuracy <= 0.5) {
+				target -= 0.5;
+			}
+
+			target = clampValue(target, 0, maxDifficultyIndex());
+
+			var previousAccuracy = typeof profile.accuracy === "number" ? profile.accuracy : accuracy;
+			var smoothedAccuracy = previousAccuracy * 0.6 + accuracy * 0.4;
+
+			var durationMs = nonNegativeInteger(data.durationMs);
+			var averageMs = durationMs > 0 ? Math.round(durationMs / total) : null;
+			var previousMs = typeof profile.avgAnswerMs === "number" ? profile.avgAnswerMs : averageMs;
+			var smoothedMs = averageMs != null && previousMs != null ? Math.round(previousMs * 0.6 + averageMs * 0.4) : averageMs;
+
+			profile = {
+				targetDifficultyIndex: target,
+				skill: clampValue(target / maxDifficultyIndex(), 0, 1),
+				accuracy: smoothedAccuracy,
+				avgAnswerMs: smoothedMs,
+				gamesPlayed: profile.gamesPlayed + 1,
+				updatedAt: new Date().toISOString()
+			};
+
+			var state = getSkillState();
+
+			if (state.byLevel == null) {
+				state.byLevel = {};
+			}
+
+			state.byLevel[level] = profile;
+			saveSkillState(state);
+		}
+
+		syncSkillProfile(level, profile);
+		return profile;
+	}
+
 	global.QuestionBank = {
 		LEVELS: LEVELS.slice(),
 		LEVEL_LABELS: cloneData(LEVEL_LABELS),
@@ -660,6 +834,13 @@
 		setNickname: setNickname,
 		setNicknameLocal: setNicknameLocal,
 		submitScore: submitScore,
-		getLeaderboard: getLeaderboard
+		getLeaderboard: getLeaderboard,
+		getSkillProfile: getSkillProfile,
+		getDifficultyWeights: getDifficultyWeights,
+		getAdaptiveSpeedFactor: getAdaptiveSpeedFactor,
+		getRecommendedSpeed: getRecommendedSpeed,
+		orderQuestionsBySkill: orderQuestionsBySkill,
+		updateSkillProfileAfterGame: updateSkillProfileAfterGame,
+		syncSkillProfile: syncSkillProfile
 	};
 })(window);

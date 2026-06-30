@@ -682,7 +682,14 @@
 					availableQuestions = QuestionBank.filterAvailableQuestions(selectedLevel, availableQuestions);
 					}
 
-				questionQueue = shuffleArray(availableQuestions);
+				if (typeof QuestionBank!=="undefined" && typeof QuestionBank.orderQuestionsBySkill==="function" && selectedLevel!=null)
+					{
+					questionQueue = QuestionBank.orderQuestionsBySkill(selectedLevel, availableQuestions);
+					}
+				else
+					{
+					questionQueue = shuffleArray(availableQuestions);
+					}
 				}
 
 			function hasRemainingQuestions()
@@ -829,6 +836,10 @@
 						selectedLevel = level;
 						questions = bundle.questions;
 						gameSpeedMultiplier = bundle.gameSpeed!=null ? bundle.gameSpeed : DEFAULT_GAME_SPEED;
+						if (typeof QuestionBank!=="undefined" && typeof QuestionBank.getAdaptiveSpeedFactor==="function")
+							{
+							gameSpeedMultiplier = Math.min(QuestionBank.GAME_SPEED_MAX, Math.max(QuestionBank.GAME_SPEED_MIN, gameSpeedMultiplier * QuestionBank.getAdaptiveSpeedFactor(level)));
+							}
 						refillQuestionQueue();
 
 						return questions;
@@ -871,6 +882,12 @@
 				function escapeHtmlText(value)
 					{
 					return String(value==null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+					}
+
+				function updateSkillAfterGame(level, session)
+					{
+					if (typeof QuestionBank==="undefined" || level==null || typeof QuestionBank.updateSkillProfileAfterGame!=="function") { return; }
+					try { QuestionBank.updateSkillProfileAfterGame(level, session); } catch (error) {}
 					}
 
 				function submitGameResult()

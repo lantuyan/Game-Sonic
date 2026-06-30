@@ -7,6 +7,7 @@ var QuestionModel = require("../shared/questionModel");
 var auth = require("./auth");
 var configModule = require("./config");
 var dbModule = require("./db");
+var playerStoreModule = require("./playerStore");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -19,6 +20,7 @@ function createApp(overrides) {
 	configModule.validateConfig(config);
 
 	var dataStore = dbModule.createDatabase(config);
+	var playerStore = playerStoreModule.createPlayerStore({ sql: dataStore.sql, ready: dataStore.ready });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -110,6 +112,41 @@ function createApp(overrides) {
 			response.json(await dataStore.updateGameSpeedForLevel(request.params.level, request.body ? request.body.value : null));
 		} catch (error) {
 			next(createError(400, error.message));
+		}
+	});
+
+	// --- Player routes (public): leaderboard + adaptive skill profiles ---
+
+	app.post("/api/scores", async function (request, response, next) {
+		try {
+			response.json(await playerStore.submitScore(request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.get("/api/levels/:level/leaderboard", async function (request, response, next) {
+		try {
+			var deviceId = request.query ? request.query.deviceId : null;
+			response.json(await playerStore.getLeaderboard(request.params.level, deviceId));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.put("/api/players/:deviceId/nickname", async function (request, response, next) {
+		try {
+			response.json(await playerStore.updateNickname(request.params.deviceId, request.body ? request.body.nickname : null));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.put("/api/players/:deviceId/skill", async function (request, response, next) {
+		try {
+			response.json(await playerStore.saveSkill(request.params.deviceId, request.body || {}));
+		} catch (error) {
+			next(error);
 		}
 	});
 

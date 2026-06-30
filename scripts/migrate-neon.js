@@ -6,7 +6,7 @@
 //   - With DATABASE_URL set (Neon): migrates the production leaderboard database.
 //   - Without DATABASE_URL (local): initializes the embedded PGlite store.
 //
-// The question bank is stored separately in better-sqlite3 and needs no migration.
+// The question bank is stored separately in an in-memory JSON store and needs no migration.
 // Run after provisioning Neon:  node scripts/migrate-neon.js  (or: npm run migrate)
 
 var dotenv = require("dotenv");

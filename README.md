@@ -1,8 +1,20 @@
-# Endless Runner
+# Sonic Math Runner
 
-Endless Runner game developed in JavaScript, now running with a small Node.js backend and SQLite question database.
+A 3D endless-runner math quiz game (grades 6–8) with a small Node.js/Express backend.
 
 ![alt screenshot](https://raw.githubusercontent.com/lrusso/EndlessRunner/master/EndlessRunner.png)
+
+## Features
+
+- **Math quiz runner** per grade (lớp 6 / 7 / 8), with an admin panel to edit questions, points, time and game speed.
+- **Per-level leaderboard (top 20)** — players pick a nickname; a device id is stored locally. Best score per player is ranked, and the player's own row is highlighted.
+- **Adaptive difficulty (rule-based AI)** — after each run the game updates a per-level skill profile (in `localStorage`) from answer accuracy, then biases the next run's question difficulty and game speed toward the player's level. Profiles also sync to the server when a database is configured.
+- **Character selection** — choose between Sonic and additional 3D characters; the choice persists locally.
+
+## Data layer
+
+- **Question bank**: a pure-JS JSON store, seeded once from `questions/lop6|7|8.json`. Works everywhere with no configuration.
+- **Player data (leaderboard + skill profiles)**: Postgres via [Neon](https://neon.tech) when `DATABASE_URL` is set; an embedded [PGlite](https://pglite.dev) database for local dev/tests. When no database is available (e.g. on Vercel before Neon is connected) these features degrade gracefully — the game still runs, the leaderboard is just empty until a database is connected.
 
 ## Local setup
 
@@ -24,6 +36,9 @@ npm run hash-password -- your-admin-password
 PORT=3000
 JWT_SECRET=replace-with-a-long-random-secret
 ADMIN_PASSWORD_HASH=paste-generated-hash-here
+# Optional: a Neon Postgres connection string enables the persistent leaderboard
+# and skill sync. Leave empty for local dev (an embedded PGlite database is used).
+DATABASE_URL=
 ```
 
 4. Start the app:
@@ -47,6 +62,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `npm start`: start the production-style server
 - `npm run dev`: start the server in watch mode
 - `npm test`: run integration tests
+- `npm run migrate`: apply the player-data schema (leaderboard/skill) to the configured database (Neon when `DATABASE_URL` is set, else local PGlite)
 - `npm run hash-password -- <password>`: generate a bcrypt hash for `.env`
 
 ## Vercel deployment
@@ -60,7 +76,14 @@ JWT_SECRET=use-a-long-random-secret
 ADMIN_PASSWORD_HASH=output-from-npm-run-hash-password
 ```
 
-Vercel's deployment filesystem is read-only, so the app stores its SQLite runtime database under `/tmp` automatically. The public game and seeded question bank work in production; admin edits are not durable across cold starts or redeploys unless the data layer is moved to an external database.
+The question bank runs on a pure-JS JSON store under `/tmp`, so the **game works on Vercel with no extra configuration** (the bank is re-seeded per cold start; admin edits are not durable across cold starts — this is unchanged from before).
+
+To enable the **persistent leaderboard and skill sync** in production:
+
+1. Add the **Neon** integration from the Vercel Marketplace (this injects `DATABASE_URL` into the project's environment).
+2. Pull it locally (`vercel env pull`) or set `DATABASE_URL` in `.env`, then run `npm run migrate` once to create the player tables.
+
+Until `DATABASE_URL` is set, the leaderboard/skill endpoints respond with empty/disabled data and the game keeps working normally.
 
 ## Disclaimer
 

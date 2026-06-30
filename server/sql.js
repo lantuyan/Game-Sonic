@@ -144,7 +144,7 @@ function createSqlClient(config) {
 	// local dev and tests — it hangs inside Vercel's serverless function runtime,
 	// so on Vercel we return null and let DB-backed features (leaderboard/skill)
 	// stay disabled until DATABASE_URL is configured. The question bank does not
-	// use this client; it runs on better-sqlite3 and works on Vercel with no config.
+	// use this client; it runs on an in-memory JSON store and works on Vercel with no config.
 	if (String(process.env.VERCEL || "") !== "") {
 		return null;
 	}

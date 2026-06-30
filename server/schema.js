@@ -1,7 +1,7 @@
 "use strict";
 
 // Postgres schema for player data (leaderboard + adaptive skill profiles) on the
-// Neon/PGlite SQL client. The question bank lives in better-sqlite3 (server/db.js),
+// Neon/PGlite SQL client. The question bank lives in an in-memory JSON store (server/db.js),
 // so its tables are not created here. Idempotent — safe to run on every boot and
 // from scripts/migrate-neon.js.
 

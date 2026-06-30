@@ -23,7 +23,7 @@ function createApp(overrides) {
 	var dataStore = dbModule.createDatabase(config);
 	// Player data (leaderboard/skill) uses a separate Postgres client: Neon when
 	// DATABASE_URL is set, embedded PGlite locally, or null on Vercel without Neon
-	// (features degrade gracefully). The question bank stays on better-sqlite3.
+	// (features degrade gracefully). The question bank stays on an in-memory JSON store.
 	var playerSql = createSqlClient(config);
 	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql });
 	var app = express();

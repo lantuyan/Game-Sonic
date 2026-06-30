@@ -1,12 +1,13 @@
 "use strict";
 
-// Unified async SQL client over a single Postgres dialect.
+// Unified async SQL client for player data (leaderboard + skill profiles) over a
+// single Postgres dialect.
 //
 //   - Production: Neon (HTTP driver) when DATABASE_URL is a Neon connection
 //     string. No WebSocket needed, works on Vercel serverless.
-//   - Local dev / tests / Vercel-without-DATABASE_URL: PGlite, an embedded
-//     Postgres (WASM). File-backed so data survives in-process restarts;
-//     in-memory when no data dir is provided.
+//   - Local dev / tests: PGlite, an embedded Postgres (WASM), file-backed.
+//   - Vercel without DATABASE_URL: createSqlClient returns null (PGlite hangs in
+//     the serverless runtime), and the player store degrades gracefully.
 //
 // Both backends speak the same Postgres SQL ($1 placeholders) and expose:
 //   query(text, params)   -> Promise<{ rows }>

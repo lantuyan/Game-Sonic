@@ -11,7 +11,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 10,
-      "includeFiles": "{*.htm,*.html,*.js,*.json,*.png,characters/**,questions/**,server/**,shared/**}"
+      "includeFiles": "{*.htm,*.html,*.js,*.json,*.png,questions/**,server/**,shared/**}"
     }
   }
 }

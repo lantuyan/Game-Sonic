@@ -52,8 +52,8 @@ Then open [http://localhost:3000](http://localhost:3000).
 ## Development notes
 
 - Frontend assets are still plain HTML/JS files served by the backend.
-- Question data is stored in SQLite at `.runtime/game-sonic-running.sqlite`.
-- `questions/lop6.json`, `lop7.json`, `lop8.json` are used only to seed the database the first time an empty DB starts.
+- Question data is seeded from `questions/lop6.json`, `lop7.json`, `lop8.json` and cached as a JSON file under `.runtime/` (`/tmp` on Vercel).
+- Admin edits update that cached store; they persist within a running instance but are re-seeded from the JSON on a fresh start.
 - Admin login is now validated by the backend and stored in an `HttpOnly` cookie.
 - Player progress for shown/answered questions is still stored locally in the browser.
 

@@ -207,8 +207,8 @@
 				<div class="endlessrunner-character-row" id="endlessrunner-character-row">
 					<button class="endlessrunner-character-btn" data-character="sonic" type="button">Sonic</button>
 					<button class="endlessrunner-character-btn" data-character="robot" type="button">Robot</button>
-					<button class="endlessrunner-character-btn" data-character="xbot" type="button">Ninja</button>
-					<button class="endlessrunner-character-btn" data-character="soldier" type="button">L&#237;nh</button>
+					<button class="endlessrunner-character-btn" data-character="horse" type="button">Ng&#7921;a</button>
+					<button class="endlessrunner-character-btn" data-character="parrot" type="button">V&#7865;t</button>
 				</div>
 				<input class="endlessrunner-nickname-input" id="endlessrunner-nickname-input" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Bi&#7879;t danh c&#7911;a b&#7841;n" />
 				<div class="endlessrunner-nickname-hint" id="endlessrunner-nickname-hint"></div>
@@ -1404,10 +1404,10 @@
 			var CHARACTERS = {
 				sonic:   { label: "Sonic",  embedded: true, scale: 11, rotationY: 66, positionY: 1 },
 				robot:   { label: "Robot",  url: "characters/RobotExpressive.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 },
-				xbot:    { label: "Ninja",  url: "characters/Xbot.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 },
-				soldier: { label: "Linh",   url: "characters/Soldier.glb", targetHeight: 7.7, rotationY: Math.PI, positionY: 1 }
+				horse:   { label: "Ngua",   url: "characters/Horse.glb", targetHeight: 7.7, rotationY: 0, positionY: 1 },
+				parrot:  { label: "Vet",    url: "characters/Parrot.glb", targetHeight: 7.7, rotationY: 0, positionY: 1 }
 			};
-			var CHARACTER_ORDER = ["sonic", "robot", "xbot", "soldier"];
+			var CHARACTER_ORDER = ["sonic", "robot", "horse", "parrot"];
 			var CHARACTER_STORAGE_KEY = "endlessrunner-character-v1";
 			var selectedCharacter = "sonic";
 			var isCharacterLoading = false;
@@ -1437,7 +1437,7 @@
 				gltf.scene.traverse(function(node) { if (node instanceof THREE.Mesh) { node.castShadow = true; } });
 				hero = gltf.scene;
 				if (config.scale!=null) { hero.scale.set(config.scale, config.scale, config.scale); }
-				else if (config.targetHeight!=null) { var box = new THREE.Box3().setFromObject(hero); var size = new THREE.Vector3(); box.getSize(size); var factor = config.targetHeight / (size.y || 1); hero.scale.set(factor, factor, factor); }
+				else if (config.targetHeight!=null) { hero.updateMatrixWorld(true); var box = new THREE.Box3().setFromObject(hero); var size = new THREE.Vector3(); box.getSize(size); var factor = config.targetHeight / (size.y || 1); hero.scale.set(factor, factor, factor); }
 				hero.position.x = 0;
 				hero.position.y = config.positionY!=null ? config.positionY : 1;
 				hero.position.z = 490;

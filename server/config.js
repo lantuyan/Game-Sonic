@@ -23,6 +23,12 @@ function resolveConfig(overrides) {
 		staticDir: values.staticDir || rootDir,
 		runtimeDir: runtimeDir,
 		databasePath: databasePath,
+		// Postgres connection string (Neon) for production. When empty, the SQL
+		// layer falls back to embedded PGlite stored under pgDataDir.
+		databaseUrl: values.databaseUrl != null ? values.databaseUrl : String(process.env.DATABASE_URL || ""),
+		pgDataDir: values.pgDataDir || path.join(runtimeDir, "pgdata"),
+		// Optional shared SQL client (lets question store + player store reuse one connection).
+		sqlClient: values.sqlClient != null ? values.sqlClient : null,
 		port: resolveNumber(values.port != null ? values.port : process.env.PORT, 3000),
 		jwtSecret: values.jwtSecret != null ? values.jwtSecret : String(process.env.JWT_SECRET || ""),
 		adminPasswordHash: values.adminPasswordHash != null ? values.adminPasswordHash : String(process.env.ADMIN_PASSWORD_HASH || ""),

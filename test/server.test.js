@@ -9,6 +9,19 @@ var bcrypt = require("bcrypt");
 var request = require("supertest");
 var createApp = require("../server/app").createApp;
 
+// The tests run against PGlite (embedded Postgres) because DATABASE_URL is unset.
+// When a data dir is closed and immediately reopened (the "restart" tests),
+// PGlite's WASM teardown emits a late, harmless "PGlite is closed" rejection
+// after the test has already finished. This never happens with Neon in
+// production. Swallow only that specific noise; re-throw anything else.
+process.on("unhandledRejection", function (error) {
+	if (error && String(error.message).indexOf("PGlite is closed") !== -1) {
+		return;
+	}
+
+	throw error;
+});
+
 function createTestContext() {
 	var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-"));
 	var config = {
@@ -26,8 +39,9 @@ function createTestContext() {
 		config: config,
 		runtime: runtime,
 		cleanup: function () {
-			runtime.close();
-			fs.rmSync(tempDir, { recursive: true, force: true });
+			return Promise.resolve(runtime.close()).then(function () {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			});
 		}
 	};
 }
@@ -53,7 +67,7 @@ test("health endpoint and seeded question bank are available", async function ()
 		assert.ok(bundleResponse.body.timeSettings.easy > 0);
 		assert.equal(bundleResponse.body.gameSpeed, 1.0);
 	} finally {
-		context.cleanup();
+		await context.cleanup();
 	}
 });
 
@@ -88,7 +102,7 @@ test("admin login, session cookie and logout work", async function () {
 
 		assert.equal(loggedOutSessionResponse.body.authenticated, false);
 	} finally {
-		context.cleanup();
+		await context.cleanup();
 	}
 });
 
@@ -128,7 +142,7 @@ test("question bank writes persist across restarts and duplicate ids are rejecte
 			.send({ questions: duplicateQuestions })
 			.expect(400);
 
-		context.runtime.close();
+		await context.runtime.close();
 		context.runtime = createApp(context.config);
 
 		var persistedBundleResponse = await request(context.runtime.app)
@@ -137,7 +151,7 @@ test("question bank writes persist across restarts and duplicate ids are rejecte
 
 		assert.equal(persistedBundleResponse.body.questions[0].question, "Câu hỏi đã cập nhật từ test");
 	} finally {
-		context.cleanup();
+		await context.cleanup();
 	}
 });
 
@@ -203,7 +217,7 @@ test("difficulty settings update requires auth and applies to all levels", async
 
 		assert.equal(speedResponse.body.gameSpeed, 1.6);
 
-		context.runtime.close();
+		await context.runtime.close();
 		context.runtime = createApp(context.config);
 
 			var persistedBundleResponse = await request(context.runtime.app)

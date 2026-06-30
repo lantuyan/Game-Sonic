@@ -68,46 +68,46 @@ function createApp(overrides) {
 		});
 	});
 
-	app.get("/api/levels/:level/question-bank", function (request, response, next) {
+	app.get("/api/levels/:level/question-bank", async function (request, response, next) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
-			response.json(dataStore.getLevelBundle(request.params.level));
+			response.json(await dataStore.getLevelBundle(request.params.level));
 		} catch (error) {
 			next(createError(400, error.message));
 		}
 	});
 
-	app.put("/api/levels/:level/questions", auth.requireAdminAuth(config), function (request, response, next) {
+	app.put("/api/levels/:level/questions", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
-			response.json(dataStore.replaceQuestionsForLevel(request.params.level, request.body ? request.body.questions : null));
+			response.json(await dataStore.replaceQuestionsForLevel(request.params.level, request.body ? request.body.questions : null));
 		} catch (error) {
 			next(createError(400, error.message));
 		}
 	});
 
-	app.put("/api/levels/:level/settings/point", auth.requireAdminAuth(config), function (request, response, next) {
+	app.put("/api/levels/:level/settings/point", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
-			response.json(dataStore.updatePointSettingsForLevel(request.params.level, request.body ? request.body.settings : null));
+			response.json(await dataStore.updatePointSettingsForLevel(request.params.level, request.body ? request.body.settings : null));
 		} catch (error) {
 			next(createError(400, error.message));
 		}
 	});
 
-	app.put("/api/levels/:level/settings/time", auth.requireAdminAuth(config), function (request, response, next) {
+	app.put("/api/levels/:level/settings/time", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
-			response.json(dataStore.updateTimeSettingsForLevel(request.params.level, request.body ? request.body.settings : null));
+			response.json(await dataStore.updateTimeSettingsForLevel(request.params.level, request.body ? request.body.settings : null));
 		} catch (error) {
 			next(createError(400, error.message));
 		}
 	});
 
-	app.put("/api/levels/:level/settings/speed", auth.requireAdminAuth(config), function (request, response, next) {
+	app.put("/api/levels/:level/settings/speed", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
-			response.json(dataStore.updateGameSpeedForLevel(request.params.level, request.body ? request.body.value : null));
+			response.json(await dataStore.updateGameSpeedForLevel(request.params.level, request.body ? request.body.value : null));
 		} catch (error) {
 			next(createError(400, error.message));
 		}

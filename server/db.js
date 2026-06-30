@@ -2,184 +2,149 @@
 
 var fs = require("fs");
 var path = require("path");
-var Database = require("better-sqlite3");
 var QuestionModel = require("../shared/questionModel");
+var createSqlClient = require("./sql").createSqlClient;
+var applySchema = require("./schema").applySchema;
 
 function createDatabase(config) {
-	fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
+	var sql = config && config.sqlClient ? config.sqlClient : createSqlClient(config);
+	var readyPromise = initialize(sql, config);
 
-	var db = new Database(config.databasePath);
-	db.pragma("journal_mode = WAL");
-	db.pragma("foreign_keys = ON");
-
-	initializeSchema(db);
-	seedIfEmpty(db, config.rootDir);
-	ensureLevelSettingsRows(db);
+	function ready() {
+		return readyPromise;
+	}
 
 	return {
+		sql: sql,
+		ready: ready,
 		close: function () {
-			db.close();
+			// Wait for initialization to settle so we never close the connection
+			// while a schema/seed query is still in flight (avoids late rejections).
+			return readyPromise.catch(function () {}).then(function () {
+				return sql.close();
+			});
 		},
 		getLevelBundle: function (level) {
 			QuestionModel.assertLevel(level);
-			return buildLevelBundle(db, level);
+			return ready().then(function () {
+				return buildLevelBundle(sql, level);
+			});
 		},
 		replaceQuestionsForLevel: function (level, questions) {
 			QuestionModel.assertLevel(level);
-			return replaceQuestionsForLevel(db, level, questions);
+			return ready().then(function () {
+				return replaceQuestionsForLevel(sql, level, questions);
+			});
 		},
 		updatePointSettingsForLevel: function (level, settings) {
 			QuestionModel.assertLevel(level);
-			return updateDifficultySettingsForAllLevels(db, settings, "point", level);
+			return ready().then(function () {
+				return updateDifficultySettingsForAllLevels(sql, settings, "point", level);
+			});
 		},
 		updateTimeSettingsForLevel: function (level, settings) {
 			QuestionModel.assertLevel(level);
-			return updateDifficultySettingsForAllLevels(db, settings, "time", level);
+			return ready().then(function () {
+				return updateDifficultySettingsForAllLevels(sql, settings, "time", level);
+			});
 		},
 		updateGameSpeedForLevel: function (level, value) {
 			QuestionModel.assertLevel(level);
-			return updateGameSpeedForAllLevels(db, value, level);
+			return ready().then(function () {
+				return updateGameSpeedForAllLevels(sql, value, level);
+			});
 		}
 	};
 }
 
-function initializeSchema(db) {
-	db.exec(
-		"CREATE TABLE IF NOT EXISTS questions (" +
-			"level TEXT NOT NULL," +
-			"id TEXT NOT NULL," +
-			"sort_order INTEGER NOT NULL," +
-			"difficulty TEXT NOT NULL," +
-			"question TEXT NOT NULL," +
-			"answer_a TEXT NOT NULL," +
-			"answer_b TEXT NOT NULL," +
-			"answer_c TEXT," +
-			"answer_d TEXT," +
-			"correct_answer TEXT NOT NULL," +
-			"point REAL NOT NULL," +
-			"time INTEGER NOT NULL," +
-			"created_at TEXT NOT NULL," +
-			"updated_at TEXT NOT NULL," +
-			"PRIMARY KEY (level, id)" +
-		");" +
-		"CREATE INDEX IF NOT EXISTS idx_questions_level_sort ON questions (level, sort_order);" +
-		"CREATE TABLE IF NOT EXISTS difficulty_settings (" +
-			"level TEXT NOT NULL," +
-			"difficulty TEXT NOT NULL," +
-			"default_point REAL," +
-			"default_time INTEGER," +
-			"updated_at TEXT NOT NULL," +
-			"PRIMARY KEY (level, difficulty)" +
-		");" +
-		"CREATE TABLE IF NOT EXISTS level_settings (" +
-			"level TEXT NOT NULL PRIMARY KEY," +
-			"game_speed REAL NOT NULL," +
-			"updated_at TEXT NOT NULL" +
-		");"
-	);
+function initialize(sql, config) {
+	return applySchema(sql)
+		.then(function () {
+			return seedIfEmpty(sql, config.rootDir);
+		})
+		.then(function () {
+			return ensureLevelSettingsRows(sql);
+		});
 }
 
-function seedIfEmpty(db, rootDir) {
-	var questionCount = db.prepare("SELECT COUNT(*) AS count FROM questions").get().count;
+function buildInsertQuestionItem(level, question, sortOrder, createdAt, updatedAt) {
+	return {
+		text:
+			"INSERT INTO questions (" +
+				"level, id, sort_order, difficulty, question, answer_a, answer_b, answer_c, answer_d, correct_answer, points, time_limit, created_at, updated_at" +
+			") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+		params: [
+			level,
+			question.id,
+			sortOrder,
+			QuestionModel.normalizeDifficulty(question.difficulty),
+			question.question,
+			question.answers.A,
+			question.answers.B,
+			question.answers.C || null,
+			question.answers.D || null,
+			question.correctAnswer,
+			question.point,
+			question.time,
+			createdAt,
+			updatedAt
+		]
+	};
+}
 
-	if (questionCount > 0) {
-		return;
-	}
+function seedIfEmpty(sql, rootDir) {
+	return sql.query("SELECT COUNT(*)::int AS count FROM questions").then(function (result) {
+		if (Number(result.rows[0].count) > 0) {
+			return null;
+		}
 
-	var insertQuestion = db.prepare(
-		"INSERT INTO questions (" +
-			"level, id, sort_order, difficulty, question, answer_a, answer_b, answer_c, answer_d, correct_answer, point, time, created_at, updated_at" +
-		") VALUES (" +
-			"@level, @id, @sortOrder, @difficulty, @question, @answerA, @answerB, @answerC, @answerD, @correctAnswer, @point, @time, @createdAt, @updatedAt" +
-		")"
-	);
-	var upsertDifficultySettings = db.prepare(
-		"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
-		"VALUES (@level, @difficulty, @defaultPoint, @defaultTime, @updatedAt) " +
-		"ON CONFLICT(level, difficulty) DO UPDATE SET " +
-			"default_point = excluded.default_point, " +
-			"default_time = excluded.default_time, " +
-			"updated_at = excluded.updated_at"
-	);
-	var upsertLevelSettings = db.prepare(
-		"INSERT INTO level_settings (level, game_speed, updated_at) " +
-		"VALUES (@level, @gameSpeed, @updatedAt) " +
-		"ON CONFLICT(level) DO UPDATE SET " +
-			"game_speed = excluded.game_speed, " +
-			"updated_at = excluded.updated_at"
-	);
+		var now = new Date().toISOString();
+		var items = [];
 
-	var seedTransaction = db.transaction(function () {
 		QuestionModel.LEVELS.forEach(function (level) {
 			var filePath = path.join(rootDir, "questions", level + ".json");
 			var rawText = fs.readFileSync(filePath, "utf8");
 			var parsedQuestions = JSON.parse(rawText);
 			var questions = QuestionModel.validateQuestionsData(parsedQuestions, filePath);
-			var now = new Date().toISOString();
 
 			questions.forEach(function (question, index) {
-				insertQuestion.run(toQuestionInsertRecord(level, question, index, now, now));
+				items.push(buildInsertQuestionItem(level, question, index, now, now));
 			});
 
 			QuestionModel.getDifficultySummary(questions).forEach(function (item) {
-				upsertDifficultySettings.run({
-					level: level,
-					difficulty: item.difficulty,
-					defaultPoint: item.point,
-					defaultTime: item.time,
-					updatedAt: now
+				items.push({
+					text:
+						"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
+						"VALUES ($1,$2,$3,$4,now()) " +
+						"ON CONFLICT (level, difficulty) DO UPDATE SET " +
+						"default_point = EXCLUDED.default_point, default_time = EXCLUDED.default_time, updated_at = now()",
+					params: [level, item.difficulty, item.point, item.time]
 				});
 			});
 
-			upsertLevelSettings.run({
-				level: level,
-				gameSpeed: QuestionModel.GAME_SPEED_DEFAULT,
-				updatedAt: now
+			items.push({
+				text:
+					"INSERT INTO level_settings (level, game_speed, updated_at) VALUES ($1,$2,now()) " +
+					"ON CONFLICT (level) DO UPDATE SET game_speed = EXCLUDED.game_speed, updated_at = now()",
+				params: [level, QuestionModel.GAME_SPEED_DEFAULT]
 			});
 		});
-	});
 
-	seedTransaction();
+		return sql.batch(items);
+	});
 }
 
-function ensureLevelSettingsRows(db) {
-	var now = new Date().toISOString();
-	var upsertLevelSettings = db.prepare(
-		"INSERT INTO level_settings (level, game_speed, updated_at) " +
-		"VALUES (@level, @gameSpeed, @updatedAt) " +
-		"ON CONFLICT(level) DO NOTHING"
-	);
-
-	var transaction = db.transaction(function () {
-		QuestionModel.LEVELS.forEach(function (level) {
-			upsertLevelSettings.run({
-				level: level,
-				gameSpeed: QuestionModel.GAME_SPEED_DEFAULT,
-				updatedAt: now
-			});
-		});
+function ensureLevelSettingsRows(sql) {
+	var items = QuestionModel.LEVELS.map(function (level) {
+		return {
+			text:
+				"INSERT INTO level_settings (level, game_speed, updated_at) VALUES ($1,$2,now()) " +
+				"ON CONFLICT (level) DO NOTHING",
+			params: [level, QuestionModel.GAME_SPEED_DEFAULT]
+		};
 	});
 
-	transaction();
-}
-
-function toQuestionInsertRecord(level, question, sortOrder, createdAt, updatedAt) {
-	return {
-		level: level,
-		id: question.id,
-		sortOrder: sortOrder,
-		difficulty: QuestionModel.normalizeDifficulty(question.difficulty),
-		question: question.question,
-		answerA: question.answers.A,
-		answerB: question.answers.B,
-		answerC: question.answers.C || null,
-		answerD: question.answers.D || null,
-		correctAnswer: question.correctAnswer,
-		point: question.point,
-		time: question.time,
-		createdAt: createdAt,
-		updatedAt: updatedAt
-	};
+	return sql.batch(items);
 }
 
 function mapRowToQuestion(row) {
@@ -192,8 +157,8 @@ function mapRowToQuestion(row) {
 			B: row.answer_b
 		},
 		correctAnswer: row.correct_answer,
-		point: row.point,
-		time: row.time
+		point: Number(row.points),
+		time: Number(row.time_limit)
 	};
 
 	if (row.answer_c != null && row.answer_c !== "") {
@@ -207,188 +172,168 @@ function mapRowToQuestion(row) {
 	return QuestionModel.validateQuestion(question, "Database question", 0);
 }
 
-function getQuestionsForLevel(db, level) {
-	var rows = db.prepare(
-		"SELECT id, difficulty, question, answer_a, answer_b, answer_c, answer_d, correct_answer, point, time " +
-		"FROM questions WHERE level = ? ORDER BY sort_order ASC, id ASC"
-	).all(level);
-
-	return rows.map(mapRowToQuestion);
-}
-
-function getStoredSettings(db, level) {
-	var rows = db.prepare(
-		"SELECT difficulty, default_point, default_time FROM difficulty_settings WHERE level = ?"
-	).all(level);
-	var pointSettings = {};
-	var timeSettings = {};
-
-	rows.forEach(function (row) {
-		if (row.default_point != null && isFinite(Number(row.default_point))) {
-			pointSettings[row.difficulty] = Number(row.default_point);
-		}
-
-		if (row.default_time != null && isFinite(Number(row.default_time))) {
-			timeSettings[row.difficulty] = Number(row.default_time);
-		}
+function getQuestionsForLevel(sql, level) {
+	return sql.query(
+		"SELECT id, difficulty, question, answer_a, answer_b, answer_c, answer_d, correct_answer, points, time_limit " +
+		"FROM questions WHERE level = $1 ORDER BY sort_order ASC, id ASC",
+		[level]
+	).then(function (result) {
+		return result.rows.map(mapRowToQuestion);
 	});
-
-	return {
-		pointSettings: pointSettings,
-		timeSettings: timeSettings
-	};
 }
 
-function getStoredGameSpeed(db, level) {
-	var row = db.prepare(
-		"SELECT game_speed FROM level_settings WHERE level = ?"
-	).get(level);
+function getStoredSettings(sql, level) {
+	return sql.query(
+		"SELECT difficulty, default_point, default_time FROM difficulty_settings WHERE level = $1",
+		[level]
+	).then(function (result) {
+		var pointSettings = {};
+		var timeSettings = {};
 
-	if (row == null) {
-		return QuestionModel.GAME_SPEED_DEFAULT;
-	}
+		result.rows.forEach(function (row) {
+			if (row.default_point != null && isFinite(Number(row.default_point))) {
+				pointSettings[row.difficulty] = Number(row.default_point);
+			}
 
-	return QuestionModel.normalizeGameSpeed(row.game_speed);
-}
+			if (row.default_time != null && isFinite(Number(row.default_time))) {
+				timeSettings[row.difficulty] = Number(row.default_time);
+			}
+		});
 
-function buildLevelBundle(db, level) {
-	var questions = getQuestionsForLevel(db, level);
-	var storedSettings = getStoredSettings(db, level);
-	var pointSettings = QuestionModel.cloneData(storedSettings.pointSettings);
-	var timeSettings = QuestionModel.cloneData(storedSettings.timeSettings);
-
-	QuestionModel.getDifficultySummary(questions).forEach(function (item) {
-		if (pointSettings[item.difficulty] == null) {
-			pointSettings[item.difficulty] = item.point;
-		}
-
-		if (timeSettings[item.difficulty] == null) {
-			timeSettings[item.difficulty] = item.time;
-		}
+		return {
+			pointSettings: pointSettings,
+			timeSettings: timeSettings
+		};
 	});
-
-	return {
-		questions: questions,
-		pointSettings: pointSettings,
-		timeSettings: timeSettings,
-		gameSpeed: getStoredGameSpeed(db, level)
-	};
 }
 
-function replaceQuestionsForLevel(db, level, questions) {
+function getStoredGameSpeed(sql, level) {
+	return sql.query(
+		"SELECT game_speed FROM level_settings WHERE level = $1",
+		[level]
+	).then(function (result) {
+		if (result.rows.length === 0 || result.rows[0].game_speed == null) {
+			return QuestionModel.GAME_SPEED_DEFAULT;
+		}
+
+		return QuestionModel.normalizeGameSpeed(result.rows[0].game_speed);
+	});
+}
+
+function buildLevelBundle(sql, level) {
+	return Promise.all([
+		getQuestionsForLevel(sql, level),
+		getStoredSettings(sql, level),
+		getStoredGameSpeed(sql, level)
+	]).then(function (parts) {
+		var questions = parts[0];
+		var storedSettings = parts[1];
+		var gameSpeed = parts[2];
+		var pointSettings = QuestionModel.cloneData(storedSettings.pointSettings);
+		var timeSettings = QuestionModel.cloneData(storedSettings.timeSettings);
+
+		QuestionModel.getDifficultySummary(questions).forEach(function (item) {
+			if (pointSettings[item.difficulty] == null) {
+				pointSettings[item.difficulty] = item.point;
+			}
+
+			if (timeSettings[item.difficulty] == null) {
+				timeSettings[item.difficulty] = item.time;
+			}
+		});
+
+		return {
+			questions: questions,
+			pointSettings: pointSettings,
+			timeSettings: timeSettings,
+			gameSpeed: gameSpeed
+		};
+	});
+}
+
+function replaceQuestionsForLevel(sql, level, questions) {
 	var normalizedQuestions = QuestionModel.validateQuestionsData(questions, "Questions for " + level);
 	var now = new Date().toISOString();
-	var createdAtById = {};
-	var insertQuestion = db.prepare(
-		"INSERT INTO questions (" +
-			"level, id, sort_order, difficulty, question, answer_a, answer_b, answer_c, answer_d, correct_answer, point, time, created_at, updated_at" +
-		") VALUES (" +
-			"@level, @id, @sortOrder, @difficulty, @question, @answerA, @answerB, @answerC, @answerD, @correctAnswer, @point, @time, @createdAt, @updatedAt" +
-		")"
-	);
 
-	db.prepare("SELECT id, created_at FROM questions WHERE level = ?").all(level).forEach(function (row) {
-		createdAtById[row.id] = row.created_at;
-	});
+	return sql.query("SELECT id, created_at FROM questions WHERE level = $1", [level]).then(function (result) {
+		var createdAtById = {};
 
-	var replaceTransaction = db.transaction(function () {
-		db.prepare("DELETE FROM questions WHERE level = ?").run(level);
+		result.rows.forEach(function (row) {
+			createdAtById[row.id] = row.created_at;
+		});
+
+		var items = [
+			{ text: "DELETE FROM questions WHERE level = $1", params: [level] }
+		];
 
 		normalizedQuestions.forEach(function (question, index) {
-			insertQuestion.run(
-				toQuestionInsertRecord(
-					level,
-					question,
-					index,
-					createdAtById[question.id] || now,
-					now
-				)
-			);
+			var createdAt = createdAtById[question.id] != null ? createdAtById[question.id] : now;
+			items.push(buildInsertQuestionItem(level, question, index, createdAt, now));
 		});
+
+		return sql.batch(items);
+	}).then(function () {
+		return buildLevelBundle(sql, level);
 	});
-
-	replaceTransaction();
-
-	return buildLevelBundle(db, level);
 }
 
-function updateDifficultySettingsForAllLevels(db, settings, fieldName, levelToReturn) {
+function updateDifficultySettingsForAllLevels(sql, settings, fieldName, levelToReturn) {
 	var normalizedSettings = QuestionModel.normalizeSettings(settings, fieldName);
-	var now = new Date().toISOString();
-	var upsertStatement;
-	var updateQuestionStatement;
+	var isPoint = fieldName === "point";
+	var items = [];
 
-	if (fieldName === "point") {
-		upsertStatement = db.prepare(
-			"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
-			"VALUES (@level, @difficulty, @value, NULL, @updatedAt) " +
-			"ON CONFLICT(level, difficulty) DO UPDATE SET " +
-				"default_point = excluded.default_point, " +
-				"updated_at = excluded.updated_at"
-		);
-		updateQuestionStatement = db.prepare(
-			"UPDATE questions SET point = @value, updated_at = @updatedAt WHERE level = @level AND difficulty = @difficulty"
-		);
-	} else {
-		upsertStatement = db.prepare(
-			"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
-			"VALUES (@level, @difficulty, NULL, @value, @updatedAt) " +
-			"ON CONFLICT(level, difficulty) DO UPDATE SET " +
-				"default_time = excluded.default_time, " +
-				"updated_at = excluded.updated_at"
-		);
-		updateQuestionStatement = db.prepare(
-			"UPDATE questions SET time = @value, updated_at = @updatedAt WHERE level = @level AND difficulty = @difficulty"
-		);
-	}
+	QuestionModel.LEVELS.forEach(function (level) {
+		Object.keys(normalizedSettings).forEach(function (difficulty) {
+			var value = normalizedSettings[difficulty];
 
-	var updateTransaction = db.transaction(function () {
-		QuestionModel.LEVELS.forEach(function (level) {
-			Object.keys(normalizedSettings).forEach(function (difficulty) {
-				var value = normalizedSettings[difficulty];
-				var statementValues = {
-					level: level,
-					difficulty: difficulty,
-					value: value,
-					updatedAt: now
-				};
-
-				upsertStatement.run(statementValues);
-				updateQuestionStatement.run(statementValues);
-			});
+			if (isPoint) {
+				items.push({
+					text:
+						"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
+						"VALUES ($1,$2,$3,NULL,now()) " +
+						"ON CONFLICT (level, difficulty) DO UPDATE SET default_point = EXCLUDED.default_point, updated_at = now()",
+					params: [level, difficulty, value]
+				});
+				items.push({
+					text: "UPDATE questions SET points = $1, updated_at = now() WHERE level = $2 AND difficulty = $3",
+					params: [value, level, difficulty]
+				});
+			} else {
+				items.push({
+					text:
+						"INSERT INTO difficulty_settings (level, difficulty, default_point, default_time, updated_at) " +
+						"VALUES ($1,$2,NULL,$3,now()) " +
+						"ON CONFLICT (level, difficulty) DO UPDATE SET default_time = EXCLUDED.default_time, updated_at = now()",
+					params: [level, difficulty, value]
+				});
+				items.push({
+					text: "UPDATE questions SET time_limit = $1, updated_at = now() WHERE level = $2 AND difficulty = $3",
+					params: [value, level, difficulty]
+				});
+			}
 		});
 	});
 
-	updateTransaction();
-
-	return buildLevelBundle(db, levelToReturn);
+	return sql.batch(items).then(function () {
+		return buildLevelBundle(sql, levelToReturn);
+	});
 }
 
-function updateGameSpeedForAllLevels(db, value, levelToReturn) {
+function updateGameSpeedForAllLevels(sql, value, levelToReturn) {
 	var normalizedValue = QuestionModel.normalizeGameSpeed(value);
-	var now = new Date().toISOString();
 
-	var upsertStatement = db.prepare(
-		"INSERT INTO level_settings (level, game_speed, updated_at) " +
-		"VALUES (@level, @gameSpeed, @updatedAt) " +
-		"ON CONFLICT(level) DO UPDATE SET " +
-			"game_speed = excluded.game_speed, " +
-			"updated_at = excluded.updated_at"
-	);
-
-	var updateTransaction = db.transaction(function () {
-		QuestionModel.LEVELS.forEach(function (level) {
-			upsertStatement.run({
-				level: level,
-				gameSpeed: normalizedValue,
-				updatedAt: now
-			});
-		});
+	var items = QuestionModel.LEVELS.map(function (level) {
+		return {
+			text:
+				"INSERT INTO level_settings (level, game_speed, updated_at) VALUES ($1,$2,now()) " +
+				"ON CONFLICT (level) DO UPDATE SET game_speed = EXCLUDED.game_speed, updated_at = now()",
+			params: [level, normalizedValue]
+		};
 	});
 
-	updateTransaction();
-
-	return buildLevelBundle(db, levelToReturn);
+	return sql.batch(items).then(function () {
+		return buildLevelBundle(sql, levelToReturn);
+	});
 }
 
 module.exports = {

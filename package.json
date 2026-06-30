@@ -2,11 +2,12 @@
   "name": "game-sonic-running",
   "version": "1.0.0",
   "private": true,
-  "description": "Sonic running game with admin backend and SQLite question bank.",
+  "description": "Sonic running game with admin backend and a Postgres (Neon/PGlite) question bank, leaderboard, and adaptive skill profiles.",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
+    "migrate": "node scripts/migrate-neon.js",
     "vercel-build": "node scripts/vercel-build.js",
     "hash-password": "node server/scripts/hash-password.js"
   },
@@ -14,8 +15,9 @@
     "node": "22.x"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.3",
+    "@neondatabase/serverless": "^1.1.0",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.10.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",

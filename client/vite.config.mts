@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
+import { VitePWA } from "vite-plugin-pwa";
 
 // V2_ROOT điều khiển thư mục build bên trong public/ (plan §7.5).
 // Trong suốt P0 mặc định là "v2" → build ra public/v2/, V1 vẫn phục vụ tại "/".
@@ -21,6 +22,48 @@ export default defineConfig(({ command }) => ({
 			"@": resolve(clientDir, "src")
 		}
 	},
+	plugins: [
+		VitePWA({
+			// injectManifest: ta tự viết SW (client/src/worker.ts) vì kịch bản chuyển tiếp
+			// từ SW tay của V1 cần xử lý riêng — generateSW không làm được (plan §7.3.5).
+			strategies: "injectManifest",
+			srcDir: "src",
+			filename: "worker.ts",
+			// ⚠ TÊN FILE ĐẦU RA PHẢI LÀ `worker.js`: V1 đã đăng ký SW ở đúng URL này,
+			// nên chỉ khi trùng URL thì trình duyệt mới coi là BẢN CẬP NHẬT của SW cũ
+			// và thay thế nó. Đổi tên là V1 sống mãi trên máy học sinh.
+			injectRegister: null,
+			registerType: "prompt",
+			manifest: {
+				name: "Toán Runner",
+				short_name: "Toán Runner",
+				description: "Game chạy vượt chướng ngại kết hợp luyện Toán cho học sinh lớp 6–8.",
+				lang: "vi",
+				start_url: ".",
+				display: "standalone",
+				orientation: "any",
+				background_color: "#1B2A4A",
+				theme_color: "#1B2A4A",
+				icons: [
+					{ src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
+					{ src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
+					{ src: "icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+				]
+			},
+			injectManifest: {
+				// App-shell + font + nhân vật + biome ① đều nằm trong ngân sách 10MB.
+				globPatterns: ["**/*.{js,css,html,woff2,glb,ogg,png,json}"],
+				maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+				// IIFE chứ KHÔNG phải ES module: SW dạng module bắt buộc đăng ký bằng
+				// `{type:"module"}`, thứ mà Chrome cũ trên máy phòng tin học và iOS <16.4
+				// không hỗ trợ — SW sẽ im lặng không cài được. IIFE chạy ở mọi nơi.
+				rollupFormat: "iife"
+			},
+			devOptions: {
+				enabled: false
+			}
+		})
+	],
 	build: {
 		outDir: resolve(clientDir, "..", "public", v2Root),
 		emptyOutDir: true,

@@ -752,3 +752,35 @@
 		align-items: center;
 	}
 }
+
+/* --- Prompt cập nhật (PWA) --- */
+
+.update-prompt {
+	position: fixed;
+	left: 50%;
+	bottom: max(var(--space-4), env(safe-area-inset-bottom));
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-pill);
+	background: rgba(12, 22, 44, 0.94);
+	color: var(--color-text-invert);
+	font-weight: 700;
+	box-shadow: var(--shadow-panel);
+	pointer-events: auto;
+	z-index: 30;
+}
+
+.update-prompt .button {
+	min-height: var(--touch-min);
+	padding: 0 var(--space-4);
+	font-size: 16px;
+}
+
+.update-prompt__later {
+	background: transparent;
+	box-shadow: none;
+	text-decoration: underline;
+}

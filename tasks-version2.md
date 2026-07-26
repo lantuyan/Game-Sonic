@@ -128,13 +128,15 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** chạy tự động (auto-run camera) qua 2.000m không khựng (frame-time ổn trên baseline giả lập CPU 4×); draw calls <100 hiển thị ở `?debug`; bật/tắt curved-world bằng tuning thấy rõ khác biệt; không z-fighting/pop-in lộ liễu ở tầm nhìn.
 
-### [ ] P0-5 · Nhân vật & CharacterAnimator — *3 ngày* (phụ thuộc P0-2, P0-3)
+### [x] P0-5 · Nhân vật & CharacterAnimator — *3 ngày* (phụ thuộc P0-2, P0-3)
 **Việc cần làm:**
-- [ ] `entities/Player.ts` + `core/CharacterAnimator.ts`: nạp GLB đa clip; AnimationMixer, `crossFadeTo` 0.15–0.2s giữa `idle/run/jump/slide/death/hit`; tốc độ clip `run` scale theo tốc độ game (giữ hiệu ứng tốt của V1 — docs/v2/A1 §3.2).
-- [ ] Chuẩn hóa scale bằng `targetHeight` (port cách làm V1 A1 §3.2 — đo Box3 một lần lúc nạp, không mỗi frame).
-- [ ] Bảng `CHARACTERS` mới 4 nhân vật, **map id cũ:** `sonic→knight`, `robot→robot`, `horse→<animal1>`, `parrot→<animal2>`; đọc `endlessrunner-character-v1`, nếu giá trị cũ → tự map, ghi lại giá trị mới (giữ nguyên KEY).
-- [ ] Chuyển động player: tween đổi làn 0.15–0.2s ease-out (được cắt ngang bởi lệnh mới), nhảy parabol 0.55s, trượt 0.6s hạ hitbox 50%, fast-fall; squash-stretch nhẹ khi tiếp đất + bụi chân (particle pool).
-- [ ] Trạng thái bất tử nhấp nháy (tái dùng logic V1 A1 §2.8, viết lại TS).
+- [x] `entities/Player.ts` + `core/CharacterAnimator.ts`: nạp GLB đa clip; AnimationMixer, `crossFadeTo` 0.15–0.2s giữa `idle/run/jump/slide/death/hit`; tốc độ clip `run` scale theo tốc độ game (giữ hiệu ứng tốt của V1 — docs/v2/A1 §3.2).
+- [x] Chuẩn hóa scale bằng `targetHeight` (port cách làm V1 A1 §3.2 — đo Box3 một lần lúc nạp, không mỗi frame).
+- [x] Bảng `CHARACTERS` mới 4 nhân vật, **map id cũ:** `sonic→knight`, `robot→robot`, `horse→<animal1>`, `parrot→<animal2>`; đọc `endlessrunner-character-v1`, nếu giá trị cũ → tự map, ghi lại giá trị mới (giữ nguyên KEY).
+- [x] Chuyển động player: tween đổi làn 0.15–0.2s ease-out (được cắt ngang bởi lệnh mới), nhảy parabol 0.55s, trượt 0.6s hạ hitbox 50%, fast-fall; squash-stretch nhẹ khi tiếp đất + bụi chân (particle pool).
+- [x] Trạng thái bất tử nhấp nháy (tái dùng logic V1 A1 §2.8, viết lại TS).
+**Ghi chú thực thi:** tách `entities/PlayerMotion.ts` (thuần số học, không import three) khỏi `entities/Player.ts` (hình ảnh) để cảm giác điều khiển kiểm được bằng **11 unit test tất định** thay vì "chơi thử thấy ổn". Bổ sung `Input.consumeIf()`: lệnh bị từ chối giữ NGUYÊN hạn cũ trong buffer — nếu `consume()` rồi tự nhét lại thì hạn bị làm mới và lệnh sống mãi. 2 con vật thiếu clip `jump`/`slide` (robot thiếu `slide`) → CharacterAnimator tự fallback sang `run` và liệt kê ở `missingClips`. Dev: phím Q/E đổi nhân vật ngay trong ván khi có `?debug`.
+
 **DoD:** đổi qua lại 4 nhân vật ở menu và trong ván (dev), animation chuyển mượt không T-pose; localStorage cũ `{"sonic"}` mở lên thành Knight; jump/slide cảm giác đúng nhịp trên bàn phím + swipe (video ngắn đính PR).
 
 ### [ ] P0-6 · Core gameplay: làn, pattern, coin, tim, tốc độ — *3.5 ngày* (phụ thuộc P0-4, P0-5)

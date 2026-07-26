@@ -9,6 +9,8 @@ import { Sky, BIOME_CITY_PARK } from "@/fx/Sky";
 import { WorldLighting } from "@/fx/WorldLighting";
 import { syncCurvedWorldUniforms } from "@/fx/CurvedWorld";
 import { AssetManager } from "@/core/AssetManager";
+import { Player } from "@/entities/Player";
+import { loadSelectedCharacterId, getCharacter, CHARACTERS } from "@/data/characters";
 import { tuning } from "@/tuning";
 import type { GameScene } from "@/scenes/Scene";
 import type { GameContext } from "@/core/GameContext";
@@ -37,6 +39,8 @@ export class RunScene implements GameScene {
 
 	private lighting: WorldLighting | null = null;
 	private context: GameContext | null = null;
+	private player: Player | null = null;
+	private removeActionListener: (() => void) | null = null;
 
 	/** Hệ số tốc độ nền (P0-6 sẽ nối vào gameSpeed × adaptive). */
 	speedFactor = 1;
@@ -61,8 +65,69 @@ export class RunScene implements GameScene {
 			this.lighting?.applyQuality(settings);
 		});
 
-		await this.loadDecor();
+		await Promise.all([this.loadDecor(), this.loadPlayer()]);
+		this.bindDevCharacterSwap(context);
 		this.positionCamera(0);
+	}
+
+	private async loadPlayer(): Promise<void> {
+		const characterId = loadSelectedCharacterId();
+		const character = getCharacter(characterId) ?? CHARACTERS[0];
+
+		if (character === undefined) {
+			throw new Error("Bảng CHARACTERS rỗng — không có nhân vật nào để nạp.");
+		}
+
+		const model = await this.assets.loadModel(character.url);
+		this.player = new Player(model.scene, model.clips);
+		this.player.attachTo(this.playerAnchor);
+	}
+
+	/** Dev-only: phím Q/E đổi nhân vật ngay trong ván để soi animation (DoD P0-5). */
+	private bindDevCharacterSwap(context: GameContext): void {
+		if (context.debug === false) {
+			return;
+		}
+
+		const handleKey = (event: KeyboardEvent): void => {
+			if (event.code !== "KeyQ" && event.code !== "KeyE") {
+				return;
+			}
+
+			const current = loadSelectedCharacterId();
+			const index = CHARACTERS.findIndex((entry) => entry.id === current);
+			const step = event.code === "KeyQ" ? -1 : 1;
+			const next = CHARACTERS[(index + step + CHARACTERS.length) % CHARACTERS.length];
+
+			if (next === undefined) {
+				return;
+			}
+
+			void this.swapCharacter(next.id);
+		};
+
+		window.addEventListener("keydown", handleKey);
+		this.removeActionListener = () => {
+			window.removeEventListener("keydown", handleKey);
+		};
+	}
+
+	private async swapCharacter(characterId: string): Promise<void> {
+		const character = getCharacter(characterId);
+
+		if (character === undefined) {
+			return;
+		}
+
+		const { saveSelectedCharacterId } = await import("@/data/characters");
+		saveSelectedCharacterId(character.id);
+
+		const model = await this.assets.loadModel(character.url);
+		this.player?.dispose();
+		this.playerAnchor.clear();
+		// Model trong cache dùng chung, phải clone để 2 lần nạp không giẫm lên nhau.
+		this.player = new Player(model.scene.clone(true), model.clips);
+		this.player.attachTo(this.playerAnchor);
 	}
 
 	private async loadDecor(): Promise<void> {
@@ -110,9 +175,11 @@ export class RunScene implements GameScene {
 	update(deltaSec: number): void {
 		this.previousCameraX = this.cameraX;
 		this.track.update(deltaSec, this.speedUnitsPerSec);
+		this.consumeInput();
+		this.player?.update(deltaSec, this.speedFactor);
 
 		// Camera bám ngang theo player nhưng mềm — giữ cảm giác "đu" chứ không dính cứng.
-		const targetX = this.playerAnchor.position.x * tuning.world.cameraLaneFollow;
+		const targetX = (this.player?.motion.x ?? 0) * tuning.world.cameraLaneFollow;
 		const smoothing = 1 - Math.exp(-tuning.world.cameraSmoothing * deltaSec);
 		this.cameraX += (targetX - this.cameraX) * smoothing;
 	}
@@ -140,7 +207,25 @@ export class RunScene implements GameScene {
 		this.track.syncGround(camera.position.z);
 	}
 
-	/** Neo để P0-5 gắn model player vào. */
+	/**
+	 * Tiêu thụ lệnh từ input buffer. Lệnh bị PlayerMotion từ chối (đang tween/đang
+	 * nhảy) được TRẢ LẠI buffer, nên bấm sớm 100ms vẫn ăn — đúng luật 150ms plan §4.1.
+	 */
+	private consumeInput(): void {
+		const context = this.context;
+		const player = this.player;
+
+		if (context === null || player === null) {
+			return;
+		}
+
+		context.input.consumeIf(
+			(candidate) =>
+				candidate === "laneLeft" || candidate === "laneRight" || candidate === "jump" || candidate === "slide",
+			(action) => player.command(action as "laneLeft" | "laneRight" | "jump" | "slide")
+		);
+	}
+
 	get anchor(): Object3D {
 		return this.playerAnchor;
 	}
@@ -150,6 +235,10 @@ export class RunScene implements GameScene {
 	}
 
 	exit(): void {
+		this.removeActionListener?.();
+		this.removeActionListener = null;
+		this.player?.dispose();
+		this.player = null;
 		this.track.dispose();
 		this.sky.dispose();
 		this.lighting?.dispose();

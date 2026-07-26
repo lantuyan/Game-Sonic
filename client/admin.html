@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Quản trị — Toán Runner</title>
+	</head>
+	<body>
+		<p>
+			Đang chuyển tới trang quản trị…
+			<a id="admin-link" href="/admin.html">Bấm vào đây nếu không tự chuyển.</a>
+		</p>
+		<script>
+			// Trang admin V2 (P2 mới đưa vào Vite). Tạm thời chỉ redirect sang admin legacy.
+			// Khi chạy production P0, trang này nằm ở /v2/admin.html → redirect về /admin.html cũ.
+			// Khi chạy `vite dev`, chính trang này chiếm /admin.html → không redirect (tránh vòng lặp),
+			// trỏ link sang Express :3000 nơi admin legacy đang chạy.
+			(function () {
+				var target = "/admin.html";
+				var link = document.getElementById("admin-link");
+
+				if (window.location.pathname === target) {
+					link.href = "http://localhost:3000" + target;
+					link.textContent = "Mở trang quản trị legacy (localhost:3000/admin.html)";
+					return;
+				}
+
+				window.location.replace(target);
+			})();
+		</script>
+	</body>
+</html>

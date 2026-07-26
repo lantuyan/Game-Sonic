@@ -260,6 +260,23 @@
 
 					<section class="panel">
 						<div class="toolbar">
+							<h2 style="margin:0;">Cách hỏi bài</h2>
+							<button id="save-quiz-mode-button" class="button-primary" type="button">Lưu cách hỏi</button>
+						</div>
+						<div class="time-grid">
+							<div class="time-card">
+								<label for="quiz-mode-setting-input" class="small muted">Kiểu hiện câu hỏi trong game</label>
+								<select id="quiz-mode-setting-input">
+									<option value="gate">Cổng Toán trong game (mặc định)</option>
+									<option value="modal">Bảng câu hỏi (modal)</option>
+								</select>
+							</div>
+						</div>
+						<p class="level-meta" style="margin:14px 0 0;">Cài đặt này lưu <strong>riêng cho từng lớp</strong> — đổi ở lớp này không ảnh hưởng 2 lớp còn lại.</p>
+					</section>
+
+					<section class="panel">
+						<div class="toolbar">
 							<h2 style="margin:0;">Danh sách đã trả lời</h2>
 							<button id="reset-answered-button" class="button-warning" type="button">Reset lớp hiện tại</button>
 						</div>
@@ -307,6 +324,10 @@
 							<div class="field full">
 								<label for="question-text">Nội dung câu hỏi</label>
 								<textarea id="question-text" name="question-text" placeholder="Nhập nội dung câu hỏi..." required></textarea>
+							</div>
+							<div class="field full">
+								<label for="question-explanation">Lời giải ngắn (tuỳ chọn)</label>
+								<textarea id="question-explanation" name="question-explanation" maxlength="500" placeholder="Ví dụ: Quy đồng mẫu số rồi cộng tử số. Tối đa 500 ký tự — hiện ở màn Xem lại câu sai."></textarea>
 							</div>
 							<div class="answer-grid full">
 								<div class="field">
@@ -358,6 +379,7 @@
 							<h2 style="margin:0;">Danh sách câu hỏi</h2>
 							<div class="small muted">Bấm sửa để nạp dữ liệu lên form phía trên.</div>
 						</div>
+						<p id="explanation-coverage" class="level-meta" style="margin:0 0 14px;"></p>
 						<div class="table-wrap">
 							<table class="table-wide">
 								<thead>
@@ -367,6 +389,7 @@
 										<th>Câu hỏi</th>
 										<th>Đáp án</th>
 										<th>Đúng</th>
+										<th>Lời giải</th>
 										<th>Điểm</th>
 										<th>Thời gian</th>
 										<th>Trạng thái</th>
@@ -387,6 +410,7 @@
 				var appState = {
 					level: "lop6",
 					questions: [],
+				quizMode: "gate",
 				answeredEntries: [],
 				editingQuestionId: null,
 				editingQuestionIndex: -1,
@@ -702,6 +726,10 @@
 				input.value = gameSpeed.toFixed(1);
 			}
 
+			function renderQuizModeSetting() {
+				document.getElementById("quiz-mode-setting-input").value = appState.quizMode || "gate";
+			}
+
 			function renderCorrectAnswerOptions(selectedAnswer) {
 				var select = document.getElementById("correct-answer");
 				var currentValue = selectedAnswer || select.value || "A";
@@ -743,6 +771,7 @@
 				document.getElementById("question-id").value = question.id;
 				document.getElementById("question-difficulty").value = question.difficulty || "general";
 				document.getElementById("question-text").value = question.question;
+				document.getElementById("question-explanation").value = question.explanation || "";
 				document.getElementById("question-point").value = String(question.point);
 				document.getElementById("question-time").value = String(question.time);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
@@ -757,6 +786,7 @@
 					id: document.getElementById("question-id").value.trim(),
 					difficulty: document.getElementById("question-difficulty").value,
 					question: document.getElementById("question-text").value.trim(),
+					explanation: document.getElementById("question-explanation").value.trim(),
 					answers: {},
 					correctAnswer: document.getElementById("correct-answer").value,
 					point: Number(document.getElementById("question-point").value),
@@ -773,12 +803,39 @@
 				return QuestionBank.validateQuestion(rawQuestion, "Admin question", 0);
 			}
 
+			function hasExplanation(question) {
+				return question != null && String(question.explanation == null ? "" : question.explanation).trim() !== "";
+			}
+
+			// Cảnh báo tỉ lệ câu chưa có lời giải — lời giải là nhiên liệu của màn Xem lại câu sai (S9).
+			function renderExplanationCoverage() {
+				var element = document.getElementById("explanation-coverage");
+				var total = appState.questions.length;
+
+				if (total === 0) {
+					element.textContent = "";
+					return;
+				}
+
+				var missing = appState.questions.filter(function (question) {
+					return hasExplanation(question) === false;
+				}).length;
+				var missingPercent = Math.round((missing / total) * 100);
+
+				element.textContent = missing === 0
+					? "✓ Tất cả " + total + " câu đều đã có lời giải ngắn."
+					: "⚠ " + missingPercent + "% câu chưa có lời giải (" + missing + "/" + total + "). Học sinh sẽ không thấy giải thích ở màn Xem lại câu sai.";
+				element.style.color = missing === 0 ? "" : "#b45309";
+			}
+
 			function renderQuestionTable() {
 				var tableBody = document.getElementById("question-table-body");
 				var answeredMap = getAnsweredEntriesMap();
 
+				renderExplanationCoverage();
+
 				if (appState.questions.length === 0) {
-					tableBody.innerHTML = "<tr><td colspan=\"9\" class=\"empty\">Chưa có câu hỏi nào.</td></tr>";
+					tableBody.innerHTML = "<tr><td colspan=\"10\" class=\"empty\">Chưa có câu hỏi nào.</td></tr>";
 					return;
 				}
 
@@ -800,6 +857,9 @@
 						+ "<td>" + escapeHTML(question.question) + "</td>"
 						+ "<td><div class=\"answers-list\">" + answersHTML + "</div></td>"
 						+ "<td><strong>" + escapeHTML(question.correctAnswer) + "</strong></td>"
+						+ "<td>" + (hasExplanation(question)
+							? "<span class=\"small\">" + escapeHTML(question.explanation) + "</span>"
+							: "<span class=\"small muted\">— chưa có —</span>") + "</td>"
 						+ "<td>" + escapeHTML(question.point) + "</td>"
 						+ "<td>" + escapeHTML(question.time) + "s</td>"
 						+ "<td><span class=\"status " + statusClass + "\">" + statusText + "</span></td>"
@@ -859,6 +919,7 @@
 				renderPointSettings();
 				renderTimeSettings();
 				renderGameSpeedSetting();
+				renderQuizModeSetting();
 				renderQuestionTable();
 				renderAnsweredTable();
 				renderCorrectAnswerOptions();
@@ -889,6 +950,7 @@
 					])
 						.then(function (results) {
 							appState.questions = results[0].questions;
+							appState.quizMode = results[0].quizMode || "gate";
 							appState.answeredEntries = results[1];
 							refreshScreen();
 						})
@@ -1059,6 +1121,43 @@
 					});
 			}
 
+			// Gọi thẳng route mới thay vì thêm hàm vào questionBank.js — P0-14 chỉ được
+			// phép chạm shared/, server/ và admin.html (tasks-version2.md quy tắc 4).
+			function handleSaveQuizMode() {
+				hideNotice();
+
+				var quizMode = document.getElementById("quiz-mode-setting-input").value;
+
+				setBusyButtons(true);
+				fetch("/api/levels/" + encodeURIComponent(appState.level) + "/settings/quiz-mode", {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					credentials: "same-origin",
+					body: JSON.stringify({ value: quizMode })
+				})
+					.then(function (response) {
+						return response.json().catch(function () {
+							return {};
+						}).then(function (payload) {
+							if (response.ok !== true) {
+								throw new Error(payload.error || "Không thể cập nhật cách hỏi bài.");
+							}
+
+							return payload;
+						});
+					})
+					.then(function () {
+						showNotice("Đã cập nhật cách hỏi bài cho " + (QuestionBank.LEVEL_LABELS[appState.level] || appState.level) + ".", "success");
+						return loadCurrentLevelData();
+					})
+					.catch(function (error) {
+						showNotice(error.message || "Không thể cập nhật cách hỏi bài.", "error");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
 			function handleResetAnswered() {
 				if (window.confirm("Reset danh sách đã trả lời của lớp hiện tại?") !== true) {
 					return;
@@ -1085,6 +1184,7 @@
 				document.getElementById("save-points-button").addEventListener("click", handleSavePoints);
 				document.getElementById("save-times-button").addEventListener("click", handleSaveTimes);
 				document.getElementById("save-speed-button").addEventListener("click", handleSaveSpeed);
+				document.getElementById("save-quiz-mode-button").addEventListener("click", handleSaveQuizMode);
 				document.getElementById("reset-answered-button").addEventListener("click", handleResetAnswered);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
 					document.getElementById("answer-" + answerKey).addEventListener("input", function () {

@@ -56,6 +56,20 @@ function createDatabase(config) {
 			});
 			persist();
 			return buildLevelBundle(store, level);
+		},
+		// ⚠ CỐ Ý khác updateGameSpeedForLevel ở trên: quizMode lưu RIÊNG từng lớp
+		// (đổi ở lop6 không đụng lop7/lop8) — tasks-version2.md P0-14.
+		updateQuizModeForLevel: function (level, value) {
+			QuestionModel.assertLevel(level);
+			var normalizedValue = QuestionModel.normalizeQuizMode(value);
+
+			if (store.quizModeByLevel == null) {
+				store.quizModeByLevel = {};
+			}
+
+			store.quizModeByLevel[level] = normalizedValue;
+			persist();
+			return buildLevelBundle(store, level);
 		}
 	};
 }
@@ -89,7 +103,8 @@ function seedStore(rootDir) {
 		questionsByLevel: {},
 		pointSettingsByLevel: {},
 		timeSettingsByLevel: {},
-		gameSpeedByLevel: {}
+		gameSpeedByLevel: {},
+		quizModeByLevel: {}
 	};
 
 	QuestionModel.LEVELS.forEach(function (level) {
@@ -107,13 +122,14 @@ function seedStore(rootDir) {
 		});
 
 		store.gameSpeedByLevel[level] = QuestionModel.GAME_SPEED_DEFAULT;
+		store.quizModeByLevel[level] = QuestionModel.QUIZ_MODE_DEFAULT;
 	});
 
 	return store;
 }
 
 function cloneQuestion(question) {
-	return {
+	var clonedQuestion = {
 		id: question.id,
 		difficulty: QuestionModel.normalizeDifficulty(question.difficulty),
 		question: question.question,
@@ -122,6 +138,15 @@ function cloneQuestion(question) {
 		point: question.point,
 		time: question.time
 	};
+
+	// Lời giải là tùy chọn — chỉ mang theo khi có, giữ nguyên shape câu cũ (P0-14).
+	var explanation = QuestionModel.normalizeExplanation(question.explanation, question.id);
+
+	if (explanation !== "") {
+		clonedQuestion.explanation = explanation;
+	}
+
+	return clonedQuestion;
 }
 
 function applyDifficultySettings(store, settings, fieldName) {
@@ -168,12 +193,14 @@ function buildLevelBundle(store, level) {
 	});
 
 	var gameSpeed = store.gameSpeedByLevel[level];
+	var quizMode = store.quizModeByLevel == null ? null : store.quizModeByLevel[level];
 
 	return {
 		questions: questions,
 		pointSettings: pointSettings,
 		timeSettings: timeSettings,
-		gameSpeed: gameSpeed == null ? QuestionModel.GAME_SPEED_DEFAULT : QuestionModel.normalizeGameSpeed(gameSpeed)
+		gameSpeed: gameSpeed == null ? QuestionModel.GAME_SPEED_DEFAULT : QuestionModel.normalizeGameSpeed(gameSpeed),
+		quizMode: QuestionModel.normalizeQuizMode(quizMode)
 	};
 }
 

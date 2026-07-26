@@ -20,6 +20,12 @@
 	var GAME_SPEED_MAX = 2.0;
 	var GAME_SPEED_STEP = 0.1;
 	var GAME_SPEED_DEFAULT = 1.0;
+	// V2 (P0-14): lời giải ngắn tùy chọn cho mỗi câu — dùng ở màn Review (S9) và
+	// feedback tại Cổng Toán. Câu KHÔNG có explanation vẫn hợp lệ (backward-compatible).
+	var EXPLANATION_MAX_LENGTH = 500;
+	// V2 (P0-14): chế độ hỏi bài theo TỪNG lớp — "gate" (cổng in-world) hoặc "modal".
+	var QUIZ_MODES = ["gate", "modal"];
+	var QUIZ_MODE_DEFAULT = "gate";
 
 	function cloneData(value) {
 		return JSON.parse(JSON.stringify(value));
@@ -53,6 +59,42 @@
 		}
 
 		return numericValue;
+	}
+
+	// Trả về chuỗi explanation đã chuẩn hóa, hoặc "" khi câu không có lời giải.
+	// Ném lỗi khi vượt EXPLANATION_MAX_LENGTH — mọi giá trị khác đều chấp nhận được.
+	function normalizeExplanation(value, questionId) {
+		if (value == null) {
+			return "";
+		}
+
+		var normalizedValue = String(value).trim();
+
+		if (normalizedValue === "") {
+			return "";
+		}
+
+		if (normalizedValue.length > EXPLANATION_MAX_LENGTH) {
+			throw new Error(
+				"Question \"" + questionId + "\" has an \"explanation\" longer than " + EXPLANATION_MAX_LENGTH + " characters."
+			);
+		}
+
+		return normalizedValue;
+	}
+
+	function normalizeQuizMode(value) {
+		var normalizedValue = String(value == null ? "" : value).trim().toLowerCase();
+
+		if (normalizedValue === "") {
+			return QUIZ_MODE_DEFAULT;
+		}
+
+		if (QUIZ_MODES.indexOf(normalizedValue) === -1) {
+			throw new Error("Quiz mode must be one of: " + QUIZ_MODES.join(", ") + ".");
+		}
+
+		return normalizedValue;
 	}
 
 	function validateQuestion(questionData, sourceLabel, questionIndex) {
@@ -102,7 +144,7 @@
 			throw new Error("Question \"" + questionId + "\" has an invalid \"correctAnswer\".");
 		}
 
-		return {
+		var normalizedQuestion = {
 			id: questionId,
 			difficulty: normalizeDifficulty(questionData.difficulty),
 			question: questionText,
@@ -112,6 +154,16 @@
 			point: normalizePositiveNumber(questionData.point, "point", questionId, 0, false),
 			time: normalizePositiveNumber(questionData.time, "time", questionId, 1, true)
 		};
+
+		// Pass-through tùy chọn: chỉ gắn field khi thật sự có lời giải, để shape của
+		// câu cũ không đổi một byte nào (client V1 không biết explanation vẫn chạy).
+		var explanation = normalizeExplanation(questionData.explanation, questionId);
+
+		if (explanation !== "") {
+			normalizedQuestion.explanation = explanation;
+		}
+
+		return normalizedQuestion;
 	}
 
 	function validateQuestionsData(data, sourceLabel) {
@@ -225,6 +277,11 @@
 		GAME_SPEED_MAX: GAME_SPEED_MAX,
 		GAME_SPEED_STEP: GAME_SPEED_STEP,
 		GAME_SPEED_DEFAULT: GAME_SPEED_DEFAULT,
+		EXPLANATION_MAX_LENGTH: EXPLANATION_MAX_LENGTH,
+		QUIZ_MODES: QUIZ_MODES.slice(),
+		QUIZ_MODE_DEFAULT: QUIZ_MODE_DEFAULT,
+		normalizeExplanation: normalizeExplanation,
+		normalizeQuizMode: normalizeQuizMode,
 		cloneData: cloneData,
 		assertLevel: assertLevel,
 		normalizeDifficulty: normalizeDifficulty,

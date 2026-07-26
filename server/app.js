@@ -32,10 +32,26 @@ function createApp(overrides) {
 	app.use(express.json({ limit: "1mb" }));
 	app.use(cookieParser());
 
-	app.get("/api/health", function (request, response) {
+	// Hợp đồng V1 (plan §7.3.2): shape {status, database} GIỮ NGUYÊN từng ký tự.
+	// P0-14 chỉ THÊM field mới dbKind/dbOk — client cũ bỏ qua field lạ.
+	app.get("/api/health", async function (request, response) {
+		var dbKind = playerSql != null && typeof playerSql.kind === "string" ? playerSql.kind : "none";
+		var dbOk = false;
+
+		if (playerSql != null) {
+			try {
+				await playerSql.query("SELECT 1", []);
+				dbOk = true;
+			} catch (error) {
+				dbOk = false;
+			}
+		}
+
 		response.json({
 			status: "ok",
-			database: "ready"
+			database: "ready",
+			dbKind: dbKind,
+			dbOk: dbOk
 		});
 	});
 
@@ -115,6 +131,15 @@ function createApp(overrides) {
 		try {
 			QuestionModel.assertLevel(request.params.level);
 			response.json(await dataStore.updateGameSpeedForLevel(request.params.level, request.body ? request.body.value : null));
+		} catch (error) {
+			next(createError(400, error.message));
+		}
+	});
+
+	app.put("/api/levels/:level/settings/quiz-mode", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			QuestionModel.assertLevel(request.params.level);
+			response.json(await dataStore.updateQuizModeForLevel(request.params.level, request.body ? request.body.value : null));
 		} catch (error) {
 			next(createError(400, error.message));
 		}

@@ -65,6 +65,71 @@ async function loadClientModule(relativePath) {
 }
 
 /**
+ * Nạp một module client nhưng THAY một vài package ngoài bằng bản giả.
+ *
+ * Dùng cho module bọc thư viện bên thứ ba (vd AudioManager bọc Howler): thay vì
+ * phải chạy Howler thật (cần WebAudio), ta trỏ `howler` sang một shim tí hon
+ * re-export từ `globalThis`, nhờ vậy test soi được từng lời gọi play/volume/fade.
+ *
+ *   var module = await loadClientModuleWithStubs("core/AudioManager.ts", {
+ *     howler: "globalThis.__fakeHowler"
+ *   });
+ */
+async function loadClientModuleWithStubs(relativePath, stubs) {
+	var stubNames = Object.keys(stubs).sort();
+	var cacheKey = "stubs:" + relativePath + "|" + stubNames.map(function (name) {
+		return name + "=" + stubs[name];
+	}).join(",");
+
+	if (moduleCache.has(cacheKey) === true) {
+		return moduleCache.get(cacheKey);
+	}
+
+	var aliases = {};
+	var shimDir = path.join(getCacheDir(), "shims");
+	fs.mkdirSync(shimDir, { recursive: true });
+
+	stubNames.forEach(function (name) {
+		var shimPath = path.join(shimDir, name.replace(/[^a-z0-9]/gi, "_") + ".mjs");
+		// Proxy động: đọc globalThis mỗi lần truy cập nên test đổi stub giữa chừng
+		// vẫn có hiệu lực, không bị đóng băng giá trị lúc nạp.
+		fs.writeFileSync(
+			shimPath,
+			"const target = () => " + stubs[name] + ";\n" +
+				"export const Howl = new Proxy(function () {}, {\n" +
+				"  construct: (_t, args) => new (target().Howl)(...args),\n" +
+				"  get: (_t, key) => target().Howl[key]\n" +
+				"});\n" +
+				"export const Howler = new Proxy({}, { get: (_t, key) => target().Howler[key] });\n",
+			"utf8"
+		);
+		aliases[name] = shimPath;
+	});
+
+	var entryPath = path.join(CLIENT_SRC_DIR, relativePath);
+	var outFile = path.join(
+		getCacheDir(),
+		"stubbed-" + relativePath.replace(/[\\/]/g, "__").replace(/\.ts$/, "") + ".mjs"
+	);
+
+	await esbuild.build({
+		entryPoints: [entryPath],
+		outfile: outFile,
+		bundle: true,
+		format: "esm",
+		platform: "neutral",
+		target: "node20",
+		external: ["three", "postprocessing"],
+		alias: Object.assign({ "@": CLIENT_SRC_DIR }, aliases),
+		logLevel: "silent"
+	});
+
+	var loaded = await import(pathToFileURL(outFile).href);
+	moduleCache.set(cacheKey, loaded);
+	return loaded;
+}
+
+/**
  * Nạp NHIỀU module trong CÙNG một bundle — giống hệt lúc chạy thật dưới Vite.
  *
  * Cần thiết khi test trạng thái dùng chung: `loadClientModule` gọi 2 lần sẽ tạo 2
@@ -227,5 +292,6 @@ function installBrowserStubs() {
 module.exports = {
 	loadClientModule: loadClientModule,
 	loadClientBundle: loadClientBundle,
+	loadClientModuleWithStubs: loadClientModuleWithStubs,
 	installBrowserStubs: installBrowserStubs
 };

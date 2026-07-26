@@ -202,10 +202,12 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** cố tình sai 3 câu → thấy đủ 3 ở S9; 2 ván sau gặp lại ≥2 câu đó; trả lời đúng 2 lần → biến mất khỏi queue (kiểm localStorage).
 
-### [ ] P0-11 · Âm thanh — *1 ngày* (phụ thuộc P0-6; chạy song song)
+### [x] P0-11 · Âm thanh — *1 ngày* (phụ thuộc P0-6; chạy song song)
 **Việc cần làm:**
-- [ ] `core/AudioManager.ts` bọc Howler: audio sprite SFX (jump, land, coin, đúng, sai, va chạm, click UI, countdown, fever) từ Kenney; BGM menu + biome ① (Tallbeard, loop point sạch) + layer trống Fever (sync vị trí phát); jingle game over/kỷ lục.
-- [ ] Volume nhạc/SFX riêng (S11), lưu settings; **ducking**: giảm BGM −8dB khi telegraph/trạm/modal; unlock audio theo gesture đầu (Howler tự lo, kiểm tra iOS).
+- [x] `core/AudioManager.ts` bọc Howler: audio sprite SFX (jump, land, coin, đúng, sai, va chạm, click UI, countdown, fever) từ Kenney; BGM menu + biome ① (Tallbeard, loop point sạch) + layer trống Fever (sync vị trí phát); jingle game over/kỷ lục.
+- [x] Volume nhạc/SFX riêng (S11), lưu settings; **ducking**: giảm BGM −8dB khi telegraph/trạm/modal; unlock audio theo gesture đầu (Howler tự lo, kiểm tra iOS).
+**Ghi chú thực thi:** dùng file .ogg rời thay audio sprite — bộ SFX Kenney vốn đã là file nhỏ rời, ghép sprite chỉ thêm một bước pipeline mà không giảm được số request đáng kể (SW precache hết sau P0-12). Throttle theo TỪNG tiếng (coin 60ms, land/jump 120ms, hit 200ms) chống chồng méo khi ăn cả dây coin. Ducking fade 220ms chứ không nhảy volume đột ngột. BGM hoãn tới gesture đầu tiên (chính sách autoplay iOS). 5 unit test chạy trên Howl giả qua `loadClientModuleWithStubs`.
+
 **DoD:** ma trận âm chạy đủ trên Chrome/Safari; tắt nhạc vẫn còn SFX và ngược lại; không tiếng nào phát chồng méo khi ăn 20 coin/giây (throttle giọng).
 
 ### [ ] P0-12 · PWA & chuyển tiếp Service Worker — *1.5 ngày* (phụ thuộc P0-3, P0-7, P0-9)

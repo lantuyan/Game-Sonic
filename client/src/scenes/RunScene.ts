@@ -25,6 +25,7 @@ import { createSeededRandom, randomRange } from "@/core/random";
 import { Combo } from "@/systems/Combo";
 import { Powerups, type PowerupKind } from "@/systems/Powerup";
 import { ReviewQueue } from "@/systems/ReviewQueue";
+import { AudioManager, RUN_SFX } from "@/core/AudioManager";
 import type { ReviewItem } from "@/ui/ReviewScreen";
 import * as bridge from "@/integration/questionBridge";
 import type { LegacyQuestion } from "@/integration/questionBank.d";
@@ -85,6 +86,7 @@ export class RunScene implements GameScene {
 	private readonly combo = new Combo();
 	private readonly powerups = new Powerups();
 	// --- Ôn câu sai (P0-10) ---
+	private readonly audio = new AudioManager();
 	private readonly reviewQueue = new ReviewQueue();
 	private readonly wrongThisRun: ReviewItem[] = [];
 	private allQuestions: LegacyQuestion[] = [];
@@ -117,6 +119,9 @@ export class RunScene implements GameScene {
 			context.renderer.applyQuality(settings);
 			this.lighting?.applyQuality(settings);
 		});
+
+		this.audio.preloadSfx(RUN_SFX);
+		this.audio.playBgm("bgm-biome1");
 
 		this.score.reset();
 		this.lives.reset();
@@ -256,6 +261,7 @@ export class RunScene implements GameScene {
 		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode });
 
 		if (outcome === "correct") {
+			this.audio.play("answer-correct");
 			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
 			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
@@ -265,6 +271,7 @@ export class RunScene implements GameScene {
 		}
 
 		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vỡ streak + vấp + 10s không coin.
+		this.audio.play("answer-wrong");
 		this.reviewQueue.recordWrong(question.id, this.level, Date.now());
 		this.wrongThisRun.push({
 			question,
@@ -294,6 +301,7 @@ export class RunScene implements GameScene {
 			}
 
 			if (event.type === "fever-start") {
+				this.audio.play("fever");
 				// Fever: bất tử + coin×2 + tốc độ +10% (plan §4.4).
 				this.lives.grantInvincibility(event.durationSec);
 				this.speed.setFever(true);
@@ -314,6 +322,7 @@ export class RunScene implements GameScene {
 
 		this.powerups.onEvent((event) => {
 			if (event.type === "started") {
+				this.audio.play("powerup");
 				this.score.setPointMultiplier(this.powerups.pointMultiplier);
 				context.events.emit("powerup:started", { kind: event.kind, durationSec: event.durationSec });
 				return;
@@ -689,6 +698,8 @@ export class RunScene implements GameScene {
 		spawn.onPlayerHit();
 
 		if (result === "dead") {
+			this.audio.play("game-over");
+			this.audio.stopBgm();
 			this.gameOver = true;
 			player.die();
 			context.engine.timeScale = 1;
@@ -697,6 +708,7 @@ export class RunScene implements GameScene {
 			return;
 		}
 
+		this.audio.play("hit");
 		player.takeHit();
 		context.events.emit("player:hit", { livesLeft: this.lives.current });
 		context.events.emit("lives:changed", { lives: this.lives.current });
@@ -735,6 +747,7 @@ export class RunScene implements GameScene {
 		}
 
 		if (gained > 0) {
+			this.audio.play("coin");
 			context.events.emit("coins:changed", { coins: this.score.snapshot().coins, delta: gained });
 		}
 	}
@@ -811,6 +824,7 @@ export class RunScene implements GameScene {
 		this.removeActionListener = null;
 		this.player?.dispose();
 		this.player = null;
+		this.audio.dispose();
 		this.modal?.dispose();
 		this.modal = null;
 		this.hud?.dispose();

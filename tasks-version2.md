@@ -74,19 +74,19 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 ## 2. PHASE P0 — "Bản thay thế V1" (≈40 ngày-agent — bảng dưới cộng 40.5)
 
-### [ ] P0-1 · Khung dự án Vite + TypeScript + contract-test — *2 ngày*
+### [x] P0-1 · Khung dự án Vite + TypeScript + contract-test — *2 ngày*
 **Mục tiêu:** monorepo-lite: client Vite mới sống cạnh backend cũ, CI chạy test + build, contract-test bảo vệ hợp đồng V1.
 **Việc cần làm:**
-- [ ] Tạo `client/` theo cây thư mục plan §7.2; `npm create vite` (vanilla-ts), `tsconfig` strict, alias `@/` → `client/src`.
-- [ ] Cài `three@0.185.x`, `howler`, `postprocessing`; devDeps: `vite-plugin-pwa`, `@gltf-transform/cli`.
-- [ ] Vite MPA 2 entry (`client/index.html`, `client/admin.html` — admin tạm thời chỉ là trang redirect sang `/admin.html` legacy, sẽ thay ở P2); `server.proxy` `/api` → `http://localhost:3000`.
-- [ ] Script npm mới ở root: `dev:client`, `build:client`, `assets:build` (stub), `test:contract`.
-- [ ] Sửa `scripts/vercel-build.js`: thứ tự mới `vite build → outDir public/v2/` (điều khiển bằng env `V2_ROOT`, mặc định `v2`; **chuyển outDir về `public/` chỉ thực hiện ở P0-15**) + copy legacy **đúng danh sách staticFiles hiện có** (12 file — gồm cả `EndlessRunner.htm/.js`, `index.html`, `worker.js`: V1 còn phục vụ tại `/` cho tới P0-15) + **bổ sung `shared/questionModel.js`** (hiện chưa được copy — lỗ hổng ghi ở docs/v2/A3 §3.2). **KHÔNG copy `questions/` ra public** (server đang chặn 404 có chủ đích — `server/app.js:158-179`). KHÔNG sửa `vercel.json`.
-- [ ] **Contract-test** (`test/contract.test.js`, chạy bằng `node --test` như test hiện có):
+- [x] Tạo `client/` theo cây thư mục plan §7.2; `npm create vite` (vanilla-ts), `tsconfig` strict, alias `@/` → `client/src`.
+- [x] Cài `three@0.185.x`, `howler`, `postprocessing`; devDeps: `vite-plugin-pwa`, `@gltf-transform/cli`.
+- [x] Vite MPA 2 entry (`client/index.html`, `client/admin.html` — admin tạm thời chỉ là trang redirect sang `/admin.html` legacy, sẽ thay ở P2); `server.proxy` `/api` → `http://localhost:3000`.
+- [x] Script npm mới ở root: `dev:client`, `build:client`, `assets:build` (stub), `test:contract`.
+- [x] Sửa `scripts/vercel-build.js`: thứ tự mới `vite build → outDir public/v2/` (điều khiển bằng env `V2_ROOT`, mặc định `v2`; **chuyển outDir về `public/` chỉ thực hiện ở P0-15**) + copy legacy **đúng danh sách staticFiles hiện có** (12 file — gồm cả `EndlessRunner.htm/.js`, `index.html`, `worker.js`: V1 còn phục vụ tại `/` cho tới P0-15) + **bổ sung `shared/questionModel.js`** (hiện chưa được copy — lỗ hổng ghi ở docs/v2/A3 §3.2). **KHÔNG copy `questions/` ra public** (server đang chặn 404 có chủ đích — `server/app.js:158-179`). KHÔNG sửa `vercel.json`.
+- [x] **Contract-test** (`test/contract.test.js`, chạy bằng `node --test` như test hiện có):
   - shape 13 endpoint (đối chiếu docs/v2/A2 §2): gọi qua supertest, assert field bắt buộc của response;
   - khóa localStorage khai báo tập trung trong 1 module hằng số (`client/src/core/storageKeys.ts`); luật test: **5 khóa `-v1` phải khớp CHÍNH XÁC danh sách vàng bất biến** (`endlessrunner-question-progress-v1`, `endlessrunner-device-id-v1`, `endlessrunner-nickname-v1`, `endlessrunner-skill-profile-v1`, `endlessrunner-character-v1`); **mọi khóa mới chỉ cần đúng hậu tố `-v2`** (khởi tạo sẵn: `wallet-v2`, `review-queue-v2`, `settings-v2`, `ftue-v2`; P1 sẽ thêm `unlocks-v2`, `missions-v2`);
   - chữ ký `window.QuestionBank` (load `questionModel.js` + `questionBank.js` trong môi trường test, assert `typeof` **16 member — danh sách vàng:** `getLevelBundle`, `getAdaptiveSpeedFactor`, `filterAvailableQuestions`, `orderQuestionsBySkill`, `getAnsweredIdMap`, `markQuestionShown`, `markQuestionResult`, `updateSkillProfileAfterGame`, `submitScore`, `getLeaderboard`, `getNickname`, `setNickname`, `LEVEL_LABELS`, `GAME_SPEED_DEFAULT`, `GAME_SPEED_MIN`, `GAME_SPEED_MAX`).
-- [ ] GitHub Actions (hoặc script `npm run ci`): `tsc --noEmit` + `node --test` + `vite build` + budget-check stub.
+- [x] GitHub Actions (hoặc script `npm run ci`): `tsc --noEmit` + `node --test` + `vite build` + budget-check stub. *(Chọn phương án `npm run ci` — script tại root, không phụ thuộc GitHub.)*
 **Tham chiếu:** plan §7.1–7.3; docs/v2/A3 (build pipeline), A2 (API/SW).
 **DoD:** `npm run dev:client` mở trang trắng có canvas ba chiều quay 1 cube (smoke); `npm run ci` xanh; deploy preview Vercel vẫn phục vụ V1 bình thường (V2 chưa chiếm route `/` — build tạm ra `public/v2/` cho đến P0-15, cấu hình bằng env `V2_ROOT`).
 

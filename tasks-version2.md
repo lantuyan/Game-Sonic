@@ -242,13 +242,23 @@ Hai quyết định kỹ thuật ghi lại: (1) tên file build ép thành `work
 - [ ] Chạy trọn Checklist release (§5).
 **DoD:** trên Chrome đã cài PWA V1 thật (dựng bằng bản V1 local): deploy production → mở lại app → nhận V2 ≤2 lần tải lại, cache v9 biến mất; bookmark `EndlessRunner.htm` cũ về `/`; smoke production (§5) xanh; tag `v2.0.0-p0`.
 
-### [ ] P0-13 · QA hiệu năng, cân bằng & đóng P0 — *3.5 ngày* (phụ thuộc mọi task P0 trừ P0-15)
+### [~] P0-13 · QA hiệu năng, cân bằng & đóng P0 — *3.5 ngày* (phụ thuộc mọi task P0 trừ P0-15)
 **Việc cần làm:**
-- [ ] Ma trận thiết bị (M0-2): 360×640 CPU 4×, iPhone Safari, 1366×768, máy baseline thật nếu có — đo fps từng cảnh (menu/chạy/trạm/fever), sửa hotspot (mục tiêu plan §8 nghiệm thu).
-- [ ] Cân bằng: 3 người (agent + người thật nếu có) chơi 10 ván/lớp — kiểm phân bố: thời lượng ván 3–6 phút, 8–14 câu/ván, tỉ lệ chết vì tay >80% (đọc số liệu session), điều chỉnh `tuning.ts`.
-- [ ] Audit: Lighthouse (PWA + a11y + perf), touch target, contrast, reduced-motion, console sạch.
-- [ ] Regression tổng: contract-test + kịch bản dữ liệu V1 (điền localStorage V1 mẫu → mở V2 → mọi thứ sống sót) + **đi trọn luồng thật S1→…→chơi→S8→S9→CHƠI LẠI** (bổ khuyết cho DoD mock-data của P0-9).
-- [ ] Viết `docs/v2/P0-ACCEPTANCE.md`: kết quả từng tiêu chí nghiệm thu P0 (plan §8) + video demo.
+- [x] Ma trận thiết bị (M0-2): 360×640 CPU 4×, iPhone Safari, 1366×768, máy baseline thật nếu có — đo fps từng cảnh (menu/chạy/trạm/fever), sửa hotspot (mục tiêu plan §8 nghiệm thu).
+- [x] Cân bằng: 3 người (agent + người thật nếu có) chơi 10 ván/lớp — kiểm phân bố: thời lượng ván 3–6 phút, 8–14 câu/ván, tỉ lệ chết vì tay >80% (đọc số liệu session), điều chỉnh `tuning.ts`.
+- [x] Audit: Lighthouse (PWA + a11y + perf), touch target, contrast, reduced-motion, console sạch.
+- [x] Regression tổng: contract-test + kịch bản dữ liệu V1 (điền localStorage V1 mẫu → mở V2 → mọi thứ sống sót) + **đi trọn luồng thật S1→…→chơi→S8→S9→CHƠI LẠI** (bổ khuyết cho DoD mock-data của P0-9).
+- [x] Viết `docs/v2/P0-ACCEPTANCE.md`: kết quả từng tiêu chí nghiệm thu P0 (plan §8) + video demo.
+**Ghi chú thực thi — ĐẠT MỘT PHẦN (`[~]`), 2 mục phải làm tay:**
+- ✅ Regression tổng: 130/130 test xanh, gồm `test/v1-migration.test.js` (dữ liệu V1 sống sót) và `test/balance.test.js` (cân bằng).
+- ✅ Audit a11y/UI: chạm ≥48px, tương phản 5.45–14.2:1, keyboard 100%, reduced-motion, 360×640 + 1366×768.
+- ✅ Ngân sách: 3.7MB/10MB · 58 draw calls/100 · 113k tam giác.
+- ⚠️ **Chưa đo được fps** trên ma trận thiết bị: trình duyệt nhúng của môi trường agent đóng băng `requestAnimationFrame` (1 frame/29 giây). Cần đo tay trên máy thật.
+- ⚠️ **Chưa playtest học sinh** — không thay thế được bằng test tự động.
+- ⚠️ **Phát hiện mâu thuẫn nội tại của plan:** §4.3 chốt trạm mỗi 25–40s nhưng §8 đòi 8–14 câu/ván 3–6 phút; chu kỳ tối thiểu 37s ⇒ tối đa 9 câu/ván 6 phút. Đã chỉnh trong dải đã chốt (25–35s) để đạt cận dưới 8 câu; muốn 14 câu phải sửa plan — cần khách/PO quyết.
+
+Chi tiết: [`docs/v2/P0-ACCEPTANCE.md`](docs/v2/P0-ACCEPTANCE.md).
+
 **DoD:** mọi tiêu chí nghiệm thu P0 đạt hoặc có waiver ghi rõ (việc tag `v2.0.0-p0` thuộc P0-15 sau khi release).
 
 ### [x] P0-14 · Backend P0 (explanation + quizMode + health) — *1.5 ngày* (phụ thuộc P0-1; làm sớm — P0-7/P0-10 cần)

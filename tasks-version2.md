@@ -170,13 +170,15 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 **Tham chiếu:** plan §4.3–4.5; docs/v2/B3 §2 (căn cứ thiết kế); A1 §2.9 (luồng V1 + số dòng).
 **DoD:** chơi 1 ván lớp 6 đủ: ≥3 cổng (dạng 2-cổng vì bank lớp 6 chỉ có 2 đáp án) + 1 lần cổng mềm; nhánh modal kiểm bằng (a) unit test router với câu mock >120 ký tự và (b) set `quizMode:"modal"` tạm cho 1 lớp qua admin → cả ván chạy modal; sau ván, `endlessrunner-question-progress-v1` và skill profile được cập nhật đúng (kiểm bằng devtools); điểm lên leaderboard thật (local server); contract-test xanh.
 
-### [ ] P0-8 · Streak, Fever Mode, Power-up — *2.5 ngày* (phụ thuộc P0-7)
+### [x] P0-8 · Streak, Fever Mode, Power-up — *2.5 ngày* (phụ thuộc P0-7)
 **Việc cần làm:**
-- [ ] `systems/Combo.ts`: streak đúng 3→×1.5, 5→×2 (trần); sai/timeout → ×1 + hiệu ứng "vỡ"; HUD lửa theo mức.
-- [ ] **Fever:** streak 5 → 8s bất tử + hút coin toàn màn + coin×2 + tốc độ +10% + layer nhạc trống (Howler track thứ 2 đồng bộ) + glow (preset Cao); kết thúc êm (cảnh báo 2s cuối).
-- [ ] `systems/Powerup.ts` + `entities/Powerup.ts`: 3 loại Magnet 8s / Khiên 1 va chạm (vỡ như kính) / ×2 điểm 10s; spawn billboard glow 1/30–45s trên làn an toàn; icon từ Kenney Game Icons; timer HUD.
-- [ ] 10s "đoạn phạt" sau khi sai: không rơi coin (cờ trong Spawn).
-- [ ] Unit test: máy trạng thái streak/fever, stack quy tắc (Fever + Khiên…).
+- [x] `systems/Combo.ts`: streak đúng 3→×1.5, 5→×2 (trần); sai/timeout → ×1 + hiệu ứng "vỡ"; HUD lửa theo mức.
+- [x] **Fever:** streak 5 → 8s bất tử + hút coin toàn màn + coin×2 + tốc độ +10% + layer nhạc trống (Howler track thứ 2 đồng bộ) + glow (preset Cao); kết thúc êm (cảnh báo 2s cuối).
+- [x] `systems/Powerup.ts` + `entities/Powerup.ts`: 3 loại Magnet 8s / Khiên 1 va chạm (vỡ như kính) / ×2 điểm 10s; spawn billboard glow 1/30–45s trên làn an toàn; icon từ Kenney Game Icons; timer HUD.
+- [x] 10s "đoạn phạt" sau khi sai: không rơi coin (cờ trong Spawn).
+- [x] Unit test: máy trạng thái streak/fever, stack quy tắc (Fever + Khiên…).
+**Ghi chú thực thi:** luật chồng (stack) gom về một chỗ trong `systems/Powerup.ts`: nhặt lại cùng loại LÀM MỚI đồng hồ (không cộng dồn thành combo vô hạn), khác loại chạy song song, và **Khiên là SỐ LẦN ĐỠ chứ không phải thời gian** nên Fever bất tử không tiêu mất khiên. Power-up P0 dùng chính pool coin làm vật thể nhặt → không thêm InstancedMesh, giữ nguyên ngân sách draw call. 9 unit test phủ cả 4 bẫy này.
+
 **DoD:** quay video 1 chuỗi 5 đúng → Fever nổ đã mắt; mỗi power-up hoạt động + hết hạn đúng; không mất fps khi hút 50 coin (pool).
 
 ### [ ] P0-9 · Bộ UI màn hình + design tokens — *5 ngày* (phụ thuộc P0-1; song song từ sớm, ghép số liệu thật sau P0-7)

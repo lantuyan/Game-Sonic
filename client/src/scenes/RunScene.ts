@@ -21,7 +21,9 @@ import { QuizGateVisual, GATE_TRIGGER_HALF_DEPTH, gateSpawnZ } from "@/entities/
 import { buildGateLayout, SessionStatsRecorder, type GateLayout, type QuizMode } from "@/systems/quizRules";
 import { QuizModal } from "@/ui/QuizModal";
 import { Hud } from "@/ui/Hud";
-import { createSeededRandom } from "@/core/random";
+import { createSeededRandom, randomRange } from "@/core/random";
+import { Combo } from "@/systems/Combo";
+import { Powerups, type PowerupKind } from "@/systems/Powerup";
 import * as bridge from "@/integration/questionBridge";
 import type { LegacyQuestion } from "@/integration/questionBank.d";
 import type { Pattern } from "@/systems/patternRules";
@@ -75,8 +77,14 @@ export class RunScene implements GameScene {
 	private hud: Hud | null = null;
 	private level = "lop6";
 	private levelQuizMode: QuizMode = "gate";
-	private streakMultiplier = 1;
 	private answeredThisStation = false;
+
+	// --- Streak / Fever / Power-up (P0-8) ---
+	private readonly combo = new Combo();
+	private readonly powerups = new Powerups();
+	private nextPowerupInSec = 0;
+	private pendingPowerup: PowerupKind | null = null;
+	private pendingPowerupZ = 0;
 
 	/** Hệ số tốc độ hiện tại — do SpeedController quyết định (plan §4.5). */
 	get speedFactor(): number {
@@ -105,6 +113,10 @@ export class RunScene implements GameScene {
 
 		this.score.reset();
 		this.lives.reset();
+		this.combo.reset();
+		this.powerups.reset();
+		this.bindComboEvents(context);
+		this.scheduleNextPowerup();
 		this.hud = new Hud(context.uiRoot, context.events);
 		this.modal = new QuizModal(context.uiRoot, {
 			onAnswer: (answerKey) => {
@@ -233,19 +245,142 @@ export class RunScene implements GameScene {
 		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode });
 
 		if (outcome === "correct") {
-			this.streakMultiplier = 1; // P0-8 sẽ thay bằng Combo thật.
-			const gained = this.score.recordAnswer(true, question.point, this.streakMultiplier);
+			this.combo.registerCorrect();
+			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
 			context.events.emit("score:changed", { score: this.score.total, delta: gained });
 			this.gateVisuals[quiz?.layout?.correctLane ?? 1]?.flashCorrect();
 			return;
 		}
 
-		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vấp + 10s không coin.
-		this.score.recordAnswer(false, question.point, this.streakMultiplier);
+		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vỡ streak + vấp + 10s không coin.
+		this.combo.registerWrong();
+		this.score.recordAnswer(false, question.point, 1);
 		this.player?.stumble();
 		this.spawn?.onWrongAnswer();
 		// Cổng đúng lóe xanh để học sinh thấy đáp án đúng ở đâu.
 		this.gateVisuals[quiz?.layout?.correctLane ?? 1]?.flashCorrect();
+	}
+
+	/** Fever/streak/power-up phát ra event cho HUD và đổi luật chơi tạm thời. */
+	private bindComboEvents(context: GameContext): void {
+		this.combo.onEvent((event) => {
+			if (event.type === "streak") {
+				context.events.emit("streak:changed", { streak: event.streak, multiplier: event.multiplier });
+				return;
+			}
+
+			if (event.type === "broken") {
+				context.events.emit("streak:changed", { streak: 0, multiplier: 1 });
+				return;
+			}
+
+			if (event.type === "fever-start") {
+				// Fever: bất tử + coin×2 + tốc độ +10% (plan §4.4).
+				this.lives.grantInvincibility(event.durationSec);
+				this.speed.setFever(true);
+				this.score.setCoinMultiplier(this.combo.coinMultiplier);
+				context.events.emit("fever:started", { durationSec: event.durationSec });
+				return;
+			}
+
+			if (event.type === "fever-warning") {
+				context.events.emit("fever:ending", {});
+				return;
+			}
+
+			this.speed.setFever(false);
+			this.score.setCoinMultiplier(1);
+			context.events.emit("fever:ended", {});
+		});
+
+		this.powerups.onEvent((event) => {
+			if (event.type === "started") {
+				this.score.setPointMultiplier(this.powerups.pointMultiplier);
+				context.events.emit("powerup:started", { kind: event.kind, durationSec: event.durationSec });
+				return;
+			}
+
+			this.score.setPointMultiplier(this.powerups.pointMultiplier);
+			context.events.emit("powerup:ended", { kind: event.kind });
+		});
+	}
+
+	private scheduleNextPowerup(): void {
+		this.nextPowerupInSec = randomRange(
+			this.quizRandom,
+			tuning.powerup.spawnIntervalMinSec,
+			tuning.powerup.spawnIntervalMaxSec
+		);
+	}
+
+	/**
+	 * Power-up P0 dùng chính pool coin làm "vật thể nhặt": một coin đặc biệt trên
+	 * làn an toàn. Giữ được ngân sách draw call và không cần thêm InstancedMesh.
+	 */
+	private updatePowerups(deltaSec: number, advanceUnits: number): void {
+		this.powerups.update(deltaSec);
+
+		if (this.pendingPowerup !== null) {
+			this.pendingPowerupZ += advanceUnits;
+
+			if (Math.abs(this.pendingPowerupZ - tuning.world.playerZ) <= 1.2) {
+				const player = this.player;
+
+				if (player !== null && Math.abs(player.motion.x) < tuning.world.laneOffsetX * 0.6) {
+					this.powerups.collect(this.pendingPowerup);
+					this.pendingPowerup = null;
+				}
+			}
+
+			if (this.pendingPowerupZ > tuning.world.recycleZ) {
+				this.pendingPowerup = null;
+			}
+
+			return;
+		}
+
+		this.nextPowerupInSec -= deltaSec;
+
+		if (this.nextPowerupInSec > 0) {
+			return;
+		}
+
+		const kinds: PowerupKind[] = ["magnet", "shield", "doublePoints"];
+		this.pendingPowerup = kinds[Math.floor(this.quizRandom() * kinds.length)] ?? "magnet";
+		this.pendingPowerupZ = -tuning.world.fogNear;
+		this.scheduleNextPowerup();
+	}
+
+	/** Hút coin khi có Magnet hoặc đang Fever (plan §4.4). */
+	private applyMagnet(deltaSec: number): void {
+		const radius = this.powerups.magnetRadius(this.combo.isFeverActive);
+		const player = this.player;
+		const spawn = this.spawn;
+
+		if (radius <= 0 || player === null || spawn === null) {
+			return;
+		}
+
+		const pull = tuning.powerup.magnetPullSpeed * deltaSec;
+
+		for (const coin of spawn.activeCoins) {
+			if (coin.active === false) {
+				continue;
+			}
+
+			const dx = player.motion.x - coin.x;
+			const dz = tuning.world.playerZ - coin.z;
+			const distance = Math.hypot(dx, dz);
+
+			if (distance > radius || distance === 0) {
+				continue;
+			}
+
+			coin.attracted = true;
+			coin.x += (dx / distance) * pull;
+			coin.z += (dz / distance) * pull;
+			coin.y += (player.motion.y + 0.7 - coin.y) * Math.min(deltaSec * 6, 1);
+		}
 	}
 
 	private hideGates(): void {
@@ -381,6 +516,7 @@ export class RunScene implements GameScene {
 		if (this.gameOver === false) {
 			this.speed.update(deltaSec);
 			this.lives.update(deltaSec);
+			this.combo.update(deltaSec);
 		}
 
 		const advance = this.speedUnitsPerSec * deltaSec;
@@ -391,6 +527,8 @@ export class RunScene implements GameScene {
 
 		this.score.setDistance(this.track.distanceM);
 		this.updateQuiz(deltaSec, advance);
+		this.updatePowerups(deltaSec, advance);
+		this.applyMagnet(deltaSec);
 		this.checkCollisions();
 		this.collectCoins();
 		this.publishScore();
@@ -505,6 +643,14 @@ export class RunScene implements GameScene {
 		}
 
 		hit.consumed = true;
+
+		// Khiên đỡ TRƯỚC khi đụng tới tim (plan §4.4 Q11).
+		if (this.powerups.consumeShield() === true) {
+			this.lives.grantInvincibility(tuning.player.invincibleSec);
+			this.player?.takeHit();
+			return;
+		}
+
 		const result = this.lives.takeHit();
 
 		if (result === "ignored") {

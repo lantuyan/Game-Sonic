@@ -65,6 +65,55 @@ async function loadClientModule(relativePath) {
 }
 
 /**
+ * Nạp NHIỀU module trong CÙNG một bundle — giống hệt lúc chạy thật dưới Vite.
+ *
+ * Cần thiết khi test trạng thái dùng chung: `loadClientModule` gọi 2 lần sẽ tạo 2
+ * bundle độc lập, mỗi bundle có bản sao `tuning.ts` riêng, nên sửa tuning ở bundle
+ * này không ảnh hưởng bundle kia — trong khi ứng dụng thật chỉ có MỘT bản.
+ *
+ *   var mods = await loadClientBundle({ curve: "fx/CurvedWorld.ts", tuning: "tuning.ts" });
+ *   mods.tuning.setTuningValue(...)  // ảnh hưởng đúng mods.curve
+ */
+async function loadClientBundle(entryMap) {
+	var names = Object.keys(entryMap).sort();
+	var cacheKey = "bundle:" + names.map(function (name) { return name + "=" + entryMap[name]; }).join("|");
+
+	if (moduleCache.has(cacheKey) === true) {
+		return moduleCache.get(cacheKey);
+	}
+
+	var contents = names
+		.map(function (name) {
+			var importPath = path.join(CLIENT_SRC_DIR, entryMap[name]).replace(/\\/g, "/");
+			return "export * as " + name + " from " + JSON.stringify(importPath) + ";";
+		})
+		.join("\n");
+
+	var outFile = path.join(getCacheDir(), "bundle-" + names.join("-") + "-" + names.length + ".mjs");
+
+	await esbuild.build({
+		stdin: {
+			contents: contents,
+			resolveDir: CLIENT_SRC_DIR,
+			sourcefile: "test-bundle.ts",
+			loader: "ts"
+		},
+		outfile: outFile,
+		bundle: true,
+		format: "esm",
+		platform: "neutral",
+		target: "node20",
+		external: ["three", "howler", "postprocessing"],
+		alias: { "@": CLIENT_SRC_DIR },
+		logLevel: "silent"
+	});
+
+	var loaded = await import(pathToFileURL(outFile).href);
+	moduleCache.set(cacheKey, loaded);
+	return loaded;
+}
+
+/**
  * Dựng bộ DOM/timing giả tối thiểu cho các module chạm window/document.
  * Trả về hàm dọn dẹp + bộ điều khiển thời gian để test bấm nhịp thủ công.
  */
@@ -177,5 +226,6 @@ function installBrowserStubs() {
 
 module.exports = {
 	loadClientModule: loadClientModule,
+	loadClientBundle: loadClientBundle,
 	installBrowserStubs: installBrowserStubs
 };

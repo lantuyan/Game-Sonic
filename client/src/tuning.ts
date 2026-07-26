@@ -22,24 +22,31 @@ export const tuning = {
 		/** Tầm nhìn xa: fog bắt đầu / kết thúc (unit). */
 		fogNear: 45,
 		fogFar: 155,
-		cameraFov: 62,
-		cameraHeight: 4.1,
-		cameraDistance: 8.2,
+		cameraFov: 60,
+		cameraHeight: 3.7,
+		cameraDistance: 7.4,
 		/** Camera nhìn chếch xuống trước mặt player bao nhiêu unit. */
-		cameraLookAheadZ: -12,
+		cameraLookAheadZ: -14,
 		cameraLookAtHeight: 1.5,
 		/** Camera bám làn player mềm (0 = đứng yên, 1 = dính cứng). */
 		cameraLaneFollow: 0.35,
 		cameraSmoothing: 9
 	},
 
-	/** Bẻ cong thế giới bằng vertex shader (chất Subway Surfers, che pop-in). */
+	/**
+	 * Bẻ cong thế giới bằng vertex shader (chất Subway Surfers, che pop-in).
+	 *
+	 * Hệ số nhân với BÌNH PHƯƠNG khoảng cách nên rất nhạy: ở mép fog (~155 unit)
+	 * thì curveY=0.0005 kéo xuống ~12 unit — vừa đủ để chân trời "rơi" đi.
+	 * Đặt to hơn một chút (0.003) là mặt đất bị kéo xuống hàng trăm unit, bay khỏi
+	 * khung hình và chỉ còn thấy trời.
+	 */
 	curvedWorld: {
 		enabled: 1,
 		/** Độ cong theo phương ngang trên mỗi unit² khoảng cách. */
-		curveX: 0.0016,
+		curveX: 0.00026,
 		/** Độ "rơi" theo phương dọc trên mỗi unit² khoảng cách. */
-		curveY: 0.0031
+		curveY: 0.00052
 	},
 
 	player: {

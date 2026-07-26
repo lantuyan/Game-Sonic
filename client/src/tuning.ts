@@ -99,9 +99,15 @@ export const tuning = {
 	},
 
 	quiz: {
-		/** Khoảng cách giữa 2 trạm câu hỏi (plan §4.3: 25–40s). */
+		/**
+		 * Khoảng cách giữa 2 trạm câu hỏi. Plan §4.3 chốt dải 25–40s; ta dùng phần
+		 * DƯỚI của dải đó (25–35s) vì đo bằng mô phỏng (test/balance.test.js):
+		 * với 25–40s (trung bình 32.5) một chu kỳ mất 45.4s ⇒ ván 6 phút chỉ được
+		 * 7 câu, thủng cận dưới 8 câu/ván của plan §8. Hạ trần xuống 35s đưa chu kỳ
+		 * về ~42s ⇒ 8 câu. Vẫn nằm trong dải đã chốt nên không phá quyết định thiết kế.
+		 */
 		gateIntervalMinSec: 25,
-		gateIntervalMaxSec: 40,
+		gateIntervalMaxSec: 35,
 		/** Telegraph báo trước (plan §4.3: 3–4s). */
 		telegraphSec: 3.5,
 		/** Slow-mo trong trạm (plan §4.3: 0.35–0.45×). */

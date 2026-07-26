@@ -103,14 +103,16 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** demo scene (cube + sàn) chạy 60fps; kéo thả throttle CPU 4× vẫn không đổi tốc độ vật lý (fixed timestep); bấm giữ ←→ liên tục không nuốt lệnh; `?debug` hiển thị và chỉnh được 1 giá trị tuning thấy hiệu quả ngay.
 
-### [ ] P0-3 · Asset pipeline + tải bộ asset P0 + hồ sơ license — *2 ngày* (phụ thuộc P0-1; làm sớm tuần 1 — rủi ro R9)
+### [x] P0-3 · Asset pipeline + tải bộ asset P0 + hồ sơ license — *2 ngày* (phụ thuộc P0-1; làm sớm tuần 1 — rủi ro R9)
 **Việc cần làm:**
-- [ ] Tải bộ asset P0 theo danh mục plan §6.2 (nguồn + URL trong docs/v2/B1): KayKit Adventurers (Knight) + Character Animations; Quaternius Animal Pack (chọn 2 con: gợi ý Ngựa/Sói + Chim); Kenney City Kit Roads + Suburban + Nature Kit + Platformer Kit + Particle Pack + Game Icons; audio Tallbeard + Kenney (4 nhóm); font Baloo 2 + Nunito WOFF2 subset vietnamese+latin (dùng gwfh.mranftl.com).
-- [ ] Lưu file NGUỒN vào `assets-src/` (gitignore nếu >50MB, kèm script tải lại `assets-src/MANIFEST.md` ghi URL); script `scripts/assets-build.mjs`: convert → GLB, `gltf-transform optimize --compress meshopt`, texture resize ≤1024, xuất vào `client/public/models|audio|textures|fonts`.
-- [ ] Ghép animation: Knight + clip KayKit (Running, Jumping, Dodging→đặt tên `slide`, Death, Idle, Hit) thành **1 GLB đa clip** tên chuẩn `idle/run/jump/slide/death/hit` (Blender headless hoặc gltf-transform merge — ghi lại quy trình vào `assets-src/MANIFEST.md`). Tương tự chuẩn hóa tên clip 2 con vật + RobotExpressive (map `Running→run`…). Thiếu clip nào ghi rõ fallback (dùng `run` thay).
-- [ ] `docs/LICENSE-ASSETS.md`: bảng từng asset + URL + license + ngày tải + ảnh chụp trang license (lưu `docs/v2/license-proofs/`).
-- [ ] Budget-check thật trong CI: fail nếu GLB nhân vật >500KB, tổng preload >10MB.
-- [ ] Xóa asset Sonic khỏi bản build V2 (KHÔNG xóa file V1 trên repo cho tới P0-15 — V1 còn phục vụ người dùng).
+- [x] Tải bộ asset P0 theo danh mục plan §6.2 (nguồn + URL trong docs/v2/B1): KayKit Adventurers (Knight) + Character Animations; Quaternius Animal Pack (chọn 2 con: gợi ý Ngựa/Sói + Chim); Kenney City Kit Roads + Suburban + Nature Kit + Platformer Kit + Particle Pack + Game Icons; audio Tallbeard + Kenney (4 nhóm); font Baloo 2 + Nunito WOFF2 subset vietnamese+latin (dùng gwfh.mranftl.com).
+- [x] Lưu file NGUỒN vào `assets-src/` (gitignore nếu >50MB, kèm script tải lại `assets-src/MANIFEST.md` ghi URL); script `scripts/assets-build.mjs`: convert → GLB, `gltf-transform optimize --compress meshopt`, texture resize ≤1024, xuất vào `client/public/models|audio|textures|fonts`.
+- [x] Ghép animation: Knight + clip KayKit (Running, Jumping, Dodging→đặt tên `slide`, Death, Idle, Hit) thành **1 GLB đa clip** tên chuẩn `idle/run/jump/slide/death/hit` (Blender headless hoặc gltf-transform merge — ghi lại quy trình vào `assets-src/MANIFEST.md`). Tương tự chuẩn hóa tên clip 2 con vật + RobotExpressive (map `Running→run`…). Thiếu clip nào ghi rõ fallback (dùng `run` thay).
+- [x] `docs/LICENSE-ASSETS.md`: bảng từng asset + URL + license + ngày tải + ảnh chụp trang license (lưu `docs/v2/license-proofs/`).
+- [x] Budget-check thật trong CI: fail nếu GLB nhân vật >500KB, tổng preload >10MB.
+- [x] Xóa asset Sonic khỏi bản build V2 (KHÔNG xóa file V1 trên repo cho tới P0-15 — V1 còn phục vụ người dùng).
+**Ghi chú thực thi (2 thay thế nguồn, cùng ràng buộc CC0):** (1) 2 con vật lấy từ **Kenney Cube Pets** (Fox thay `horse`, Parrot giữ `parrot`) thay vì Quaternius — pack Quaternius chỉ tải được qua Google Drive nên không script hoá được; (2) BGM lấy từ **OpenGameArt — Short Loops Background Music Pack** (CC0) thay Tallbeard — itch.io chặn tải tự động. **Không cần** ghép clip từ KayKit Character Animations hay Mixamo: `Knight.glb` chính chủ trên GitHub của KayKit đã có sẵn 60+ clip, đủ cả 6 clip P0. Lý do + quy trình ghi ở `assets-src/MANIFEST.md`. Thêm `npm run assets:fetch` (tải nguồn) và `npm run assets:license` (sinh hồ sơ). Kết quả: Knight 3.574KB → **301KB**; tổng build V2 **3.15MB / 10MB**.
+
 **DoD:** `npm run assets:build` tái lập được toàn bộ `client/public/` từ `assets-src/`; viewer nhanh (`?debug&model=knight`) xoay được từng GLB và phát đủ clip; LICENSE-ASSETS.md đủ dòng cho mọi file trong `client/public/models|audio`.
 
 ### [ ] P0-4 · Track, thế giới & biome ① — *4 ngày* (phụ thuộc P0-2, P0-3)

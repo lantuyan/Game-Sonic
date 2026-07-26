@@ -1,0 +1,201 @@
+{
+	"_comment": [
+		"Nguồn asset P0 — khai báo DUY NHẤT, dùng bởi scripts/assets-fetch.mjs.",
+		"Quy tắc vàng #7: chỉ CC0/OFL, cấm mọi asset Sonic/SEGA và fan-art IP.",
+		"Mỗi mục phải có `license` + `licenseUrl` + `sourcePage` để dựng docs/LICENSE-ASSETS.md.",
+		"URL .zip của Kenney có hash theo phiên bản; khi 404 hãy chạy `npm run assets:fetch -- --refresh`",
+		"để script tự quét lại link mới từ trang asset."
+	],
+	"sources": [
+		{
+			"id": "kaykit-adventurers-knight",
+			"title": "KayKit — Adventurers: Knight",
+			"author": "Kay Lousberg (KayKit)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kaylousberg.itch.io/kaykit-adventurers",
+			"kind": "file",
+			"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb",
+			"target": "characters/Knight.glb",
+			"note": "Bản GLB trên GitHub chính chủ của KayKit — đã kèm sẵn 60+ clip gồm Idle/Running_A/Jump_Full_Long/Dodge_Forward/Death_A/Hit_A, đủ 6 clip P0 mà không cần Mixamo."
+		},
+		{
+			"id": "kaykit-adventurers-license",
+			"title": "KayKit — Adventurers: LICENSE.txt",
+			"author": "Kay Lousberg (KayKit)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0",
+			"kind": "file",
+			"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/LICENSE.txt",
+			"target": "licenses/kaykit-adventurers-LICENSE.txt"
+		},
+		{
+			"id": "kenney-cube-pets",
+			"title": "Kenney — Cube Pets",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/cube-pets",
+			"kind": "kenney-zip",
+			"slug": "cube-pets",
+			"target": "kenney/cube-pets",
+			"note": "THAY cho Quaternius Ultimate Animated Animal Pack mà docs/v2/B1 gợi ý: bản Quaternius chỉ tải được qua Google Drive (không script hoá được). Cube Pets cùng license CC0, có sẵn GLB kèm clip idle/walk/run — lấy Fox (thay `horse`) và Parrot (giữ tên `parrot`)."
+		},
+		{
+			"id": "kenney-city-kit-roads",
+			"title": "Kenney — City Kit (Roads)",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/city-kit-roads",
+			"kind": "kenney-zip",
+			"slug": "city-kit-roads",
+			"target": "kenney/city-kit-roads"
+		},
+		{
+			"id": "kenney-city-kit-suburban",
+			"title": "Kenney — City Kit (Suburban)",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/city-kit-suburban",
+			"kind": "kenney-zip",
+			"slug": "city-kit-suburban",
+			"target": "kenney/city-kit-suburban"
+		},
+		{
+			"id": "kenney-nature-kit",
+			"title": "Kenney — Nature Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/nature-kit",
+			"kind": "kenney-zip",
+			"slug": "nature-kit",
+			"target": "kenney/nature-kit"
+		},
+		{
+			"id": "kenney-platformer-kit",
+			"title": "Kenney — Platformer Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/platformer-kit",
+			"kind": "kenney-zip",
+			"slug": "platformer-kit",
+			"target": "kenney/platformer-kit"
+		},
+		{
+			"id": "kenney-particle-pack",
+			"title": "Kenney — Particle Pack",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/particle-pack",
+			"kind": "kenney-zip",
+			"slug": "particle-pack",
+			"target": "kenney/particle-pack"
+		},
+		{
+			"id": "kenney-game-icons",
+			"title": "Kenney — Game Icons",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/game-icons",
+			"kind": "kenney-zip",
+			"slug": "game-icons",
+			"target": "kenney/game-icons"
+		},
+		{
+			"id": "kenney-interface-sounds",
+			"title": "Kenney — Interface Sounds",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/interface-sounds",
+			"kind": "kenney-zip",
+			"slug": "interface-sounds",
+			"target": "kenney/interface-sounds"
+		},
+		{
+			"id": "kenney-impact-sounds",
+			"title": "Kenney — Impact Sounds",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/impact-sounds",
+			"kind": "kenney-zip",
+			"slug": "impact-sounds",
+			"target": "kenney/impact-sounds"
+		},
+		{
+			"id": "kenney-digital-audio",
+			"title": "Kenney — Digital Audio",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/digital-audio",
+			"kind": "kenney-zip",
+			"slug": "digital-audio",
+			"target": "kenney/digital-audio"
+		},
+		{
+			"id": "kenney-music-jingles",
+			"title": "Kenney — Music Jingles",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/music-jingles",
+			"kind": "kenney-zip",
+			"slug": "music-jingles",
+			"target": "kenney/music-jingles"
+		},
+		{
+			"id": "oga-short-loops-menu",
+			"title": "Short Loops Background Music Pack — \"Swinging Sweet\"",
+			"author": "Tim Mortimer (OpenGameArt)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://opengameart.org/content/short-loops-background-music-pack",
+			"kind": "file",
+			"url": "https://opengameart.org/sites/default/files/Swinging%20Sweet.ogg",
+			"target": "audio/bgm-menu.ogg",
+			"note": "THAY cho Tallbeard Music Loop Bundle mà docs/v2/B1 gợi ý: itch.io chặn tải tự động. Cùng license CC0."
+		},
+		{
+			"id": "oga-short-loops-run",
+			"title": "Short Loops Background Music Pack — \"A Brand New Wisdom\"",
+			"author": "Tim Mortimer (OpenGameArt)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://opengameart.org/content/short-loops-background-music-pack",
+			"kind": "file",
+			"url": "https://opengameart.org/sites/default/files/A%20Brand%20New%20Wisdom.ogg",
+			"target": "audio/bgm-biome1.ogg"
+		},
+		{
+			"id": "font-baloo2",
+			"title": "Baloo 2 (subset vietnamese + latin, WOFF2)",
+			"author": "Ek Type",
+			"license": "OFL-1.1",
+			"licenseUrl": "https://openfontlicense.org/",
+			"sourcePage": "https://fonts.google.com/specimen/Baloo+2?subset=vietnamese",
+			"kind": "zip",
+			"url": "https://gwfh.mranftl.com/api/fonts/baloo-2?download=zip&subsets=vietnamese,latin&formats=woff2&variants=regular,700,800",
+			"target": "fonts/baloo-2"
+		},
+		{
+			"id": "font-nunito",
+			"title": "Nunito (subset vietnamese + latin, WOFF2)",
+			"author": "Vernon Adams, Cyreal, Jacques Le Bailly",
+			"license": "OFL-1.1",
+			"licenseUrl": "https://openfontlicense.org/",
+			"sourcePage": "https://fonts.google.com/specimen/Nunito?subset=vietnamese",
+			"kind": "zip",
+			"url": "https://gwfh.mranftl.com/api/fonts/nunito?download=zip&subsets=vietnamese,latin&formats=woff2&variants=regular,600,700",
+			"target": "fonts/nunito"
+		}
+	]
+}

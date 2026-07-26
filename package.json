@@ -1,45 +1,47 @@
 {
-  "name": "game-sonic-running",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Sonic running game with admin backend and a Postgres (Neon/PGlite) question bank, leaderboard, and adaptive skill profiles.",
-  "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
-    "dev:client": "vite --config client/vite.config.mts",
-    "build:client": "vite build --config client/vite.config.mts",
-    "assets:build": "node scripts/assets-build.mjs",
-    "typecheck": "tsc --noEmit -p client/tsconfig.json",
-    "test": "node --test",
-    "test:contract": "node --test test/contract.test.js",
-    "budget:check": "node scripts/budget-check.mjs",
-    "ci": "npm run typecheck && npm test && npm run build:client && npm run budget:check",
-    "migrate": "node scripts/migrate-neon.js",
-    "vercel-build": "node scripts/vercel-build.js",
-    "hash-password": "node server/scripts/hash-password.js"
-  },
-  "engines": {
-    "node": "22.x"
-  },
-  "dependencies": {
-    "@electric-sql/pglite": "^0.5.3",
-    "@neondatabase/serverless": "^1.1.0",
-    "bcrypt": "^5.1.1",
-    "cookie-parser": "^1.4.7",
-    "dotenv": "^16.6.1",
-    "express": "^4.21.2",
-    "howler": "^2.2.4",
-    "jsonwebtoken": "^9.0.2",
-    "postprocessing": "^6.39.3",
-    "three": "^0.185.1"
-  },
-  "devDependencies": {
-    "@gltf-transform/cli": "^4.4.2",
-    "@types/howler": "^2.2.13",
-    "@types/three": "^0.185.1",
-    "supertest": "^7.1.1",
-    "typescript": "^5.9.3",
-    "vite": "^6.4.3",
-    "vite-plugin-pwa": "^1.3.0"
-  }
+	"name": "game-sonic-running",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Sonic running game with admin backend and a Postgres (Neon/PGlite) question bank, leaderboard, and adaptive skill profiles.",
+	"scripts": {
+		"start": "node server/index.js",
+		"dev": "node --watch server/index.js",
+		"dev:client": "vite --config client/vite.config.mts",
+		"build:client": "vite build --config client/vite.config.mts",
+		"assets:build": "node scripts/assets-build.mjs",
+		"assets:fetch": "node scripts/assets-fetch.mjs",
+		"assets:license": "node scripts/assets-license.mjs",
+		"typecheck": "tsc --noEmit -p client/tsconfig.json",
+		"test": "node --test",
+		"test:contract": "node --test test/contract.test.js",
+		"budget:check": "node scripts/budget-check.mjs",
+		"ci": "npm run typecheck && npm test && npm run build:client && npm run budget:check",
+		"migrate": "node scripts/migrate-neon.js",
+		"vercel-build": "node scripts/vercel-build.js",
+		"hash-password": "node server/scripts/hash-password.js"
+	},
+	"engines": {
+		"node": "22.x"
+	},
+	"dependencies": {
+		"@electric-sql/pglite": "^0.5.3",
+		"@neondatabase/serverless": "^1.1.0",
+		"bcrypt": "^5.1.1",
+		"cookie-parser": "^1.4.7",
+		"dotenv": "^16.6.1",
+		"express": "^4.21.2",
+		"howler": "^2.2.4",
+		"jsonwebtoken": "^9.0.2",
+		"postprocessing": "^6.39.3",
+		"three": "^0.185.1"
+	},
+	"devDependencies": {
+		"@gltf-transform/cli": "^4.4.2",
+		"@types/howler": "^2.2.13",
+		"@types/three": "^0.185.1",
+		"supertest": "^7.1.1",
+		"typescript": "^5.9.3",
+		"vite": "^6.4.3",
+		"vite-plugin-pwa": "^1.3.0"
+	}
 }

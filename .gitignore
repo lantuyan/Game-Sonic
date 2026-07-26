@@ -3,5 +3,8 @@ node_modules/
 .runtime/
 coverage/
 .vercel
-public/
+/public/
 .claude/worktrees/
+
+# Asset nguồn tải về (~45MB) — dựng lại bằng `npm run assets:fetch`
+assets-src/downloads/

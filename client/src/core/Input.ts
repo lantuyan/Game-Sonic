@@ -237,6 +237,47 @@ export class Input {
 		return null;
 	}
 
+	/**
+	 * Thử xử lý lệnh cũ nhất còn hạn khớp bộ lọc.
+	 *
+	 * `attempt` trả về false = "chưa nhận được" → lệnh Ở NGUYÊN trong hàng đợi kèm
+	 * hạn cũ, bước sau thử lại. Đây là cách đúng để giữ luật buffer 150ms: nếu dùng
+	 * `consume()` rồi tự nhét lại thì hạn bị làm mới, lệnh sống mãi không chết.
+	 *
+	 * Trả về lệnh đã được xử lý, hoặc null.
+	 */
+	consumeIf(predicate: (action: GameAction) => boolean, attempt: (action: GameAction) => boolean): GameAction | null {
+		const nowMs = performance.now();
+
+		for (let index = 0; index < this.buffer.length; index += 1) {
+			const entry = this.buffer[index];
+
+			if (entry === undefined) {
+				continue;
+			}
+
+			if (entry.expiresAtMs < nowMs) {
+				this.buffer.splice(index, 1);
+				index -= 1;
+				continue;
+			}
+
+			if (predicate(entry.action) === false) {
+				continue;
+			}
+
+			if (attempt(entry.action) === false) {
+				// Giữ lại nguyên hạn — hết 150ms thì vòng lặp trên tự dọn.
+				return null;
+			}
+
+			this.buffer.splice(index, 1);
+			return entry.action;
+		}
+
+		return null;
+	}
+
 	/** Dọn buffer khi chuyển cảnh (không mang lệnh cũ sang ván mới). */
 	flush(): void {
 		this.buffer.length = 0;

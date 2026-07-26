@@ -21,15 +21,16 @@ export interface ReviewScreenCallbacks {
 }
 
 export class ReviewScreen {
-	private readonly root: HTMLElement;
+	/** ScreenManager cần truy cập phần tử gốc để ẩn/hiện. */
+	readonly element: HTMLElement;
 	private readonly listElement: HTMLDivElement;
 	private readonly summaryElement: HTMLParagraphElement;
 
 	constructor(parent: HTMLElement, callbacks: ReviewScreenCallbacks) {
-		this.root = document.createElement("section");
-		this.root.className = "screen screen--review";
-		this.root.dataset.screen = "review";
-		this.root.hidden = true;
+		this.element = document.createElement("section");
+		this.element.className = "screen screen--review";
+		this.element.dataset.screen = "review";
+		this.element.hidden = true;
 
 		const title = document.createElement("h1");
 		title.className = "screen__title";
@@ -65,12 +66,12 @@ export class ReviewScreen {
 		panel.className = "screen__panel";
 		panel.append(title, this.summaryElement, this.listElement, actions);
 
-		this.root.appendChild(panel);
-		parent.appendChild(this.root);
+		this.element.appendChild(panel);
+		parent.appendChild(this.element);
 	}
 
 	show(items: readonly ReviewItem[]): void {
-		this.root.hidden = false;
+		this.element.hidden = false;
 		this.listElement.replaceChildren();
 
 		if (items.length === 0) {
@@ -131,14 +132,14 @@ export class ReviewScreen {
 	}
 
 	hide(): void {
-		this.root.hidden = true;
+		this.element.hidden = true;
 	}
 
 	get isVisible(): boolean {
-		return this.root.hidden === false;
+		return this.element.hidden === false;
 	}
 
 	dispose(): void {
-		this.root.remove();
+		this.element.remove();
 	}
 }

@@ -78,7 +78,7 @@ export class RunScene implements GameScene {
 	private readonly quizRandom = createSeededRandom(0x5eed);
 	private modal: QuizModal | null = null;
 	private hud: Hud | null = null;
-	private level = "lop6";
+	private readonly level: string;
 	private levelQuizMode: QuizMode = "gate";
 	private answeredThisStation = false;
 
@@ -102,6 +102,26 @@ export class RunScene implements GameScene {
 
 	private cameraX = 0;
 	private previousCameraX = 0;
+
+	constructor(level = "lop6") {
+		this.level = level;
+	}
+
+	/** Số câu đúng/tổng của ván — S8 hiển thị. */
+	get sessionSummary(): { correct: number; total: number } {
+		return {
+			correct: this.session.correct,
+			total: this.session.correct + this.session.wrong + this.session.timeout
+		};
+	}
+
+	setMusicVolume(value: number): void {
+		this.audio.setMusicVolume(value);
+	}
+
+	setSfxVolume(value: number): void {
+		this.audio.setSfxVolume(value);
+	}
 
 	async enter(context: GameContext): Promise<void> {
 		this.context = context;

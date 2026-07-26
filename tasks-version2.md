@@ -181,14 +181,21 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** quay video 1 chuỗi 5 đúng → Fever nổ đã mắt; mỗi power-up hoạt động + hết hạn đúng; không mất fps khi hút 50 coin (pool).
 
-### [ ] P0-9 · Bộ UI màn hình + design tokens — *5 ngày* (phụ thuộc P0-1; song song từ sớm, ghép số liệu thật sau P0-7)
+### [x] P0-9 · Bộ UI màn hình + design tokens — *5 ngày* (phụ thuộc P0-1; song song từ sớm, ghép số liệu thật sau P0-7)
 **Việc cần làm:**
-- [ ] `ui/ui-tokens.css`: biến màu plan §5.2, spacing, radius, shadow, font-face Baloo 2/Nunito self-host; nút "có đáy" + bounce; `prefers-reduced-motion`.
-- [ ] `ui/Screens.ts`: state machine màn hình theo `data-screen` trên `#ui-root`; transition CSS/WAAPI; API `show(screen, params)`.
-- [ ] Components: Button, IconButton, Panel, Toast, ModalShell, ProgressBar, CountUp số, TabBar.
-- [ ] Màn hình: S1 splash (progress thật từ AssetManager, tips); S2 home (turntable nhân vật render riêng viewport nhỏ, nút CHƠI NGAY ≥64px); S3 chọn lớp + **bắt buộc biệt danh ≤24 ký tự** (get/setNickname qua bridge — hợp đồng); S4 chọn nhân vật (kéo xoay); S5 HUD (**2 layout portrait/landscape**, safe-area, tabular-nums); S7 pause + countdown 3-2-1 dùng chung; S8 game over (count-up, KỶ LỤC MỚI, rank từ submitScore, coin, đúng/tổng, CHƠI LẠI 1 chạm, nút Review); S10 leaderboard (tab lớp, top20, hàng mình ghim — dữ liệu `getLeaderboard`); S11 cài đặt (nhạc/SFX, preset chất lượng, đổi biệt danh, xem lại tutorial); S16 overlays (boot-error port từ V1, offline, gợi ý xoay, PWA prompt).
-- [ ] S14 FTUE: learn-by-doing 4 bước (vuốt né → nhảy → trượt → cổng demo với câu mẫu dễ), bàn tay SVG, bỏ qua được, cờ `endlessrunner-ftue-v2`.
-- [ ] Migrate best score: đọc cookie `highscoresonic` 1 lần → `endlessrunner-wallet-v2.bestScore` (per level dùng dữ liệu leaderboard nếu có).
+- [x] `ui/ui-tokens.css`: biến màu plan §5.2, spacing, radius, shadow, font-face Baloo 2/Nunito self-host; nút "có đáy" + bounce; `prefers-reduced-motion`.
+- [x] `ui/Screens.ts`: state machine màn hình theo `data-screen` trên `#ui-root`; transition CSS/WAAPI; API `show(screen, params)`.
+- [x] Components: Button, IconButton, Panel, Toast, ModalShell, ProgressBar, CountUp số, TabBar.
+- [x] Màn hình: S1 splash (progress thật từ AssetManager, tips); S2 home (turntable nhân vật render riêng viewport nhỏ, nút CHƠI NGAY ≥64px); S3 chọn lớp + **bắt buộc biệt danh ≤24 ký tự** (get/setNickname qua bridge — hợp đồng); S4 chọn nhân vật (kéo xoay); S5 HUD (**2 layout portrait/landscape**, safe-area, tabular-nums); S7 pause + countdown 3-2-1 dùng chung; S8 game over (count-up, KỶ LỤC MỚI, rank từ submitScore, coin, đúng/tổng, CHƠI LẠI 1 chạm, nút Review); S10 leaderboard (tab lớp, top20, hàng mình ghim — dữ liệu `getLeaderboard`); S11 cài đặt (nhạc/SFX, preset chất lượng, đổi biệt danh, xem lại tutorial); S16 overlays (boot-error port từ V1, offline, gợi ý xoay, PWA prompt).
+- [x] S14 FTUE: learn-by-doing 4 bước (vuốt né → nhảy → trượt → cổng demo với câu mẫu dễ), bàn tay SVG, bỏ qua được, cờ `endlessrunner-ftue-v2`.
+- [x] Migrate best score: đọc cookie `highscoresonic` 1 lần → `endlessrunner-wallet-v2.bestScore` (per level dùng dữ liệu leaderboard nếu có).
+**Ghi chú thực thi:** 3 lỗi thật phát hiện khi nghiệm thu trên trình duyệt và đã sửa:
+1. **Tương phản không đạt** — đo thật: chữ trắng trên `#2E86FF` = 3.5:1 và trên `#FF7A1A` = 2.6:1, đều dưới ngưỡng 4.5:1 của plan §5.1. Sửa: nút xanh dùng sắc đậm `#1C62C4` + chữ trắng (5.9:1), nút CTA giữ cam tươi (màu nhận diện) nhưng đổi chữ sang navy (5.4:1). Đo lại tại chỗ: 5.45 / 5.84 / 14.2 / 5.44 — tất cả đạt.
+2. **Lớp phủ màn hình che mất nhân vật 3D** — `.screen` để nền mờ 94–97% nên turntable của S2/S4 (plan §5.1) không nhìn thấy. Hạ còn 55–72% và neo bảng nút xuống đáy ở 2 màn "khoe" nhân vật.
+3. **Khung dọc cắt mất nhân vật** — camera phối cảnh giữ FOV DỌC cố định nên ở 360×640 chỉ còn thấy cái đầu. `MenuScene.frameCamera()` lùi camera theo aspect và hạ điểm ngắm để nhân vật nằm ở nửa trên (nửa dưới là bảng nút).
+
+Đã kiểm trực tiếp: luồng `tutorial → home → level → character` chạy đúng; **chặn đúng khi thiếu biệt danh** ("Em nhập biệt danh trước nhé."); bảng xếp hạng lấy **dữ liệu thật** từ server; mọi nút ≥48px (CTA 64px), focus được bằng bàn phím, tab-order đúng.
+
 **Tham chiếu:** docs/v2/B4 (checklist component + chuẩn accessibility); plan §5.
 **DoD:** đi trọn luồng màn hình **với mock data** (S8 nhận params giả; không gồm gameplay thật và S9 — luồng đầy đủ có chơi + S9 nghiệm thu ở P0-13) S1→S2→S3→S4→countdown→S8→CHƠI LẠI không lỗi trên 360×640 và 1366×768; audit nhanh: touch ≥48px, contrast ≥4.5:1 (Lighthouse a11y ≥90 cho trang menu); 100% điều khiển được bằng bàn phím trên PC.
 

@@ -2,6 +2,7 @@
 // Mọi logic nằm trong core/scenes — file này cố ý mỏng.
 
 import "@/ui/ui-tokens.css";
+import { App } from "@/App";
 import { Game } from "@/core/Game";
 import { DemoScene } from "@/scenes/DemoScene";
 
@@ -13,30 +14,54 @@ async function bootstrap(): Promise<void> {
 		throw new Error("Thiếu #app hoặc #ui-root trong index.html.");
 	}
 
-	const game = new Game(container, uiRoot);
-
-	// `?debug&model=knight` — trình xem model của DoD P0-3.
 	const params = new URLSearchParams(window.location.search);
 	const modelName = params.get("model");
 
+	// --- Chế độ dev (chỉ khi có ?debug) -------------------------------------
 	if (params.has("debug") === true && modelName !== null && modelName !== "") {
+		const game = new Game(container, uiRoot);
 		const { ModelViewerScene } = await import("@/scenes/ModelViewerScene");
 		await game.setScene(new ModelViewerScene(modelName));
-	} else if (params.has("scene") === true || params.has("autorun") === true) {
-		// `?scene=run` / `?autorun` — thế giới P0-4 chạy tự động, dùng để đo hiệu năng.
-		const { RunScene } = await import("@/scenes/RunScene");
-		await game.setScene(new RunScene());
-	} else {
-		await game.setScene(new DemoScene());
-	}
-
-	game.start();
-
-	// Dev/HMR: dọn sạch WebGL context cũ, tránh rò context sau vài lần sửa file.
-	if (import.meta.hot !== undefined) {
-		import.meta.hot.dispose(() => {
+		game.start();
+		registerHotDispose(() => {
 			game.dispose();
 		});
+		return;
+	}
+
+	if (params.has("scene") === true || params.has("autorun") === true) {
+		const game = new Game(container, uiRoot);
+		const { RunScene } = await import("@/scenes/RunScene");
+		await game.setScene(new RunScene(params.get("level") ?? "lop6"));
+		game.start();
+		registerHotDispose(() => {
+			game.dispose();
+		});
+		return;
+	}
+
+	if (params.has("demo") === true) {
+		const game = new Game(container, uiRoot);
+		await game.setScene(new DemoScene());
+		game.start();
+		registerHotDispose(() => {
+			game.dispose();
+		});
+		return;
+	}
+
+	// --- Luồng thật: App điều phối màn hình ----------------------------------
+	const app = new App(container, uiRoot);
+	await app.start();
+	registerHotDispose(() => {
+		app.dispose();
+	});
+}
+
+/** Dev/HMR: dọn WebGL context cũ, tránh rò context sau vài lần sửa file. */
+function registerHotDispose(dispose: () => void): void {
+	if (import.meta.hot !== undefined) {
+		import.meta.hot.dispose(dispose);
 	}
 }
 

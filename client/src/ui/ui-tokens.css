@@ -81,7 +81,7 @@
 	--radius-pill: 999px;
 
 	--shadow-panel: 0 12px 32px rgba(12, 22, 44, 0.28);
-	--shadow-button: 0 4px 0 var(--color-primary-dark);
+	--shadow-button: 0 4px 0 #12447f;
 	--shadow-button-cta: 0 4px 0 var(--color-cta-dark);
 
 	--font-display: "Baloo 2", system-ui, sans-serif;
@@ -126,6 +126,13 @@
 
 /* --- Nút "có đáy" (bấm lún 3–4px) --- */
 
+/*
+ * Tương phản chữ/nền (plan §5.1 yêu cầu ≥4.5:1) — đo thật, không ước lượng:
+ *   trắng trên #2E86FF = 3.5:1  ✗   ·  trắng trên #FF7A1A = 2.6:1  ✗
+ *   trắng trên #1C62C4 = 5.9:1  ✓   ·  navy  trên #FF7A1A = 5.4:1  ✓
+ * Nên nút xanh dùng sắc ĐẬM + chữ trắng, còn nút cam giữ nguyên sắc tươi (đó là
+ * màu nhận diện của CTA) nhưng đổi chữ sang navy.
+ */
 .button {
 	display: inline-flex;
 	align-items: center;
@@ -135,7 +142,7 @@
 	padding: 0 var(--space-5);
 	border: 0;
 	border-radius: var(--radius-pill);
-	background: var(--color-primary);
+	background: var(--color-primary-dark);
 	color: var(--color-text-invert);
 	font-family: var(--font-display);
 	font-weight: 700;
@@ -148,7 +155,7 @@
 .button:active {
 	/* Lún đúng bằng chiều cao đáy → cảm giác bấm thật. */
 	transform: translateY(4px);
-	box-shadow: 0 0 0 var(--color-primary-dark);
+	box-shadow: 0 0 0 #12447f;
 }
 
 .button:focus-visible {
@@ -158,6 +165,7 @@
 
 .button--cta {
 	background: var(--color-cta);
+	color: var(--color-navy);
 	box-shadow: var(--shadow-button-cta);
 	font-size: 20px;
 	min-height: 64px;
@@ -434,7 +442,9 @@
 	display: grid;
 	place-items: center;
 	padding: var(--space-4);
-	background: linear-gradient(180deg, rgba(27, 42, 74, 0.94), rgba(12, 22, 44, 0.97));
+	/* Màn nền 3D (nhân vật turntable) phải nhìn thấy được phía sau — plan §5.1.
+	   Lớp phủ chỉ làm dịu nền cho chữ dễ đọc, KHÔNG che kín. */
+	background: linear-gradient(180deg, rgba(27, 42, 74, 0.55), rgba(12, 22, 44, 0.72));
 	pointer-events: auto;
 	overflow-y: auto;
 	z-index: 10;
@@ -523,4 +533,222 @@
 	color: var(--color-text-invert);
 	font-size: 13px;
 	font-weight: 700;
+}
+
+/* --- Component dùng chung --- */
+
+.screen__body {
+	display: grid;
+	gap: var(--space-4);
+}
+
+.field {
+	display: grid;
+	gap: var(--space-2);
+	font-weight: 700;
+}
+
+.field input[type="text"],
+.field select {
+	min-height: var(--touch-min);
+	padding: 0 var(--space-3);
+	border: 2px solid var(--color-primary);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+	color: var(--color-text);
+	font-family: var(--font-body);
+	font-size: 17px;
+	font-weight: 600;
+	pointer-events: auto;
+}
+
+.field input[type="range"] {
+	min-height: var(--touch-min);
+	pointer-events: auto;
+	accent-color: var(--color-primary);
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+	outline: 3px solid var(--color-coin);
+	outline-offset: 2px;
+}
+
+.field__error {
+	margin: 0;
+	color: var(--color-wrong);
+	font-weight: 700;
+}
+
+.field__error[hidden] {
+	display: none;
+}
+
+.progress {
+	width: 100%;
+	height: 12px;
+	border-radius: var(--radius-pill);
+	background: var(--color-surface-dim);
+	overflow: hidden;
+}
+
+.progress__fill {
+	width: 0;
+	height: 100%;
+	border-radius: var(--radius-pill);
+	background: var(--color-primary);
+	transition: width var(--duration-base) var(--ease-out);
+}
+
+/* Nút đang được chọn (lớp / nhân vật / tab) — viền dày + màu CTA, kèm aria-pressed. */
+.button[data-selected="true"] {
+	background: var(--color-cta);
+	color: var(--color-navy);
+	box-shadow: var(--shadow-button-cta);
+}
+
+/* --- S1 Splash --- */
+
+.splash__tip {
+	margin: 0;
+	color: var(--color-text-muted);
+	text-align: center;
+	font-style: italic;
+}
+
+/* --- S2 Home --- */
+
+.home__stats {
+	margin: 0;
+	text-align: center;
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 18px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* --- S3 / S4 lưới lựa chọn --- */
+
+.level__grid,
+.character__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: var(--space-3);
+}
+
+/* --- S8 Game over --- */
+
+.gameover__score {
+	font-family: var(--font-display);
+	font-size: 56px;
+	font-weight: 800;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-primary);
+}
+
+.gameover__record {
+	margin: 0;
+	text-align: center;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 22px;
+	color: var(--color-cta);
+}
+
+.gameover__record[hidden] {
+	display: none;
+}
+
+.gameover__detail {
+	margin: 0;
+	text-align: center;
+	color: var(--color-text-muted);
+	font-weight: 600;
+}
+
+/* --- S10 Bảng xếp hạng --- */
+
+.tabbar {
+	display: flex;
+	gap: var(--space-2);
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.leaderboard__list {
+	display: grid;
+	gap: var(--space-2);
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.leaderboard__row {
+	display: grid;
+	grid-template-columns: 44px 1fr auto;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: var(--touch-min);
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-dim);
+	font-weight: 600;
+}
+
+/* Hàng của chính mình được ghim nổi bật. */
+.leaderboard__row[data-self="true"] {
+	background: var(--color-primary);
+	color: var(--color-text-invert);
+}
+
+.leaderboard__rank {
+	font-family: var(--font-display);
+	font-weight: 800;
+	text-align: center;
+}
+
+.leaderboard__score {
+	font-variant-numeric: tabular-nums;
+	font-family: var(--font-display);
+	font-weight: 800;
+}
+
+/* --- S14 FTUE --- */
+
+.tutorial__hand {
+	width: 72px;
+	height: 72px;
+	margin: 0 auto;
+	display: block;
+	color: var(--color-primary);
+}
+
+.tutorial__title {
+	margin: 0;
+	text-align: center;
+	font-family: var(--font-display);
+	font-size: 24px;
+}
+
+.tutorial__body {
+	margin: 0;
+	text-align: center;
+	line-height: 1.5;
+}
+
+/*
+ * Màn "khoe" nhân vật (S2 Home, S4 Chọn nhân vật): bảng neo xuống đáy để nhân vật
+ * 3D quay ở nửa trên không bị che. Nếu để bảng ở giữa như các màn khác thì nó nằm
+ * đúng chỗ nhân vật đứng.
+ */
+.screen--showcase {
+	align-items: end;
+	padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+}
+
+/* Màn hình thấp (landscape điện thoại): trả bảng về giữa cho khỏi tràn. */
+@media (max-height: 460px) {
+	.screen--showcase {
+		align-items: center;
+	}
 }

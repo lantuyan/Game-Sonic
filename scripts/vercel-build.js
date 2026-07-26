@@ -39,7 +39,17 @@ fs.mkdirSync(publicDir, { recursive: true });
 // ⚠ P0-15 (công tắc release): riêng việc đặt V2_ROOT="" là CHƯA đủ — bước copy
 // legacy bên dưới sẽ đè index.html/admin.html của Vite. P0-15 phải đồng thời
 // cắt danh sách staticFiles (bỏ index.html + EndlessRunner.*) theo đúng task.
-run("npm run assets:build");
+// `client/public/` (bộ asset đã tối ưu, ~3MB) ĐƯỢC commit vào git và chính là thứ
+// Vite đóng gói. Còn `assets-src/downloads/` (~45MB nguồn thô) thì KHÔNG commit, nên
+// trên Vercel sẽ không có — bỏ qua assets:build là đúng, không phải lỗi.
+// Muốn dựng lại bộ asset: `npm run assets:fetch && npm run assets:build` ở máy dev,
+// rồi commit `client/public/`.
+if (fs.existsSync(path.join(rootDir, "assets-src", "downloads"))) {
+	run("npm run assets:build");
+} else {
+	console.log("[vercel-build] bỏ qua assets:build — không có assets-src/downloads/, dùng client/public/ đã commit.");
+}
+
 run("npm run build:client");
 
 staticFiles.forEach(function (fileName) {

@@ -13,7 +13,18 @@ async function bootstrap(): Promise<void> {
 	}
 
 	const game = new Game(container, uiRoot);
-	await game.setScene(new DemoScene());
+
+	// `?debug&model=knight` — trình xem model của DoD P0-3.
+	const params = new URLSearchParams(window.location.search);
+	const modelName = params.get("model");
+
+	if (params.has("debug") === true && modelName !== null && modelName !== "") {
+		const { ModelViewerScene } = await import("@/scenes/ModelViewerScene");
+		await game.setScene(new ModelViewerScene(modelName));
+	} else {
+		await game.setScene(new DemoScene());
+	}
+
 	game.start();
 
 	// Dev/HMR: dọn sạch WebGL context cũ, tránh rò context sau vài lần sửa file.

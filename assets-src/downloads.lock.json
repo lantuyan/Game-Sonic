@@ -1,0 +1,87 @@
+{
+	"kaykit-adventurers-knight": {
+		"target": "characters/Knight.glb",
+		"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb",
+		"bytes": 3659532
+	},
+	"kaykit-adventurers-license": {
+		"target": "licenses/kaykit-adventurers-LICENSE.txt",
+		"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/LICENSE.txt",
+		"bytes": 891
+	},
+	"kenney-cube-pets": {
+		"target": "kenney/cube-pets",
+		"url": "https://kenney.nl/media/pages/assets/cube-pets/44e58e945f-1774520254/kenney_cube-pets_1.0.zip",
+		"bytes": 2812444
+	},
+	"kenney-city-kit-roads": {
+		"target": "kenney/city-kit-roads",
+		"url": "https://kenney.nl/media/pages/assets/city-kit-roads/74288c9459-1741864740/kenney_city-kit-roads.zip",
+		"bytes": 1716227
+	},
+	"kenney-city-kit-suburban": {
+		"target": "kenney/city-kit-suburban",
+		"url": "https://kenney.nl/media/pages/assets/city-kit-suburban/2c871b7af2-1745479373/kenney_city-kit-suburban_20.zip",
+		"bytes": 3038740
+	},
+	"kenney-nature-kit": {
+		"target": "kenney/nature-kit",
+		"url": "https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip",
+		"bytes": 10537521
+	},
+	"kenney-platformer-kit": {
+		"target": "kenney/platformer-kit",
+		"url": "https://kenney.nl/media/pages/assets/platformer-kit/1585cf62b4-1775122253/kenney_platformer-kit.zip",
+		"bytes": 4640135
+	},
+	"kenney-particle-pack": {
+		"target": "kenney/particle-pack",
+		"url": "https://kenney.nl/media/pages/assets/particle-pack/f8fe0f8cb8-1677578741/kenney_particle-pack.zip",
+		"bytes": 15001764
+	},
+	"kenney-game-icons": {
+		"target": "kenney/game-icons",
+		"url": "https://kenney.nl/media/pages/assets/game-icons/1ebf9c14af-1677661579/kenney_game-icons.zip",
+		"bytes": 1045980
+	},
+	"kenney-interface-sounds": {
+		"target": "kenney/interface-sounds",
+		"url": "https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip",
+		"bytes": 834536
+	},
+	"kenney-impact-sounds": {
+		"target": "kenney/impact-sounds",
+		"url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+		"bytes": 800850
+	},
+	"kenney-digital-audio": {
+		"target": "kenney/digital-audio",
+		"url": "https://kenney.nl/media/pages/assets/digital-audio/216eac4753-1677590265/kenney_digital-audio.zip",
+		"bytes": 990367
+	},
+	"kenney-music-jingles": {
+		"target": "kenney/music-jingles",
+		"url": "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip",
+		"bytes": 1239525
+	},
+	"oga-short-loops-menu": {
+		"target": "audio/bgm-menu.ogg",
+		"url": "https://opengameart.org/sites/default/files/Swinging%20Sweet.ogg",
+		"bytes": 405170
+	},
+	"oga-short-loops-run": {
+		"target": "audio/bgm-biome1.ogg",
+		"url": "https://opengameart.org/sites/default/files/A%20Brand%20New%20Wisdom.ogg",
+		"bytes": 265389
+	},
+	"font-baloo2": {
+		"target": "fonts/baloo-2",
+		"url": "https://gwfh.mranftl.com/api/fonts/baloo-2?download=zip&subsets=vietnamese,latin&formats=woff2&variants=regular,700,800",
+		"bytes": 68277
+	},
+	"font-nunito": {
+		"target": "fonts/nunito",
+		"url": "https://gwfh.mranftl.com/api/fonts/nunito?download=zip&subsets=vietnamese,latin&formats=woff2&variants=regular,600,700",
+		"bytes": 57652
+	}
+}

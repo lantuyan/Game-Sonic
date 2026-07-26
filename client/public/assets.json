@@ -1,0 +1,259 @@
+{
+	"generatedBy": "scripts/assets-build.mjs",
+	"characters": [
+		{
+			"id": "knight",
+			"legacyId": "sonic",
+			"label": "Hiệp sĩ",
+			"url": "models/characters/knight.glb",
+			"clips": [
+				"idle",
+				"run",
+				"jump",
+				"slide",
+				"death",
+				"hit"
+			],
+			"bytes": 307980
+		},
+		{
+			"id": "robot",
+			"legacyId": "robot",
+			"label": "Rô-bốt",
+			"url": "models/characters/robot.glb",
+			"clips": [
+				"idle",
+				"run",
+				"jump",
+				"death",
+				"hit"
+			],
+			"bytes": 137068
+		},
+		{
+			"id": "fox",
+			"legacyId": "horse",
+			"label": "Cáo",
+			"url": "models/characters/fox.glb",
+			"clips": [
+				"idle",
+				"run",
+				"death",
+				"hit"
+			],
+			"bytes": 28528
+		},
+		{
+			"id": "parrot",
+			"legacyId": "parrot",
+			"label": "Vẹt",
+			"url": "models/characters/parrot.glb",
+			"clips": [
+				"idle",
+				"run",
+				"death",
+				"hit"
+			],
+			"bytes": 30832
+		}
+	],
+	"props": [
+		{
+			"url": "models/props/coin.glb",
+			"group": "items",
+			"bytes": 6436
+		},
+		{
+			"url": "models/props/heart.glb",
+			"group": "items",
+			"bytes": 5288
+		},
+		{
+			"url": "models/props/star.glb",
+			"group": "items",
+			"bytes": 5236
+		},
+		{
+			"url": "models/props/obstacle-low-fence.glb",
+			"group": "obstacles",
+			"bytes": 5628
+		},
+		{
+			"url": "models/props/obstacle-low-spikes.glb",
+			"group": "obstacles",
+			"bytes": 11196
+		},
+		{
+			"url": "models/props/obstacle-full-crate.glb",
+			"group": "obstacles",
+			"bytes": 7012
+		},
+		{
+			"url": "models/props/obstacle-full-crate-strong.glb",
+			"group": "obstacles",
+			"bytes": 10284
+		},
+		{
+			"url": "models/props/obstacle-full-barrel.glb",
+			"group": "obstacles",
+			"bytes": 6532
+		},
+		{
+			"url": "models/props/obstacle-low-barrier.glb",
+			"group": "obstacles",
+			"bytes": 5424
+		},
+		{
+			"url": "models/props/obstacle-cone.glb",
+			"group": "obstacles",
+			"bytes": 5372
+		},
+		{
+			"url": "models/props/obstacle-high-sign.glb",
+			"group": "obstacles",
+			"bytes": 6048
+		},
+		{
+			"url": "models/props/building-a.glb",
+			"group": "city",
+			"bytes": 16092
+		},
+		{
+			"url": "models/props/building-b.glb",
+			"group": "city",
+			"bytes": 16620
+		},
+		{
+			"url": "models/props/building-c.glb",
+			"group": "city",
+			"bytes": 21404
+		},
+		{
+			"url": "models/props/building-d.glb",
+			"group": "city",
+			"bytes": 12696
+		},
+		{
+			"url": "models/props/building-e.glb",
+			"group": "city",
+			"bytes": 17140
+		},
+		{
+			"url": "models/props/building-f.glb",
+			"group": "city",
+			"bytes": 16216
+		},
+		{
+			"url": "models/props/fence.glb",
+			"group": "city",
+			"bytes": 8096
+		},
+		{
+			"url": "models/props/planter.glb",
+			"group": "city",
+			"bytes": 6744
+		},
+		{
+			"url": "models/props/streetlight.glb",
+			"group": "city",
+			"bytes": 5476
+		},
+		{
+			"url": "models/props/tree-a.glb",
+			"group": "park",
+			"bytes": 4380
+		},
+		{
+			"url": "models/props/tree-b.glb",
+			"group": "park",
+			"bytes": 5328
+		},
+		{
+			"url": "models/props/tree-c.glb",
+			"group": "park",
+			"bytes": 4688
+		},
+		{
+			"url": "models/props/tree-d.glb",
+			"group": "park",
+			"bytes": 3664
+		},
+		{
+			"url": "models/props/grass.glb",
+			"group": "park",
+			"bytes": 5768
+		},
+		{
+			"url": "models/props/flowers.glb",
+			"group": "park",
+			"bytes": 8560
+		},
+		{
+			"url": "models/props/rocks.glb",
+			"group": "park",
+			"bytes": 6348
+		}
+	],
+	"particles": [
+		"textures/particles/circle_05.png",
+		"textures/particles/dirt_02.png",
+		"textures/particles/flare_01.png",
+		"textures/particles/light_01.png",
+		"textures/particles/magic_05.png",
+		"textures/particles/muzzle_01.png",
+		"textures/particles/smoke_04.png",
+		"textures/particles/spark_04.png",
+		"textures/particles/star_08.png",
+		"textures/particles/trace_01.png",
+		"textures/particles/twirl_02.png",
+		"textures/particles/symbol_01.png"
+	],
+	"icons": [
+		"textures/icons/star.png",
+		"textures/icons/trophy.png",
+		"textures/icons/medal1.png",
+		"textures/icons/gear.png",
+		"textures/icons/home.png",
+		"textures/icons/pause.png",
+		"textures/icons/return.png",
+		"textures/icons/musicOn.png",
+		"textures/icons/musicOff.png",
+		"textures/icons/audioOn.png",
+		"textures/icons/audioOff.png",
+		"textures/icons/checkmark.png",
+		"textures/icons/cross.png",
+		"textures/icons/locked.png",
+		"textures/icons/unlocked.png",
+		"textures/icons/information.png",
+		"textures/icons/arrowLeft.png",
+		"textures/icons/arrowRight.png",
+		"textures/icons/arrowUp.png",
+		"textures/icons/arrowDown.png"
+	],
+	"audio": [
+		"audio/ui-click.ogg",
+		"audio/ui-back.ogg",
+		"audio/ui-confirm.ogg",
+		"audio/countdown.ogg",
+		"audio/coin.ogg",
+		"audio/powerup.ogg",
+		"audio/fever.ogg",
+		"audio/answer-correct.ogg",
+		"audio/answer-wrong.ogg",
+		"audio/game-over.ogg",
+		"audio/new-record.ogg",
+		"audio/hit.ogg",
+		"audio/land.ogg",
+		"audio/jump.ogg",
+		"audio/gate-bell.ogg",
+		"audio/bgm-menu.ogg",
+		"audio/bgm-biome1.ogg"
+	],
+	"clipFallbacks": [
+		"robot.slide → run (nguồn không có clip này)",
+		"fox.jump → run (nguồn không có clip này)",
+		"fox.slide → run (nguồn không có clip này)",
+		"parrot.jump → run (nguồn không có clip này)",
+		"parrot.slide → run (nguồn không có clip này)"
+	]
+}

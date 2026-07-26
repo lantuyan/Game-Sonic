@@ -21,6 +21,10 @@ async function bootstrap(): Promise<void> {
 	if (params.has("debug") === true && modelName !== null && modelName !== "") {
 		const { ModelViewerScene } = await import("@/scenes/ModelViewerScene");
 		await game.setScene(new ModelViewerScene(modelName));
+	} else if (params.has("scene") === true || params.has("autorun") === true) {
+		// `?scene=run` / `?autorun` — thế giới P0-4 chạy tự động, dùng để đo hiệu năng.
+		const { RunScene } = await import("@/scenes/RunScene");
+		await game.setScene(new RunScene());
 	} else {
 		await game.setScene(new DemoScene());
 	}

@@ -115,15 +115,17 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** `npm run assets:build` tái lập được toàn bộ `client/public/` từ `assets-src/`; viewer nhanh (`?debug&model=knight`) xoay được từng GLB và phát đủ clip; LICENSE-ASSETS.md đủ dòng cho mọi file trong `client/public/models|audio`.
 
-### [ ] P0-4 · Track, thế giới & biome ① — *4 ngày* (phụ thuộc P0-2, P0-3)
+### [x] P0-4 · Track, thế giới & biome ① — *4 ngày* (phụ thuộc P0-2, P0-3)
 **Việc cần làm:**
-- [ ] `systems/Track.ts`: segment pool 6–8 chunk × 30–50m, tái chế vòng tròn theo z; mỗi chunk = mặt đường 3 làn + dải trang trí 2 bên (nhà/cây Kenney đặt theo bảng bố cục ngẫu nhiên có seed).
-- [ ] `fx/CurvedWorld.ts`: vertex shader bẻ cong world theo khoảng cách (`onBeforeCompile` áp cho mọi material của track/props; hệ số cong trong `tuning.ts`).
-- [ ] `fx/Sky.ts`: gradient sky (SphereGeometry + ShaderMaterial 2–3 màu theo biome ①) + `scene.fog` **cùng màu chân trời**; HemisphereLight + 1 DirectionalLight castShadow bám player (shadow camera hẹp), preset Thấp → blob shadow (mesh tròn mờ dưới chân).
-- [ ] InstancedMesh cho: mảnh đường lặp, cây, hàng rào, coin (chuẩn bị matrix update batch cho coin — P0-6 dùng).
-- [ ] `systems/Collision.ts`: va chạm lane-based — obstacle đăng ký `{lane, zStart, zEnd, type: low|high|full}`; check player theo lane hiện tại + trạng thái jump/slide + khoảng z. Không Box3.
-- [ ] Biome ① hoàn chỉnh về hình: skyline phố + công viên xen kẽ, props không đụng làn chạy.
+- [x] `systems/Track.ts`: segment pool 6–8 chunk × 30–50m, tái chế vòng tròn theo z; mỗi chunk = mặt đường 3 làn + dải trang trí 2 bên (nhà/cây Kenney đặt theo bảng bố cục ngẫu nhiên có seed).
+- [x] `fx/CurvedWorld.ts`: vertex shader bẻ cong world theo khoảng cách (`onBeforeCompile` áp cho mọi material của track/props; hệ số cong trong `tuning.ts`).
+- [x] `fx/Sky.ts`: gradient sky (SphereGeometry + ShaderMaterial 2–3 màu theo biome ①) + `scene.fog` **cùng màu chân trời**; HemisphereLight + 1 DirectionalLight castShadow bám player (shadow camera hẹp), preset Thấp → blob shadow (mesh tròn mờ dưới chân).
+- [x] InstancedMesh cho: mảnh đường lặp, cây, hàng rào, coin (chuẩn bị matrix update batch cho coin — P0-6 dùng).
+- [x] `systems/Collision.ts`: va chạm lane-based — obstacle đăng ký `{lane, zStart, zEnd, type: low|high|full}`; check player theo lane hiện tại + trạng thái jump/slide + khoảng z. Không Box3.
+- [x] Biome ① hoàn chỉnh về hình: skyline phố + công viên xen kẽ, props không đụng làn chạy.
 **Tham chiếu:** docs/v2/B2 (curved world, instancing, fog); B1 (Kenney kits).
+**Ghi chú thực thi:** mặt đường dựng bằng code (InstancedMesh phẳng + vạch kẻ ĐỨT) thay vì ghép tile đường Kenney — tile Kenney chia theo lưới ô vuông thành phố nên ghép thành 3 làn dài sẽ hở mạch và tốn draw call; vạch đứt còn cho tín hiệu tốc độ mà vạch liền không có. Draw calls đo thực tế: **20/100**, ~137k tam giác. Hai lỗi đã sửa khi dựng: (1) hệ số curved-world ban đầu (0.0031) nhân bình phương khoảng cách kéo mặt đất xuống hàng trăm unit làm mất luôn nền cỏ → hạ về 0.00052; (2) InstancedMesh để `count` = capacity vẫn xử lý vertex cho slot ẩn → đặt `count` theo số slot thật dùng.
+
 **DoD:** chạy tự động (auto-run camera) qua 2.000m không khựng (frame-time ổn trên baseline giả lập CPU 4×); draw calls <100 hiển thị ở `?debug`; bật/tắt curved-world bằng tuning thấy rõ khác biệt; không z-fighting/pop-in lộ liễu ở tầm nhìn.
 
 ### [ ] P0-5 · Nhân vật & CharacterAnimator — *3 ngày* (phụ thuộc P0-2, P0-3)

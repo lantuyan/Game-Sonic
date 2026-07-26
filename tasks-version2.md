@@ -219,15 +219,15 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 - [ ] Viết `docs/v2/P0-ACCEPTANCE.md`: kết quả từng tiêu chí nghiệm thu P0 (plan §8) + video demo.
 **DoD:** mọi tiêu chí nghiệm thu P0 đạt hoặc có waiver ghi rõ (việc tag `v2.0.0-p0` thuộc P0-15 sau khi release).
 
-### [ ] P0-14 · Backend P0 (explanation + quizMode + health) — *1.5 ngày* (phụ thuộc P0-1; làm sớm — P0-7/P0-10 cần)
+### [x] P0-14 · Backend P0 (explanation + quizMode + health) — *1.5 ngày* (phụ thuộc P0-1; làm sớm — P0-7/P0-10 cần)
 **Được phép sửa `shared/`, `server/`, `admin.html` trong phạm vi ghi dưới. Chạy full test.**
 **Việc cần làm:**
-- [ ] `shared/questionModel.js`: field `explanation` (string, optional, ≤500 ký tự) pass-through trong normalize/validate — mọi chỗ khác backward-compatible (câu không có explanation vẫn hợp lệ).
-- [ ] `server/db.js`/bundle: trả `explanation` trong question-bank GET; PUT admin nhận và lưu.
-- [ ] `admin.html`: thêm textarea "Lời giải ngắn (tùy chọn)" mỗi câu + cột cảnh báo "% câu chưa có lời giải" trên đầu bảng.
-- [ ] Level settings: thêm `quizMode: "gate"|"modal"` (mặc định `"gate"`), **per-level THẬT SỰ** — ⚠ KHÔNG bắt chước `updateGameSpeedForLevel` (hiện áp CÙNG giá trị cho cả 3 lớp — `server/db.js:51-58`, docs/v2/A2 §2.2); lưu riêng từng level, route mới `PUT /api/levels/:level/settings/quiz-mode` chỉ set đúng lớp đó; expose trong bundle + select trong admin cạnh game speed.
-- [ ] `GET /api/health`: thêm ping DB thật theo kiểu **additive** — GIỮ NGUYÊN shape hiện tại `{status:"ok", database:"ready"}` (`server/app.js:35-41`, hợp đồng plan §7.3.2), THÊM field mới `dbKind: "neon"|"pglite"|"none"` + `dbOk: boolean` (`SELECT 1`).
-- [ ] Test: normalize explanation, PUT/GET round-trip, **quizMode đổi ở lop6 không ảnh hưởng lop7/lop8**, health với/không DB (shape cũ còn nguyên).
+- [x] `shared/questionModel.js`: field `explanation` (string, optional, ≤500 ký tự) pass-through trong normalize/validate — mọi chỗ khác backward-compatible (câu không có explanation vẫn hợp lệ). *(Field chỉ xuất hiện khi có nội dung → shape câu cũ không đổi.)*
+- [x] `server/db.js`/bundle: trả `explanation` trong question-bank GET; PUT admin nhận và lưu.
+- [x] `admin.html`: thêm textarea "Lời giải ngắn (tùy chọn)" mỗi câu + cột cảnh báo "% câu chưa có lời giải" trên đầu bảng. *(Thêm cả cột "Lời giải" trong bảng danh sách.)*
+- [x] Level settings: thêm `quizMode: "gate"|"modal"` (mặc định `"gate"`), **per-level THẬT SỰ** — ⚠ KHÔNG bắt chước `updateGameSpeedForLevel` (hiện áp CÙNG giá trị cho cả 3 lớp — `server/db.js:51-58`, docs/v2/A2 §2.2); lưu riêng từng level, route mới `PUT /api/levels/:level/settings/quiz-mode` chỉ set đúng lớp đó; expose trong bundle + select trong admin cạnh game speed. *(Admin gọi thẳng route mới bằng `fetch` — `questionBank.js` KHÔNG bị sửa.)*
+- [x] `GET /api/health`: thêm ping DB thật theo kiểu **additive** — GIỮ NGUYÊN shape hiện tại `{status:"ok", database:"ready"}` (`server/app.js:35-41`, hợp đồng plan §7.3.2), THÊM field mới `dbKind: "neon"|"pglite"|"none"` + `dbOk: boolean` (`SELECT 1`).
+- [x] Test: normalize explanation, PUT/GET round-trip, **quizMode đổi ở lop6 không ảnh hưởng lop7/lop8**, health với/không DB (shape cũ còn nguyên). *(`test/backend-p0.test.js` — 9 test; full suite 61/61 xanh.)*
 **DoD:** test cũ + mới xanh; admin sửa 1 câu thêm lời giải → bundle client nhận được; V1 client (chưa biết explanation) vẫn chạy bình thường với bundle mới.
 
 ---

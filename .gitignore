@@ -4,3 +4,4 @@ node_modules/
 coverage/
 .vercel
 public/
+.claude/worktrees/

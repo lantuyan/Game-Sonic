@@ -22,7 +22,7 @@ const LIMITS = {
 	totalBuildBytes: 10 * MB
 };
 
-const v2Root = (process.env.V2_ROOT ?? "v2").replace(/^\/+|\/+$/g, "");
+const v2Root = (process.env.V2_ROOT ?? "").replace(/^\/+|\/+$/g, "");
 const buildDir = resolve(import.meta.dirname, "..", "public", v2Root);
 
 const failures = [];

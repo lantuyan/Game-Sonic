@@ -7,21 +7,26 @@ var path = require("path");
 var rootDir = path.resolve(__dirname, "..");
 var publicDir = path.join(rootDir, "public");
 
-// Danh sách legacy V1 GIỮ NGUYÊN (12 file — gồm EndlessRunner.htm/.js, index.html,
-// worker.js): V1 còn phục vụ tại "/" cho tới P0-15 (công tắc release).
+// P0-15 (công tắc release): V2 đã chiếm "/" nên KHÔNG copy các file của V1 nữa.
+//
+// Cụ thể đã bỏ khỏi danh sách:
+//   · `index.html` + `worker.js` — Vite build ra chính 2 tên này, copy đè là xoá V2;
+//   · `EndlessRunner.htm` + `EndlessRunner.js` (~7MB texture base64) + ảnh kèm theo —
+//     bookmark cũ đã được `server/app.js` 301 về "/", không cần file tĩnh nữa.
+//
+// Các file này VẪN CÒN trong git history và trong repo; chỉ là không phát hành nữa.
+// Cần quay lại V1 khẩn cấp: `git revert` commit này rồi deploy, hoặc build với
+// `V2_ROOT=v2` và khôi phục danh sách cũ.
 var staticFiles = [
-	"EndlessRunner.htm",
-	"EndlessRunner.js",
-	"EndlessRunner.json",
-	"EndlessRunner.png",
+	// admin.html là bản legacy vẫn đang dùng (P2 mới đưa vào Vite).
+	"admin.html",
+	// questionBank.js là hợp đồng tích hợp — client V2 nạp qua questionBridge.
+	"questionBank.js",
+	// Favicon/ảnh chia sẻ giữ lại để link cũ không vỡ.
 	"EndlessRunnerFavIcon_16x16.png",
 	"EndlessRunnerFavIcon_192x192.png",
 	"EndlessRunnerFavIcon_512x512.png",
-	"EndlessRunnerShare.png",
-	"admin.html",
-	"index.html",
-	"questionBank.js",
-	"worker.js"
+	"EndlessRunnerShare.png"
 ];
 
 function run(command) {

@@ -24,6 +24,8 @@ import { Hud } from "@/ui/Hud";
 import { createSeededRandom, randomRange } from "@/core/random";
 import { Combo } from "@/systems/Combo";
 import { Powerups, type PowerupKind } from "@/systems/Powerup";
+import { ReviewQueue } from "@/systems/ReviewQueue";
+import type { ReviewItem } from "@/ui/ReviewScreen";
 import * as bridge from "@/integration/questionBridge";
 import type { LegacyQuestion } from "@/integration/questionBank.d";
 import type { Pattern } from "@/systems/patternRules";
@@ -82,6 +84,11 @@ export class RunScene implements GameScene {
 	// --- Streak / Fever / Power-up (P0-8) ---
 	private readonly combo = new Combo();
 	private readonly powerups = new Powerups();
+	// --- Ôn câu sai (P0-10) ---
+	private readonly reviewQueue = new ReviewQueue();
+	private readonly wrongThisRun: ReviewItem[] = [];
+	private allQuestions: LegacyQuestion[] = [];
+
 	private nextPowerupInSec = 0;
 	private pendingPowerup: PowerupKind | null = null;
 	private pendingPowerupZ = 0;
@@ -140,7 +147,11 @@ export class RunScene implements GameScene {
 			const bundle = await bridge.getLevelBundle(this.level, true);
 			const adaptiveFactor = await bridge.getAdaptiveSpeedFactor(this.level);
 			const avgAnswerMs = await bridge.getAverageAnswerMs(this.level);
-			const queue = await bridge.buildQuestionQueue(this.level, bundle.questions);
+			const baseQueue = await bridge.buildQuestionQueue(this.level, bundle.questions);
+			this.allQuestions = bundle.questions;
+			// Trộn câu sai của các ván trước vào ĐẦU hàng đợi (queue pop từ cuối).
+			const queue = this.reviewQueue.mixIntoQueue(this.level, baseQueue, bundle.questions);
+			this.wrongThisRun.length = 0;
 
 			this.levelQuizMode = bundle.quizMode ?? "gate";
 			this.speed.start({ gameSpeed: bundle.gameSpeed, adaptiveFactor });
@@ -245,6 +256,7 @@ export class RunScene implements GameScene {
 		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode });
 
 		if (outcome === "correct") {
+			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
 			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
 			context.events.emit("score:changed", { score: this.score.total, delta: gained });
@@ -253,6 +265,13 @@ export class RunScene implements GameScene {
 		}
 
 		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vỡ streak + vấp + 10s không coin.
+		this.reviewQueue.recordWrong(question.id, this.level, Date.now());
+		this.wrongThisRun.push({
+			question,
+			selectedAnswer: selected,
+			status: outcome === "timeout" ? "timeout" : "wrong",
+			willRepeat: this.reviewQueue.has(question.id)
+		});
 		this.combo.registerWrong();
 		this.score.recordAnswer(false, question.point, 1);
 		this.player?.stumble();
@@ -381,6 +400,15 @@ export class RunScene implements GameScene {
 			coin.z += (dz / distance) * pull;
 			coin.y += (player.motion.y + 0.7 - coin.y) * Math.min(deltaSec * 6, 1);
 		}
+	}
+
+	/** Danh sách câu sai của ván này — màn S9 hiển thị sau S8. */
+	get reviewItems(): readonly ReviewItem[] {
+		// Cập nhật lại cờ "sẽ gặp lại" theo trạng thái queue lúc kết thúc ván.
+		return this.wrongThisRun.map((item) => ({
+			...item,
+			willRepeat: this.reviewQueue.has(item.question.id)
+		}));
 	}
 
 	private hideGates(): void {

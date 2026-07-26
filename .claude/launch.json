@@ -4,15 +4,31 @@
 		{
 			"name": "v2-client",
 			"runtimeExecutable": "npm",
-			"runtimeArgs": ["run", "dev:client"],
+			"runtimeArgs": [
+				"run",
+				"dev:client"
+			],
 			"port": 5173,
 			"autoPort": true
 		},
 		{
 			"name": "v1-server",
 			"runtimeExecutable": "npm",
-			"runtimeArgs": ["run", "dev"],
+			"runtimeArgs": [
+				"run",
+				"dev"
+			],
 			"port": 3000
+		},
+		{
+			"name": "v2-static",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": [
+				"run",
+				"serve:public"
+			],
+			"port": 4173,
+			"autoPort": true
 		}
 	]
 }

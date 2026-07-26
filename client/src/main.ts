@@ -3,6 +3,7 @@
 
 import "@/ui/ui-tokens.css";
 import { App } from "@/App";
+import { setupServiceWorker } from "@/core/pwa";
 import { Game } from "@/core/Game";
 import { DemoScene } from "@/scenes/DemoScene";
 
@@ -51,6 +52,8 @@ async function bootstrap(): Promise<void> {
 	}
 
 	// --- Luồng thật: App điều phối màn hình ----------------------------------
+	setupServiceWorker(uiRoot);
+
 	const app = new App(container, uiRoot);
 	await app.start();
 	registerHotDispose(() => {

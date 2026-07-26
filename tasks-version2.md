@@ -217,12 +217,19 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** ma trận âm chạy đủ trên Chrome/Safari; tắt nhạc vẫn còn SFX và ngược lại; không tiếng nào phát chồng méo khi ăn 20 coin/giây (throttle giọng).
 
-### [ ] P0-12 · PWA & chuyển tiếp Service Worker — *1.5 ngày* (phụ thuộc P0-3, P0-7, P0-9)
+### [x] P0-12 · PWA & chuyển tiếp Service Worker — *1.5 ngày* (phụ thuộc P0-3, P0-7, P0-9)
 **Rủi ro R1 — làm chính xác từng bước. Toàn bộ test trên môi trường preview/V2_ROOT; việc chiếm route `/` thuộc P0-15.**
 **Việc cần làm:**
-- [ ] `vite-plugin-pwa` (injectManifest): precache app-shell + font + nhân vật mặc định + biome ①; runtime CacheFirst cho `models/audio` còn lại; **network-first cho `/api/levels/*/question-bank`** (giữ hành vi offline V1 — docs/v2/A2 §4).
-- [ ] SW mới build ra **đúng URL `worker.js`** scope `/` (sẽ đè file cũ khi P0-15 chiếm route); `cleanupOutdatedCaches` + tự xóa cache tên `endlessrunner-static-v9`/`endlessrunner-api-v1`; `skipWaiting` + `clientsClaim`; trang có prompt "Đã có bản mới — Tải lại".
-- [ ] Manifest mới (tên game chốt M0-1, icon mới sạch bản quyền — generate từ mascot, 192/512 + maskable).
+- [x] `vite-plugin-pwa` (injectManifest): precache app-shell + font + nhân vật mặc định + biome ①; runtime CacheFirst cho `models/audio` còn lại; **network-first cho `/api/levels/*/question-bank`** (giữ hành vi offline V1 — docs/v2/A2 §4).
+- [x] SW mới build ra **đúng URL `worker.js`** scope `/` (sẽ đè file cũ khi P0-15 chiếm route); `cleanupOutdatedCaches` + tự xóa cache tên `endlessrunner-static-v9`/`endlessrunner-api-v1`; `skipWaiting` + `clientsClaim`; trang có prompt "Đã có bản mới — Tải lại".
+- [x] Manifest mới (tên game chốt M0-1, icon mới sạch bản quyền — generate từ mascot, 192/512 + maskable).
+**Ghi chú thực thi:** đã nghiệm thu THẬT trên bản build production (thêm `npm run serve:public` — server tĩnh phục vụ `public/`, vì Express dev phục vụ gốc repo nên không thử được SW/PWA):
+- SW đăng ký active tại `/v2/worker.js`, precache **97 entry** (app-shell + 6 font + 4 nhân vật + 27 props + 17 audio + assets.json);
+- **kịch bản nâng cấp R1:** tạo giả 2 cache của V1 (`endlessrunner-static-v9`, `endlessrunner-api-v1`) rồi tải lại → **cả 2 biến mất sau ĐÚNG 1 lần tải lại** (DoD cho phép ≤2);
+- **offline:** TẮT HẲN server rồi tải lại → app vẫn khởi động, `index.html` / `knight.glb` (307KB) / font đều trả 200 từ SW.
+
+Hai quyết định kỹ thuật ghi lại: (1) tên file build ép thành `worker.js` — V1 đã đăng ký đúng URL này, đổi tên là SW cũ sống mãi trên máy học sinh; (2) `rollupFormat: "iife"` chứ không phải ES module — SW dạng module bắt buộc đăng ký `{type:"module"}`, Chrome cũ ở phòng tin học và iOS <16.4 không hỗ trợ và sẽ im lặng không cài được.
+
 **DoD:** trên deploy preview: cài PWA V2, offline mở lại chơi được với đề đã cache; kịch bản nâng cấp giả lập (đăng ký SW kiểu V1 với cache `endlessrunner-static-v9` trên profile test → nạp SW mới) xóa sạch cache cũ ≤2 lần tải lại (DevTools→Application).
 
 ### [ ] P0-15 · Công tắc release P0 — *1 ngày* (phụ thuộc P0-13 nghiệm thu xong — task CUỐI CÙNG của P0)

@@ -425,3 +425,102 @@
 .explanation[hidden] {
 	display: none;
 }
+
+/* --- Màn hình chung (S1–S11) --- */
+
+.screen {
+	position: fixed;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: var(--space-4);
+	background: linear-gradient(180deg, rgba(27, 42, 74, 0.94), rgba(12, 22, 44, 0.97));
+	pointer-events: auto;
+	overflow-y: auto;
+	z-index: 10;
+}
+
+.screen[hidden] {
+	display: none;
+}
+
+.screen__panel {
+	width: min(640px, 100%);
+	max-height: 92vh;
+	overflow-y: auto;
+	padding: var(--space-5);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface);
+	box-shadow: var(--shadow-panel);
+}
+
+.screen__title {
+	margin: 0 0 var(--space-2);
+	font-family: var(--font-display);
+	font-size: 30px;
+	font-weight: 800;
+	text-align: center;
+}
+
+.screen__subtitle {
+	margin: 0 0 var(--space-5);
+	color: var(--color-text-muted);
+	text-align: center;
+}
+
+.screen__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3);
+	justify-content: center;
+	margin-top: var(--space-5);
+}
+
+/* --- S9 Xem lại câu sai --- */
+
+.review__list {
+	display: grid;
+	gap: var(--space-3);
+	max-height: 55vh;
+	overflow-y: auto;
+	padding-right: var(--space-1);
+}
+
+.review__card {
+	padding: var(--space-4);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-dim);
+}
+
+.review__question {
+	margin: 0 0 var(--space-3);
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1.45;
+}
+
+.review__answer {
+	margin: 0 0 var(--space-1);
+	font-size: 16px;
+	font-weight: 600;
+}
+
+/* Màu + icon ✓/✗ (icon nằm trong textContent) — không dựa vào màu đơn lẻ. */
+.review__answer--wrong {
+	color: var(--color-wrong);
+}
+
+.review__answer--correct {
+	color: var(--color-correct);
+}
+
+.review__badge {
+	display: inline-block;
+	margin-top: var(--space-2);
+	padding: var(--space-1) var(--space-3);
+	border-radius: var(--radius-pill);
+	background: var(--color-primary);
+	color: var(--color-text-invert);
+	font-size: 13px;
+	font-weight: 700;
+}

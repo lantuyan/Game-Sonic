@@ -192,12 +192,14 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 **Tham chiếu:** docs/v2/B4 (checklist component + chuẩn accessibility); plan §5.
 **DoD:** đi trọn luồng màn hình **với mock data** (S8 nhận params giả; không gồm gameplay thật và S9 — luồng đầy đủ có chơi + S9 nghiệm thu ở P0-13) S1→S2→S3→S4→countdown→S8→CHƠI LẠI không lỗi trên 360×640 và 1366×768; audit nhanh: touch ≥48px, contrast ≥4.5:1 (Lighthouse a11y ≥90 cho trang menu); 100% điều khiển được bằng bàn phím trên PC.
 
-### [ ] P0-10 · Review câu sai + explanation + hàng đợi ôn tập — *2.5 ngày* (phụ thuộc P0-7, P0-14)
+### [x] P0-10 · Review câu sai + explanation + hàng đợi ôn tập — *2.5 ngày* (phụ thuộc P0-7, P0-14)
 **Việc cần làm:**
-- [ ] `systems/ReviewQueue.ts` + key `endlessrunner-review-queue-v2`: câu sai/timeout vào queue `{questionId, level, wrongCount, lastSeenAt, correctStreak}`; xuất hiện lại trong hàng đợi câu của 1–2 ván kế (ưu tiên trộn ~30% đầu hàng đợi); ra khỏi queue khi đúng 2 lần.
-- [ ] S9 Review: sau S8, danh sách câu sai của ván — đề, đáp án đã chọn ✗, đáp án đúng ✓, `explanation` (nếu có), nhãn "sẽ gặp lại ở ván sau"; scroll được, nút Chơi lại/Về Home.
-- [ ] Feedback tại cổng đã hiện explanation (P0-7) — đồng bộ cùng component.
-- [ ] Unit test: vòng đời queue (vào → lặp lại → thoát sau 2 lần đúng), giới hạn kích thước queue (≤30 câu, FIFO).
+- [x] `systems/ReviewQueue.ts` + key `endlessrunner-review-queue-v2`: câu sai/timeout vào queue `{questionId, level, wrongCount, lastSeenAt, correctStreak}`; xuất hiện lại trong hàng đợi câu của 1–2 ván kế (ưu tiên trộn ~30% đầu hàng đợi); ra khỏi queue khi đúng 2 lần.
+- [x] S9 Review: sau S8, danh sách câu sai của ván — đề, đáp án đã chọn ✗, đáp án đúng ✓, `explanation` (nếu có), nhãn "sẽ gặp lại ở ván sau"; scroll được, nút Chơi lại/Về Home.
+- [x] Feedback tại cổng đã hiện explanation (P0-7) — đồng bộ cùng component.
+- [x] Unit test: vòng đời queue (vào → lặp lại → thoát sau 2 lần đúng), giới hạn kích thước queue (≤30 câu, FIFO).
+**Ghi chú thực thi:** bẫy dễ sai nhất đã được test canh: hàng đợi câu của V1 **pop từ CUỐI mảng**, nên câu ôn phải trộn vào **cuối** mới ra sớm — làm ngược (đặt đầu mảng) thì câu ôn rơi xuống cuối ván hoặc không bao giờ xuất hiện. Sai lại giữa chừng thì `correctStreak` về 0 (phải đúng lại từ đầu). Dữ liệu localStorage hỏng bị lọc bỏ thay vì làm sập ván.
+
 **DoD:** cố tình sai 3 câu → thấy đủ 3 ở S9; 2 ván sau gặp lại ≥2 câu đó; trả lời đúng 2 lần → biến mất khỏi queue (kiểm localStorage).
 
 ### [ ] P0-11 · Âm thanh — *1 ngày* (phụ thuộc P0-6; chạy song song)

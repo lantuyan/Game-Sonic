@@ -1,0 +1,589 @@
+{
+	"_comment": [
+		"Pattern chướng ngại P0 — nguồn: tự thiết kế (plan §4.2).",
+		"LUẬT (validator ép trong unit test, xem systems/patternRules.ts):",
+		"  1. mọi lát cắt z phải còn ít nhất 1 làn đi qua được;",
+		"  2. hai cụm liên tiếp cách >= tốc độ tối đa x 0.6s = 18.6 unit (đang dùng 21);",
+		"  3. không chồng rào thấp + rào cao trên cùng một làn (không tư thế nào qua nổi).",
+		"type: low = nhảy qua, high = trượt qua, full = phải đổi làn."
+	],
+	"patterns": [
+		{
+			"id": "p01-single-left",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p02-single-mid",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p03-single-right",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p04-jump-row",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p05-slide-row",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p06-pair-outer",
+			"difficulty": 1,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p07-zigzag",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p08-mid-then-side",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p09-jump-then-slide",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p10-block-and-jump",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p11-slide-then-block",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p12-funnel-left",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p13-funnel-right",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p14-jump-lane",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p15-slide-lane",
+			"difficulty": 2,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				}
+			]
+		},
+		{
+			"id": "p16-triple-zigzag",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 42
+				}
+			]
+		},
+		{
+			"id": "p17-jump-block-slide",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 42
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 42
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 42
+				}
+			]
+		},
+		{
+			"id": "p18-narrow-run",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 42
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 42
+				}
+			]
+		},
+		{
+			"id": "p19-double-jump",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p20-double-slide",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 21
+				}
+			]
+		},
+		{
+			"id": "p21-mixed-gauntlet",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 42
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 42
+				}
+			]
+		},
+		{
+			"id": "p22-side-sweep",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 21
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 42
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 42
+				}
+			]
+		}
+	]
+}

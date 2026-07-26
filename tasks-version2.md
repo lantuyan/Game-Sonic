@@ -139,14 +139,16 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** đổi qua lại 4 nhân vật ở menu và trong ván (dev), animation chuyển mượt không T-pose; localStorage cũ `{"sonic"}` mở lên thành Knight; jump/slide cảm giác đúng nhịp trên bàn phím + swipe (video ngắn đính PR).
 
-### [ ] P0-6 · Core gameplay: làn, pattern, coin, tim, tốc độ — *3.5 ngày* (phụ thuộc P0-4, P0-5)
+### [x] P0-6 · Core gameplay: làn, pattern, coin, tim, tốc độ — *3.5 ngày* (phụ thuộc P0-4, P0-5)
 **Việc cần làm:**
-- [ ] `systems/Spawn.ts`: nạp `client/src/data/patterns.json` (**≥20 pattern** tự thiết kế: mảng event `{lane, type, offset}` theo chuẩn 3 loại chướng ngại plan §4.2); luật công bằng (≥1 lối thoát — viết validator chạy trong unit test; khoảng phản xạ ≥ tốc độ×0.6s; không lặp pattern 2 lần liền; relief valley 5–8s sau cụm khó).
-- [ ] Coin lines: đường thẳng làn an toàn + cung theo quỹ đạo nhảy; magnet-ready (coin có state `attracted`).
-- [ ] `systems/Score.ts`: điểm quãng đường ×1/m + placeholder cộng điểm câu hỏi (P0-7 nối); HUD cập nhật qua event bus, không query DOM mỗi frame.
-- [ ] 3 tim + grace period 3s + giảm mật độ sau mất tim; va chạm → `hit` anim + shake 100ms + flash; hết tim → sang `Result` scene.
-- [ ] Tốc độ: nền = `clamp(gameSpeed × adaptiveFactor, 0.5, 2.0)` (lấy qua `questionBridge`), ramp +5%/30s, trần nền×1.4 (≤2.0), hồi tốc 3s sau va chạm; toast "Tốc độ hiện tại: x…" khi vào ván (hợp đồng plan §7.3.4).
-- [ ] Unit test: validator pattern (mọi pattern có lối thoát ở mọi tốc độ trong dải), công thức tốc độ, score.
+- [x] `systems/Spawn.ts`: nạp `client/src/data/patterns.json` (**≥20 pattern** tự thiết kế: mảng event `{lane, type, offset}` theo chuẩn 3 loại chướng ngại plan §4.2); luật công bằng (≥1 lối thoát — viết validator chạy trong unit test; khoảng phản xạ ≥ tốc độ×0.6s; không lặp pattern 2 lần liền; relief valley 5–8s sau cụm khó).
+- [x] Coin lines: đường thẳng làn an toàn + cung theo quỹ đạo nhảy; magnet-ready (coin có state `attracted`).
+- [x] `systems/Score.ts`: điểm quãng đường ×1/m + placeholder cộng điểm câu hỏi (P0-7 nối); HUD cập nhật qua event bus, không query DOM mỗi frame.
+- [x] 3 tim + grace period 3s + giảm mật độ sau mất tim; va chạm → `hit` anim + shake 100ms + flash; hết tim → sang `Result` scene.
+- [x] Tốc độ: nền = `clamp(gameSpeed × adaptiveFactor, 0.5, 2.0)` (lấy qua `questionBridge`), ramp +5%/30s, trần nền×1.4 (≤2.0), hồi tốc 3s sau va chạm; toast "Tốc độ hiện tại: x…" khi vào ván (hợp đồng plan §7.3.4).
+- [x] Unit test: validator pattern (mọi pattern có lối thoát ở mọi tốc độ trong dải), công thức tốc độ, score.
+**Ghi chú thực thi:** 22 pattern (yêu cầu ≥20). Ràng buộc quan trọng phát hiện khi thiết kế: khoảng phản xạ tối thiểu = tốc độ tối đa (2.0 × 15.5 = 31 u/s) × 0.6s = **18.6 unit**, nên 2 cụm trong cùng pattern phải cách ≥21 unit — validator ép luật này cho MỌI pattern ở MỌI tốc độ trong dải. Validator còn bắt được bẫy "rào thấp chồng rào cao trên cùng làn" (không tư thế nào qua nổi) mà mắt thường dễ bỏ sót. `systems/Lives.ts` là ĐƯỜNG DUY NHẤT làm mất tim → không system nào lỡ tay trừ tim vì trả lời sai (Q2). Tam giác/frame: 189k → **113k** sau khi nén chỉ số InstancedMesh theo số instance thật và hạ capacity nhà Kenney.
+
 **DoD:** chơi tay 5 ván liên tiếp không gặp pattern "chết chắc"; chết chỉ vì phản xạ; test xanh; tốc độ admin 0.5 vs 2.0 cảm nhận rõ (video PR).
 
 ### [ ] P0-7 · Cổng Toán + Modal + tích hợp QuestionBank — *4.5 ngày* (phụ thuộc P0-6, P0-14)

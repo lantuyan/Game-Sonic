@@ -151,20 +151,22 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 
 **DoD:** chơi tay 5 ván liên tiếp không gặp pattern "chết chắc"; chết chỉ vì phản xạ; test xanh; tốc độ admin 0.5 vs 2.0 cảm nhận rõ (video PR).
 
-### [ ] P0-7 · Cổng Toán + Modal + tích hợp QuestionBank — *4.5 ngày* (phụ thuộc P0-6, P0-14)
+### [x] P0-7 · Cổng Toán + Modal + tích hợp QuestionBank — *4.5 ngày* (phụ thuộc P0-6, P0-14)
 **Nhiệm vụ đinh của V2 — làm kỹ.**
 **Việc cần làm:**
-- [ ] `integration/questionBridge.ts` (+`questionBank.d.ts`): bọc 16 member theo **danh sách vàng trong P0-1**, nạp script legacy đúng thứ tự, guard `typeof`.
-- [ ] Nạp đề: port `loadQuestionsDataForLevel` V1 (A1 §2.9.1) — `getLevelBundle(level,{forceReload:true})` lúc bắt đầu ván; hàng đợi = `orderQuestionsBySkill(filterAvailableQuestions(...))`, **pop cuối mảng**; hết câu → chế độ "chạy thuần + ôn câu sai" (đọc P0-10 queue) + toast như V1.
-- [ ] `systems/QuizGate.ts` — chu trình: hẹn giờ 25–40s → **telegraph 3–4s** (chuông + banner HUD + dọn obstacle vùng trạm + coin rải đều 3 làn) → **trạm slow-mo** `timeScale 0.35–0.45` → dựng cổng (khung emissive + canvas text đáp án) → chạy xuyên cổng = trả lời → tung feedback (đúng: confetti+jingle+coin+streak; sai: cổng đúng lóe xanh + explanation 2.5s, vấp 1s) → resume tốc độ.
-- [ ] **Luật số cổng (⚠ dữ liệu thật):** dựng `min(số availableAnswers, 3)` cổng — đáp án đúng luôn có mặt, nhiễu bốc ngẫu nhiên từ đáp án còn lại. Bank lớp 6/7 hiện **100% câu chỉ có 2 đáp án** → 2 cổng, làn còn lại để TRỐNG (chạy qua làn trống không tính là trả lời, trạm vẫn đếm giờ). Không tự bịa đáp án nhiễu.
-- [ ] Thời lượng trạm: `clamp(4 + đềDài/12, 6, 14) × clamp(avgAnswerMs/8000, 0.8, 1.3)` (đọc avgAnswerMs từ skill profile qua bridge; thiếu → 1.0).
-- [ ] **Cổng mềm:** hết trạm chưa chọn → lần 1 mỗi ván: mở modal 10s không tính timeout; lần 2+: tính `timeout`.
-- [ ] **Router:** đề >120 ký tự (ngưỡng trong `tuning.ts`; lưu ý bank hiện tại max 109 ký tự — nhánh này phòng đề mới của giáo viên) hoặc `quizMode:"modal"` từ level settings → modal thay vì cổng.
-- [ ] Modal (S6b): port nguyên luồng V1 (A1 §2.9.4–6: `markQuestionShown`, đếm ngược `q.time`, `answerQuestion`, timeout) với UI mới (đề 20–24px, nút ≥56px, phím 1–4, khóa nút 400ms, timer đỏ 5s cuối). Sai/timeout ở modal thường: KHÔNG mất tim (Q2).
-- [ ] Ghi nhận: mọi con đường (gate/modal) đều gọi `markQuestionShown` → `markQuestionResult(correct|wrong|timeout)` → `recordSessionAnswer` (session stats nội bộ V2, cấu trúc như V1 A1 §2.10); log thêm `mode:"gate"|"modal"` vào session stats nội bộ (chưa gửi server — P1).
-- [ ] Game over: `updateSkillProfileAfterGame(level, session)` + `submitScore(level, stats)` → nhận `rank` cho S8. Điểm câu đúng = `question.point × streakMultiplier` cộng vào Score.
-- [ ] Unit test: router độ dài (dùng câu mock >120 ký tự), luật số cổng `min(N,3)` với N=2/3/4 (đáp án đúng luôn có mặt, vị trí ngẫu nhiên), công thức thời lượng trạm, cổng mềm 1 lần/ván.
+- [x] `integration/questionBridge.ts` (+`questionBank.d.ts`): bọc 16 member theo **danh sách vàng trong P0-1**, nạp script legacy đúng thứ tự, guard `typeof`.
+- [x] Nạp đề: port `loadQuestionsDataForLevel` V1 (A1 §2.9.1) — `getLevelBundle(level,{forceReload:true})` lúc bắt đầu ván; hàng đợi = `orderQuestionsBySkill(filterAvailableQuestions(...))`, **pop cuối mảng**; hết câu → chế độ "chạy thuần + ôn câu sai" (đọc P0-10 queue) + toast như V1.
+- [x] `systems/QuizGate.ts` — chu trình: hẹn giờ 25–40s → **telegraph 3–4s** (chuông + banner HUD + dọn obstacle vùng trạm + coin rải đều 3 làn) → **trạm slow-mo** `timeScale 0.35–0.45` → dựng cổng (khung emissive + canvas text đáp án) → chạy xuyên cổng = trả lời → tung feedback (đúng: confetti+jingle+coin+streak; sai: cổng đúng lóe xanh + explanation 2.5s, vấp 1s) → resume tốc độ.
+- [x] **Luật số cổng (⚠ dữ liệu thật):** dựng `min(số availableAnswers, 3)` cổng — đáp án đúng luôn có mặt, nhiễu bốc ngẫu nhiên từ đáp án còn lại. Bank lớp 6/7 hiện **100% câu chỉ có 2 đáp án** → 2 cổng, làn còn lại để TRỐNG (chạy qua làn trống không tính là trả lời, trạm vẫn đếm giờ). Không tự bịa đáp án nhiễu.
+- [x] Thời lượng trạm: `clamp(4 + đềDài/12, 6, 14) × clamp(avgAnswerMs/8000, 0.8, 1.3)` (đọc avgAnswerMs từ skill profile qua bridge; thiếu → 1.0).
+- [x] **Cổng mềm:** hết trạm chưa chọn → lần 1 mỗi ván: mở modal 10s không tính timeout; lần 2+: tính `timeout`.
+- [x] **Router:** đề >120 ký tự (ngưỡng trong `tuning.ts`; lưu ý bank hiện tại max 109 ký tự — nhánh này phòng đề mới của giáo viên) hoặc `quizMode:"modal"` từ level settings → modal thay vì cổng.
+- [x] Modal (S6b): port nguyên luồng V1 (A1 §2.9.4–6: `markQuestionShown`, đếm ngược `q.time`, `answerQuestion`, timeout) với UI mới (đề 20–24px, nút ≥56px, phím 1–4, khóa nút 400ms, timer đỏ 5s cuối). Sai/timeout ở modal thường: KHÔNG mất tim (Q2).
+- [x] Ghi nhận: mọi con đường (gate/modal) đều gọi `markQuestionShown` → `markQuestionResult(correct|wrong|timeout)` → `recordSessionAnswer` (session stats nội bộ V2, cấu trúc như V1 A1 §2.10); log thêm `mode:"gate"|"modal"` vào session stats nội bộ (chưa gửi server — P1).
+- [x] Game over: `updateSkillProfileAfterGame(level, session)` + `submitScore(level, stats)` → nhận `rank` cho S8. Điểm câu đúng = `question.point × streakMultiplier` cộng vào Score.
+- [x] Unit test: router độ dài (dùng câu mock >120 ký tự), luật số cổng `min(N,3)` với N=2/3/4 (đáp án đúng luôn có mặt, vị trí ngẫu nhiên), công thức thời lượng trạm, cổng mềm 1 lần/ván.
+**Ghi chú thực thi:** kiểm chứng trên server thật: bridge nạp đúng thứ tự `questionModel.js → questionBank.js`, `window.QuestionBank` có 46 member, bundle lop6 trả 100 câu + `quizMode:"gate"`, và toast hiện **"Tốc độ hiện tại: x0.9"** = gameSpeed 1.0 × adaptiveFactor 0.9 (đúng hợp đồng §7.3.4, đã bỏ `multiplier²`). Thêm proxy dev cho `/questionBank.js` và `/shared` trong `vite.config.mts` — 2 file này nằm ở gốc repo nên dev server của Vite không tự phục vụ; production đã được `vercel-build` copy sẵn vào `public/`. Test `bank THẬT lớp 6 đúng 100% câu 2 đáp án` canh chính căn cứ của luật 2-cổng: nếu sau này giáo viên thêm câu 3–4 đáp án, test đỏ để đội xem lại thiết kế. **Chưa nghiệm thu bằng mắt** (trình duyệt nhúng đóng băng `requestAnimationFrame` nên không chạy được nhịp 25–40s tới trạm) — phần video/nghiệm thu thị giác chuyển sang P0-13.
+
 **Tham chiếu:** plan §4.3–4.5; docs/v2/B3 §2 (căn cứ thiết kế); A1 §2.9 (luồng V1 + số dòng).
 **DoD:** chơi 1 ván lớp 6 đủ: ≥3 cổng (dạng 2-cổng vì bank lớp 6 chỉ có 2 đáp án) + 1 lần cổng mềm; nhánh modal kiểm bằng (a) unit test router với câu mock >120 ký tự và (b) set `quizMode:"modal"` tạm cho 1 lớp qua admin → cả ván chạy modal; sau ván, `endlessrunner-question-progress-v1` và skill profile được cập nhật đúng (kiểm bằng devtools); điểm lên leaderboard thật (local server); contract-test xanh.
 

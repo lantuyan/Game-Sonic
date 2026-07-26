@@ -1,8 +1,8 @@
 {
-	"name": "game-sonic-running",
+	"name": "toan-runner",
 	"version": "1.0.0",
 	"private": true,
-	"description": "Sonic running game with admin backend and a Postgres (Neon/PGlite) question bank, leaderboard, and adaptive skill profiles.",
+	"description": "Toán Runner — 3D endless-runner math quiz game (grades 6–8) with an admin backend, Postgres (Neon/PGlite) question bank, leaderboard, and adaptive skill profiles.",
 	"scripts": {
 		"start": "node server/index.js",
 		"dev": "node --watch server/index.js",

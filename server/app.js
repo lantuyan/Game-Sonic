@@ -180,6 +180,13 @@ function createApp(overrides) {
 		}
 	});
 
+	// P0-15: bookmark cũ `EndlessRunner.htm` → 301 về "/" (V2 đã chiếm route gốc).
+	// Đặt TRƯỚC express.static: ở máy dev, staticDir là gốc repo và file cũ vẫn nằm
+	// đó, không chặn trước thì static sẽ phục vụ V1 thay vì chuyển hướng.
+	app.get(["/EndlessRunner.htm", "/EndlessRunner.html"], function (request, response) {
+		response.redirect(301, "/");
+	});
+
 	app.use(function (request, response, next) {
 		var blockedRootItems = {
 			"server": true,

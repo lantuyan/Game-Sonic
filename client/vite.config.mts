@@ -3,9 +3,11 @@ import { resolve } from "node:path";
 import { VitePWA } from "vite-plugin-pwa";
 
 // V2_ROOT điều khiển thư mục build bên trong public/ (plan §7.5).
-// Trong suốt P0 mặc định là "v2" → build ra public/v2/, V1 vẫn phục vụ tại "/".
-// Chỉ ở P0-15 (công tắc release) mới đặt V2_ROOT="" để V2 chiếm route "/".
-const v2Root = (process.env.V2_ROOT ?? "v2").replace(/^\/+|\/+$/g, "");
+//
+// ĐÃ BẬT CÔNG TẮC RELEASE (P0-15): mặc định là "" → build thẳng ra public/, V2 chiếm
+// route "/". Muốn tạm quay lại bố cục thời P0 (V1 ở "/", V2 ở "/v2/") để so sánh hoặc
+// cứu hoả thì đặt env `V2_ROOT=v2` khi build — không cần sửa code.
+const v2Root = (process.env.V2_ROOT ?? "").replace(/^\/+|\/+$/g, "");
 
 // Guard: outDir dùng emptyOutDir:true — V2_ROOT sai kiểu "../x" sẽ xóa nhầm ngoài public/.
 if (v2Root !== "" && !/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(v2Root)) {

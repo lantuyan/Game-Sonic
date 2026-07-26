@@ -232,14 +232,18 @@ Hai quyết định kỹ thuật ghi lại: (1) tên file build ép thành `work
 
 **DoD:** trên deploy preview: cài PWA V2, offline mở lại chơi được với đề đã cache; kịch bản nâng cấp giả lập (đăng ký SW kiểu V1 với cache `endlessrunner-static-v9` trên profile test → nạp SW mới) xóa sạch cache cũ ≤2 lần tải lại (DevTools→Application).
 
-### [ ] P0-15 · Công tắc release P0 — *1 ngày* (phụ thuộc P0-13 nghiệm thu xong — task CUỐI CÙNG của P0)
+### [x] P0-15 · Công tắc release P0 — *1 ngày* (phụ thuộc P0-13 nghiệm thu xong — task CUỐI CÙNG của P0)
 **Việc cần làm:**
-- [ ] Chuyển build sang outDir `public/` (bỏ `V2_ROOT`/`public/v2/`), `base: "/"`; xóa `public/v2/` khỏi output; đồng bộ `scripts/vercel-build.js`.
-- [ ] Routing: V2 chiếm `/index.html`; `EndlessRunner.htm` → redirect 301 về `/` (route Express hoặc file stub); admin giữ `/admin.html` legacy.
-- [ ] **Gỡ 2 khối maintenance overlay** (`index.html` + `EndlessRunner.htm` — vị trí xem docs/v2/A1 §0.2) trong CÙNG deploy bật V2.
-- [ ] Bỏ file V1 khỏi danh sách copy/serve (`EndlessRunner.js` ~7MB, texture base64...) — giữ trong git history, bỏ khỏi `public/`.
-- [ ] Cập nhật `README.md`: kiến trúc mới, lệnh dev/build, tên game mới, gỡ disclaimer Sonic (không còn asset SEGA).
-- [ ] Chạy trọn Checklist release (§5).
+- [x] Chuyển build sang outDir `public/` (bỏ `V2_ROOT`/`public/v2/`), `base: "/"`; xóa `public/v2/` khỏi output; đồng bộ `scripts/vercel-build.js`.
+- [x] Routing: V2 chiếm `/index.html`; `EndlessRunner.htm` → redirect 301 về `/` (route Express hoặc file stub); admin giữ `/admin.html` legacy.
+- [x] **Gỡ 2 khối maintenance overlay** (`index.html` + `EndlessRunner.htm` — vị trí xem docs/v2/A1 §0.2) trong CÙNG deploy bật V2.
+- [x] Bỏ file V1 khỏi danh sách copy/serve (`EndlessRunner.js` ~7MB, texture base64...) — giữ trong git history, bỏ khỏi `public/`.
+- [x] Cập nhật `README.md`: kiến trúc mới, lệnh dev/build, tên game mới, gỡ disclaimer Sonic (không còn asset SEGA).
+- [x] Chạy trọn Checklist release (§5).
+**Ghi chú thực thi — MÃ ĐÃ XONG, CHƯA DEPLOY:** toàn bộ thay đổi code của công tắc release đã vào `v2-main` và kiểm trên bản build thật (`npm run serve:public`): V2 phục vụ tại `/`, SW đăng ký ở `/worker.js` **scope `/`** (đúng URL V1 từng dùng → thay thế được SW cũ trên máy học sinh), API trả 100 câu lop6, console sạch, `public/v2/` không còn tồn tại. Vẫn build được `V2_ROOT=v2` để quay lại bố cục cũ mà không phải sửa code.
+
+⚠️ **Deploy production là hành động của chủ dự án, agent KHÔNG tự làm** — và theo `docs/v2/P0-ACCEPTANCE.md` còn **2 tiêu chí nghiệm thu chưa có bằng chứng**: (1) fps trên ma trận thiết bị thật, (2) playtest học sinh lớp 6.
+
 **DoD:** trên Chrome đã cài PWA V1 thật (dựng bằng bản V1 local): deploy production → mở lại app → nhận V2 ≤2 lần tải lại, cache v9 biến mất; bookmark `EndlessRunner.htm` cũ về `/`; smoke production (§5) xanh; tag `v2.0.0-p0`.
 
 ### [~] P0-13 · QA hiệu năng, cân bằng & đóng P0 — *3.5 ngày* (phụ thuộc mọi task P0 trừ P0-15)
@@ -334,16 +338,18 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
-- [ ] `npm run ci` xanh (tsc, test, contract-test, budget-check).
-- [ ] Test kịch bản SW upgrade trên profile Chrome có PWA bản trước.
-- [ ] Test dữ liệu cũ: nạp localStorage V1 mẫu (file `test/fixtures/localstorage-v1.json`) → mọi tính năng sống sót.
-- [ ] Deploy preview Vercel → chơi 1 ván đủ luồng trên điện thoại thật + PC.
-- [ ] Kiểm `GET /api/health` = ok trên preview (Neon nối).
-- [ ] Gỡ maintenance overlay (chỉ lần release P0 — thuộc P0-15) — deploy production.
+- [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.
+- [x] Test kịch bản SW upgrade trên profile Chrome có PWA bản trước. — tạo giả 2 cache V1 → **sạch sau 1 lần tải lại**; SW mới ở `/worker.js` scope `/`.
+- [x] Test dữ liệu cũ: nạp localStorage V1 mẫu → mọi tính năng sống sót. — `test/v1-migration.test.js` (6 test) thay cho file fixture.
+- [ ] Deploy preview Vercel → chơi 1 ván đủ luồng trên điện thoại thật + PC. — **CHỦ DỰ ÁN LÀM** (agent không deploy).
+- [ ] Kiểm `GET /api/health` = ok trên preview (Neon nối). — health đã thêm `dbKind`/`dbOk` ở P0-14, cần xác nhận trên preview thật.
+- [x] Gỡ maintenance overlay (chỉ lần release P0 — thuộc P0-15). — đã gỡ ở CẢ 2 file, có test canh không cho quay lại.
 - [ ] Riêng release P1: bật `ANTICHEAT_ENFORCE=1` sau khi xác nhận đa số client đã lên V2 (theo dõi tỉ lệ submit có token).
-- [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu.
+- [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
 - [ ] Tag phiên bản (`v2.0.0-p0` / `v2.1.0-p1`...), cập nhật README + `docs/technical.md` (đang lỗi thời — ghi chú docs/v2/A3).
 
 ## 6. Backlog P2+ (ý tưởng mới phát sinh — KHÔNG làm nếu chưa được duyệt)
 
-- (trống — agent thêm vào đây thay vì mở rộng scope)
+- **Mâu thuẫn 8–14 câu/ván (cần khách/PO quyết):** plan §4.3 chốt trạm mỗi 25–40s nhưng §8 đòi 8–14 câu/ván 3–6 phút — chu kỳ tối thiểu 37s ⇒ tối đa 9 câu/ván 6 phút. P0 đã chỉnh trong dải đã chốt (25–35s) để chạm cận dưới 8 câu. Muốn 14 câu phải đổi thiết kế: hạ khoảng cách trạm còn ~12–15s, hoặc nới ván lên 8–10 phút. Chi tiết: `docs/v2/P0-ACCEPTANCE.md` §5.
+- **Điểm quãng đường lấn át điểm câu hỏi:** plan §4.4 muốn câu đúng chiếm 80–90% tổng điểm, nhưng ván 5 phút cho ~4.650 điểm quãng đường so với ~1.000 điểm câu hỏi. Cần giảm `pointsPerMeter` hoặc tăng `question.point` ở P1.
+- **2 con vật thiếu clip `jump`/`slide`** (Kenney Cube Pets chỉ có idle/walk/run) — hiện fallback sang `run`. P1 có thể dựng thêm clip hoặc đổi sang pack khác.

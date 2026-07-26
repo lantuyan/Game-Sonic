@@ -93,11 +93,17 @@ test("prompt cập nhật chứ KHÔNG tự tải lại giữa ván", function (
 	);
 });
 
-test("V1 vẫn giữ nguyên route / cho tới P0-15", function () {
+test("sau P0-15: worker.js của V2 KHÔNG bị bản copy legacy đè lên", function () {
+	// Trước P0-15 test này canh điều ngược lại (V1 giữ route "/", worker.js của V1
+	// vẫn được copy). Công tắc release đã lật, nên bất biến cần canh cũng đổi: giờ
+	// nguy hiểm nằm ở chỗ vô tình copy `worker.js` của V1 đè lên SW của V2.
 	var buildScript = fs.readFileSync(path.join(rootDir, "scripts", "vercel-build.js"), "utf8");
+	var listMatch = buildScript.match(/var staticFiles = \[([\s\S]*?)\];/);
 
-	assert.ok(
-		buildScript.includes('"worker.js"'),
-		"trong P0, worker.js của V1 vẫn được copy ra public/ — V2 nằm ở public/v2/"
+	assert.notEqual(listMatch, null);
+	assert.equal(
+		/"worker\.js"/.test(listMatch[1]),
+		false,
+		"copy worker.js của V1 sẽ đè mất Service Worker của V2 → học sinh kẹt ở bản cũ"
 	);
 });

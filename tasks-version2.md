@@ -90,15 +90,17 @@ Sau M0-1: rà lại danh sách task P0 dưới đây, gạch bỏ/bổ sung theo
 **Tham chiếu:** plan §7.1–7.3; docs/v2/A3 (build pipeline), A2 (API/SW).
 **DoD:** `npm run dev:client` mở trang trắng có canvas ba chiều quay 1 cube (smoke); `npm run ci` xanh; deploy preview Vercel vẫn phục vụ V1 bình thường (V2 chưa chiếm route `/` — build tạm ra `public/v2/` cho đến P0-15, cấu hình bằng env `V2_ROOT`).
 
-### [ ] P0-2 · Core engine: loop, renderer, input, quality, tuning — *3 ngày* (phụ thuộc P0-1)
+### [x] P0-2 · Core engine: loop, renderer, input, quality, tuning — *3 ngày* (phụ thuộc P0-1)
 **Việc cần làm:**
-- [ ] `core/Engine.ts`: fixed timestep 60Hz (accumulator), `update(dt)`/`render(alpha)` tách bạch, clamp dt ≤ 1/30, pause khi `visibilitychange` + reset clock (cơ chế tương đương `resetAnimationClock` V1 đã có — `EndlessRunner.htm:533-542`; V2 gom về Engine).
-- [ ] `core/Renderer.ts`: WebGLRenderer (antialias theo preset), `outputColorSpace = SRGBColorSpace`, `toneMapping = ACESFilmicToneMapping`, shadowMap PCF, `setPixelRatio(min(devicePixelRatio, 2))`, resize theo container. Renderer là module duy nhất biết WebGL (Q18).
-- [ ] `core/Quality.ts`: 3 preset Thấp/Vừa/Cao (bảng: DPR, shadow size on/off, bloom on/off, mật độ particle); auto-detect lần đầu (đo fps 3s đầu ván); **auto-quality runtime: tụt fps → hạ DPR 2→1.5→1 trước, rồi shadow, rồi bloom**; lưu lựa chọn tay vào `endlessrunner-settings-v2`.
-- [ ] `core/Input.ts`: Pointer Events (swipe 4 hướng, ngưỡng 30–50px hoặc vận tốc, `touch-action:none`, `pointercancel`) + bàn phím (mapping plan §4.1) → phát action trừu tượng `laneLeft/laneRight/jump/slide/pause/answer(n)`; **input buffer 150ms**.
-- [ ] `tuning.ts`: khởi tạo mọi hằng số đã nêu trong plan §4 (lane x, thời gian tween/nhảy/trượt, ramp, telegraph…), kèm chú thích đơn vị.
-- [ ] `?debug` overlay: fps/frame-time đồ thị mini, draw calls (`renderer.info`), số object pool, panel chỉnh nóng các giá trị `tuning.ts` (dat-gui tự viết tối giản bằng DOM, không thêm lib).
+- [x] `core/Engine.ts`: fixed timestep 60Hz (accumulator), `update(dt)`/`render(alpha)` tách bạch, clamp dt ≤ 1/30, pause khi `visibilitychange` + reset clock (cơ chế tương đương `resetAnimationClock` V1 đã có — `EndlessRunner.htm:533-542`; V2 gom về Engine).
+- [x] `core/Renderer.ts`: WebGLRenderer (antialias theo preset), `outputColorSpace = SRGBColorSpace`, `toneMapping = ACESFilmicToneMapping`, shadowMap PCF, `setPixelRatio(min(devicePixelRatio, 2))`, resize theo container. Renderer là module duy nhất biết WebGL (Q18).
+- [x] `core/Quality.ts`: 3 preset Thấp/Vừa/Cao (bảng: DPR, shadow size on/off, bloom on/off, mật độ particle); auto-detect lần đầu (đo fps 3s đầu ván); **auto-quality runtime: tụt fps → hạ DPR 2→1.5→1 trước, rồi shadow, rồi bloom**; lưu lựa chọn tay vào `endlessrunner-settings-v2`.
+- [x] `core/Input.ts`: Pointer Events (swipe 4 hướng, ngưỡng 30–50px hoặc vận tốc, `touch-action:none`, `pointercancel`) + bàn phím (mapping plan §4.1) → phát action trừu tượng `laneLeft/laneRight/jump/slide/pause/answer(n)`; **input buffer 150ms**.
+- [x] `tuning.ts`: khởi tạo mọi hằng số đã nêu trong plan §4 (lane x, thời gian tween/nhảy/trượt, ramp, telegraph…), kèm chú thích đơn vị.
+- [x] `?debug` overlay: fps/frame-time đồ thị mini, draw calls (`renderer.info`), số object pool, panel chỉnh nóng các giá trị `tuning.ts` (dat-gui tự viết tối giản bằng DOM, không thêm lib).
 **Tham chiếu:** docs/v2/B2 (mục renderer/perf); A1 §1 (lỗi V1 cần tránh).
+**Ghi chú thực thi:** DoD được nghiệm bằng **test tất định** `test/engine-core.test.js` (10 test, chạy dưới `node --test` qua harness esbuild `test-helpers/clientModule.js`) — trình duyệt nhúng của môi trường agent đóng băng `requestAnimationFrame` nên không đo được fps thật ở đây; đo fps trên máy thật thuộc P0-13. Panel `?debug` đã kiểm trực tiếp trên trang: 102 nút chỉnh nóng, sửa `player.jumpDurationSec` 0.55→0.95 ăn ngay, bộ lọc hoạt động.
+
 **DoD:** demo scene (cube + sàn) chạy 60fps; kéo thả throttle CPU 4× vẫn không đổi tốc độ vật lý (fixed timestep); bấm giữ ←→ liên tục không nuốt lệnh; `?debug` hiển thị và chỉnh được 1 giá trị tuning thấy hiệu quả ngay.
 
 ### [ ] P0-3 · Asset pipeline + tải bộ asset P0 + hồ sơ license — *2 ngày* (phụ thuộc P0-1; làm sớm tuần 1 — rủi ro R9)

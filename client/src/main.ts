@@ -1,6 +1,7 @@
 // Bootstrap V2. Chỉ làm 3 việc: tìm container, dựng Game shell, chạy scene đầu.
 // Mọi logic nằm trong core/scenes — file này cố ý mỏng.
 
+import "@/ui/ui-tokens.css";
 import { Game } from "@/core/Game";
 import { DemoScene } from "@/scenes/DemoScene";
 

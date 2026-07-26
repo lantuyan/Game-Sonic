@@ -34,7 +34,13 @@ export default defineConfig(({ command }) => ({
 	server: {
 		port: Number(process.env.PORT ?? 5173),
 		proxy: {
-			"/api": "http://localhost:3000"
+			"/api": "http://localhost:3000",
+			// Script legacy (questionBank.js + questionModel.js) nằm ở GỐC REPO, không
+			// nằm trong `client/` nên dev server của Vite không tự phục vụ được.
+			// Trên production, `scripts/vercel-build.js` copy chúng vào `public/` nên
+			// cùng đường dẫn này chạy đúng — dev chỉ cần proxy sang Express.
+			"/questionBank.js": "http://localhost:3000",
+			"/shared": "http://localhost:3000"
 		}
 	}
 }));

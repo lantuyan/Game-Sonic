@@ -1,0 +1,427 @@
+/*
+ * Design token + nền tảng UI (plan §5.2).
+ *
+ * Bảng màu, khoảng cách, bo góc, bóng đổ và font self-host khai báo MỘT LẦN ở đây;
+ * mọi component đọc qua biến. Đổi nhận diện = sửa đúng khối :root này.
+ *
+ * Chuẩn bắt buộc: chạm ≥48px (nút đáp án ≥56px), tương phản ≥4.5:1, đúng/sai luôn
+ * kèm icon ✓/✗ chứ không chỉ dựa vào màu (≈8% nam sinh mù màu), và tôn trọng
+ * `prefers-reduced-motion`.
+ */
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-700.woff2") format("woff2");
+	font-weight: 700;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-800.woff2") format("woff2");
+	font-weight: 800;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-600.woff2") format("woff2");
+	font-weight: 600;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-700.woff2") format("woff2");
+	font-weight: 700;
+	font-display: swap;
+}
+
+:root {
+	/* Bảng màu plan §5.2 */
+	--color-primary: #2e86ff;
+	--color-primary-dark: #1c62c4;
+	--color-cta: #ff7a1a;
+	--color-cta-dark: #c85607;
+	--color-coin: #ffc93c;
+	--color-correct: #22c55e;
+	--color-wrong: #ef4444;
+	--color-navy: #1b2a4a;
+	--color-navy-soft: #2b3f68;
+	--color-surface: #ffffff;
+	--color-surface-dim: #f2f6fd;
+	--color-text: #1b2a4a;
+	--color-text-invert: #ffffff;
+	--color-text-muted: #5a6a8a;
+
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+
+	--radius-sm: 10px;
+	--radius-md: 16px;
+	--radius-lg: 24px;
+	--radius-pill: 999px;
+
+	--shadow-panel: 0 12px 32px rgba(12, 22, 44, 0.28);
+	--shadow-button: 0 4px 0 var(--color-primary-dark);
+	--shadow-button-cta: 0 4px 0 var(--color-cta-dark);
+
+	--font-display: "Baloo 2", system-ui, sans-serif;
+	--font-body: "Nunito", system-ui, sans-serif;
+
+	/* Vùng chạm tối thiểu — không component nào được nhỏ hơn. */
+	--touch-min: 48px;
+	--touch-answer: 56px;
+
+	--duration-fast: 120ms;
+	--duration-base: 220ms;
+	--ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Người chơi bật "giảm chuyển động" thì tắt mọi transition/animation trang trí. */
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--duration-fast: 0ms;
+		--duration-base: 0ms;
+	}
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+	}
+}
+
+#ui-root {
+	font-family: var(--font-body);
+	color: var(--color-text);
+	/* Lớp phủ không chặn chạm; từng component tự bật lại pointer-events. */
+	pointer-events: none;
+}
+
+#ui-root button {
+	font: inherit;
+	pointer-events: auto;
+}
+
+/* --- Nút "có đáy" (bấm lún 3–4px) --- */
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	min-height: var(--touch-min);
+	padding: 0 var(--space-5);
+	border: 0;
+	border-radius: var(--radius-pill);
+	background: var(--color-primary);
+	color: var(--color-text-invert);
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 18px;
+	cursor: pointer;
+	box-shadow: var(--shadow-button);
+	transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.button:active {
+	/* Lún đúng bằng chiều cao đáy → cảm giác bấm thật. */
+	transform: translateY(4px);
+	box-shadow: 0 0 0 var(--color-primary-dark);
+}
+
+.button:focus-visible {
+	outline: 3px solid var(--color-coin);
+	outline-offset: 3px;
+}
+
+.button--cta {
+	background: var(--color-cta);
+	box-shadow: var(--shadow-button-cta);
+	font-size: 20px;
+	min-height: 64px;
+}
+
+.button--cta:active {
+	box-shadow: 0 0 0 var(--color-cta-dark);
+}
+
+/* --- HUD --- */
+
+.hud {
+	position: fixed;
+	inset: 0;
+	padding: max(var(--space-3), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right))
+		max(var(--space-3), env(safe-area-inset-bottom)) max(var(--space-3), env(safe-area-inset-left));
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	pointer-events: none;
+}
+
+.hud__top {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.hud__stats {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+.hud__score {
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 30px;
+	color: var(--color-text-invert);
+	/* tabular-nums: số không nhảy layout khi đếm lên. */
+	font-variant-numeric: tabular-nums;
+	text-shadow: 0 2px 8px rgba(12, 22, 44, 0.6);
+}
+
+.hud__coins {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 20px;
+	color: var(--color-coin);
+	font-variant-numeric: tabular-nums;
+	text-shadow: 0 2px 8px rgba(12, 22, 44, 0.6);
+}
+
+.hud__lives {
+	display: flex;
+	gap: var(--space-1);
+	font-size: 22px;
+	line-height: 1;
+}
+
+.hud__life[data-empty="true"] {
+	opacity: 0.28;
+	filter: grayscale(1);
+}
+
+/* Băng đề bài lúc telegraph — nền ĐẶC để chữ luôn đọc được trên mọi cảnh. */
+.hud__question {
+	align-self: end;
+	justify-self: center;
+	max-width: min(92vw, 680px);
+	margin-bottom: var(--space-4);
+	padding: var(--space-3) var(--space-5);
+	border-radius: var(--radius-md);
+	background: rgba(12, 22, 44, 0.92);
+	color: var(--color-text-invert);
+	font-family: var(--font-body);
+	font-weight: 700;
+	font-size: 20px;
+	text-align: center;
+	box-shadow: var(--shadow-panel);
+}
+
+.hud__question[hidden] {
+	display: none;
+}
+
+/* Landscape (PC): HUD dàn ngang, đề bài lên cao hơn để không che làn chạy. */
+@media (orientation: landscape) {
+	.hud__question {
+		font-size: 22px;
+		margin-bottom: var(--space-6);
+	}
+}
+
+.hud__toast {
+	position: fixed;
+	left: 50%;
+	top: 18%;
+	transform: translateX(-50%);
+	padding: var(--space-2) var(--space-4);
+	border-radius: var(--radius-pill);
+	background: rgba(12, 22, 44, 0.92);
+	color: var(--color-text-invert);
+	font-weight: 700;
+	box-shadow: var(--shadow-panel);
+}
+
+.hud__toast[hidden] {
+	display: none;
+}
+
+/* --- Modal câu hỏi (S6b) --- */
+
+.quiz-modal {
+	position: fixed;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: var(--space-4);
+	background: rgba(12, 22, 44, 0.72);
+	pointer-events: auto;
+	z-index: 20;
+}
+
+.quiz-modal[hidden] {
+	display: none;
+}
+
+.quiz-modal__panel {
+	width: min(560px, 100%);
+	max-height: 90vh;
+	overflow-y: auto;
+	padding: var(--space-5);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface);
+	box-shadow: var(--shadow-panel);
+}
+
+.quiz-modal__timer {
+	margin: 0 auto var(--space-3);
+	width: fit-content;
+	min-width: 64px;
+	padding: var(--space-1) var(--space-4);
+	border-radius: var(--radius-pill);
+	background: var(--color-surface-dim);
+	color: var(--color-text);
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 22px;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.quiz-modal__timer[data-danger="true"] {
+	background: var(--color-wrong);
+	color: var(--color-text-invert);
+}
+
+.quiz-modal__hint {
+	margin: 0 0 var(--space-2);
+	color: var(--color-cta);
+	font-weight: 700;
+	text-align: center;
+}
+
+.quiz-modal__hint[hidden] {
+	display: none;
+}
+
+.quiz-modal__question {
+	margin: 0 0 var(--space-5);
+	/* 20–24px theo plan §4.3 — đề toán phải đọc thoải mái trên điện thoại. */
+	font-size: 22px;
+	font-weight: 700;
+	line-height: 1.45;
+	text-align: center;
+}
+
+.quiz-modal__answers {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.quiz-modal__answer {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: var(--touch-answer);
+	padding: var(--space-3) var(--space-4);
+	border: 2px solid var(--color-primary);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+	color: var(--color-text);
+	font-size: 18px;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+	transition: transform var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+
+.quiz-modal__answer:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.quiz-modal__answer:not(:disabled):active {
+	transform: translateY(3px);
+}
+
+.quiz-modal__answer:focus-visible {
+	outline: 3px solid var(--color-coin);
+	outline-offset: 2px;
+}
+
+.quiz-modal__key {
+	display: grid;
+	place-items: center;
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	border-radius: var(--radius-sm);
+	background: var(--color-primary);
+	color: var(--color-text-invert);
+	font-family: var(--font-display);
+	font-weight: 800;
+}
+
+/* Kết quả luôn kèm ICON, không chỉ màu (mù màu ~8% nam sinh). */
+.quiz-modal__answer[data-result="correct"] {
+	border-color: var(--color-correct);
+	background: color-mix(in srgb, var(--color-correct) 12%, white);
+}
+
+.quiz-modal__answer[data-result="correct"]::after {
+	content: "✓";
+	margin-left: auto;
+	color: var(--color-correct);
+	font-weight: 800;
+}
+
+.quiz-modal__answer[data-result="wrong"] {
+	border-color: var(--color-wrong);
+	background: color-mix(in srgb, var(--color-wrong) 12%, white);
+}
+
+.quiz-modal__answer[data-result="wrong"]::after {
+	content: "✗";
+	margin-left: auto;
+	color: var(--color-wrong);
+	font-weight: 800;
+}
+
+/* --- Lời giải ngắn (dùng chung cổng + modal + màn Review S9) --- */
+
+.explanation {
+	margin-top: var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	border-left: 4px solid var(--color-primary);
+	border-radius: var(--radius-sm);
+	background: var(--color-surface-dim);
+	font-size: 16px;
+	line-height: 1.5;
+}
+
+.explanation[hidden] {
+	display: none;
+}

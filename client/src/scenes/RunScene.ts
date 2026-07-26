@@ -16,11 +16,19 @@ import { Lives } from "@/systems/Lives";
 import { SpeedController } from "@/systems/Speed";
 import { findCollision } from "@/systems/Collision";
 import patternData from "@/data/patterns.json";
+import { QuizGateController } from "@/systems/QuizGate";
+import { QuizGateVisual, GATE_TRIGGER_HALF_DEPTH, gateSpawnZ } from "@/entities/QuizGateVisual";
+import { buildGateLayout, SessionStatsRecorder, type GateLayout, type QuizMode } from "@/systems/quizRules";
+import { QuizModal } from "@/ui/QuizModal";
+import { Hud } from "@/ui/Hud";
+import { createSeededRandom } from "@/core/random";
+import * as bridge from "@/integration/questionBridge";
+import type { LegacyQuestion } from "@/integration/questionBank.d";
 import type { Pattern } from "@/systems/patternRules";
 import { loadSelectedCharacterId, getCharacter, CHARACTERS } from "@/data/characters";
 import { tuning } from "@/tuning";
 import type { GameScene } from "@/scenes/Scene";
-import type { GameContext } from "@/core/GameContext";
+import type { GameContext, GameEvents } from "@/core/GameContext";
 import type { Mesh } from "three";
 
 /** Trang trí hai bên đường của biome ① — mỗi mục là 1 InstancedMesh (1 draw call). */
@@ -58,6 +66,18 @@ export class RunScene implements GameScene {
 	private gameOver = false;
 	private lastPublishedScore = 0;
 
+	// --- Cổng Toán (P0-7) ---
+	private quiz: QuizGateController | null = null;
+	private readonly gateVisuals: QuizGateVisual[] = [];
+	private readonly session = new SessionStatsRecorder();
+	private readonly quizRandom = createSeededRandom(0x5eed);
+	private modal: QuizModal | null = null;
+	private hud: Hud | null = null;
+	private level = "lop6";
+	private levelQuizMode: QuizMode = "gate";
+	private streakMultiplier = 1;
+	private answeredThisStation = false;
+
 	/** Hệ số tốc độ hiện tại — do SpeedController quyết định (plan §4.5). */
 	get speedFactor(): number {
 		return this.speed.current;
@@ -83,15 +103,155 @@ export class RunScene implements GameScene {
 			this.lighting?.applyQuality(settings);
 		});
 
-		// P0-7 sẽ thay bằng gameSpeed/adaptiveFactor thật lấy qua questionBridge.
-		this.speed.start({ gameSpeed: 1, adaptiveFactor: 1 });
 		this.score.reset();
 		this.lives.reset();
+		this.hud = new Hud(context.uiRoot, context.events);
+		this.modal = new QuizModal(context.uiRoot, {
+			onAnswer: (answerKey) => {
+				this.quiz?.answer(answerKey, performance.now());
+			}
+		});
 		context.events.emit("lives:changed", { lives: this.lives.current });
 
-		await Promise.all([this.loadDecor(), this.loadPlayer(), this.loadSpawn()]);
+		await Promise.all([this.loadDecor(), this.loadPlayer(), this.loadSpawn(), this.loadQuiz(context)]);
 		this.bindDevCharacterSwap(context);
 		this.positionCamera(0);
+	}
+
+	/**
+	 * Nạp đề + tốc độ thật qua questionBridge (hợp đồng plan §7.3.1 & §7.3.4).
+	 * Bridge lỗi (mạng chết, script legacy 404) KHÔNG được làm sập ván: rơi về
+	 * chế độ chạy thuần với tốc độ mặc định.
+	 */
+	private async loadQuiz(context: GameContext): Promise<void> {
+		try {
+			const bundle = await bridge.getLevelBundle(this.level, true);
+			const adaptiveFactor = await bridge.getAdaptiveSpeedFactor(this.level);
+			const avgAnswerMs = await bridge.getAverageAnswerMs(this.level);
+			const queue = await bridge.buildQuestionQueue(this.level, bundle.questions);
+
+			this.levelQuizMode = bundle.quizMode ?? "gate";
+			this.speed.start({ gameSpeed: bundle.gameSpeed, adaptiveFactor });
+
+			this.quiz = new QuizGateController(this.buildQuizCallbacks(context));
+			this.quiz.start(queue, { avgAnswerMs, levelQuizMode: this.levelQuizMode });
+			this.session.start(performance.now());
+
+			// Toast tốc độ khi vào ván — hợp đồng plan §7.3.4.
+			context.events.emit("toast", { message: this.speed.toastText, durationSec: 2.5 });
+
+			for (let index = 0; index < tuning.quiz.maxGates; index += 1) {
+				const gate = new QuizGateVisual();
+				gate.attachTo(this.scene);
+				this.gateVisuals.push(gate);
+			}
+		} catch (error) {
+			console.warn("[RunScene] không nạp được ngân hàng câu hỏi, chạy chế độ thuần:", error);
+			this.speed.start({ gameSpeed: 1, adaptiveFactor: 1 });
+			this.session.start(performance.now());
+		}
+	}
+
+	private buildQuizCallbacks(context: GameContext) {
+		return {
+			onTelegraph: (question: LegacyQuestion): void => {
+				context.events.emit("quiz:telegraph", {
+					questionText: question.question,
+					secondsUntilStation: tuning.quiz.telegraphSec
+				});
+				// Dọn sạch chướng ngại trong vùng trạm để người chơi chỉ lo đọc đề.
+				this.spawn?.clearRange(gateSpawnZ() - 30, gateSpawnZ() + 30);
+			},
+			onStationOpen: (question: LegacyQuestion, layout: GateLayout): void => {
+				this.answeredThisStation = false;
+				context.events.emit("quiz:station-open", { questionId: question.id, mode: "gate" });
+				void bridge.markQuestionShown(this.level, question);
+
+				layout.lanes.forEach((answerKey, lane) => {
+					const gate = this.gateVisuals[lane];
+
+					if (gate === undefined) {
+						return;
+					}
+
+					if (answerKey === null) {
+						// Làn TRỐNG: chạy qua không tính là trả lời (plan §4.3).
+						gate.hide();
+						return;
+					}
+
+					gate.show(lane, gateSpawnZ(), answerKey, question.answers[answerKey] ?? "");
+				});
+			},
+			onModalOpen: (question: LegacyQuestion, durationSec: number, isRescue: boolean): void => {
+				this.hideGates();
+				context.events.emit("quiz:station-open", { questionId: question.id, mode: "modal" });
+
+				if (isRescue === false) {
+					void bridge.markQuestionShown(this.level, question);
+				}
+
+				this.modal?.show(question, durationSec, isRescue);
+			},
+			onResolved: (question: LegacyQuestion, outcome: "correct" | "wrong" | "timeout", selected: string | null): void => {
+				this.modal?.hide();
+				this.hud?.hideQuestion();
+				this.applyOutcome(context, question, outcome, selected);
+			},
+			onClosed: (): void => {
+				this.hideGates();
+				this.hud?.hideQuestion();
+			},
+			onQueueEmpty: (): void => {
+				context.events.emit("toast", {
+					message: "Em đã trả lời hết câu của lớp này. Chạy tiếp nhé!",
+					durationSec: 3.5
+				});
+			}
+		};
+	}
+
+	/** Ghi nhận kết quả: markQuestionResult + session stats + điểm/streak/phạt. */
+	private applyOutcome(
+		context: GameContext,
+		question: LegacyQuestion,
+		outcome: "correct" | "wrong" | "timeout",
+		selected: string | null
+	): void {
+		const quiz = this.quiz;
+		const mode = quiz?.mode ?? "gate";
+
+		void bridge.markQuestionResult(this.level, question.id, outcome);
+		this.session.record({
+			questionId: question.id,
+			status: outcome,
+			mode,
+			answeredMs: quiz?.answerElapsedMs ?? 0,
+			selectedAnswer: selected
+		});
+
+		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode });
+
+		if (outcome === "correct") {
+			this.streakMultiplier = 1; // P0-8 sẽ thay bằng Combo thật.
+			const gained = this.score.recordAnswer(true, question.point, this.streakMultiplier);
+			context.events.emit("score:changed", { score: this.score.total, delta: gained });
+			this.gateVisuals[quiz?.layout?.correctLane ?? 1]?.flashCorrect();
+			return;
+		}
+
+		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vấp + 10s không coin.
+		this.score.recordAnswer(false, question.point, this.streakMultiplier);
+		this.player?.stumble();
+		this.spawn?.onWrongAnswer();
+		// Cổng đúng lóe xanh để học sinh thấy đáp án đúng ở đâu.
+		this.gateVisuals[quiz?.layout?.correctLane ?? 1]?.flashCorrect();
+	}
+
+	private hideGates(): void {
+		for (const gate of this.gateVisuals) {
+			gate.hide();
+		}
 	}
 
 	private async loadPlayer(): Promise<void> {
@@ -230,14 +390,102 @@ export class RunScene implements GameScene {
 		this.player?.update(deltaSec, this.speedFactor);
 
 		this.score.setDistance(this.track.distanceM);
+		this.updateQuiz(deltaSec, advance);
 		this.checkCollisions();
 		this.collectCoins();
 		this.publishScore();
+		this.hud?.update(deltaSec);
+		this.modal?.update(deltaSec);
 
 		// Camera bám ngang theo player nhưng mềm — giữ cảm giác "đu" chứ không dính cứng.
 		const targetX = (this.player?.motion.x ?? 0) * tuning.world.cameraLaneFollow;
 		const smoothing = 1 - Math.exp(-tuning.world.cameraSmoothing * deltaSec);
 		this.cameraX += (targetX - this.cameraX) * smoothing;
+	}
+
+	/**
+	 * Nhịp Cổng Toán mỗi frame: đẩy cổng theo thế giới, phát hiện player chạy xuyên
+	 * cổng, và bật/tắt slow-mo của trạm.
+	 */
+	private updateQuiz(deltaSec: number, advanceUnits: number): void {
+		const quiz = this.quiz;
+		const context = this.context;
+
+		if (quiz === null || context === null || this.gameOver === true) {
+			return;
+		}
+
+		quiz.update(deltaSec, performance.now(), (question) => buildGateLayout(question, this.quizRandom));
+
+		// Slow-mo CHỈ trong trạm (plan §4.3). Đặt trên engine để mọi hệ chậm đồng bộ.
+		context.engine.timeScale = quiz.isSlowMotion === true ? tuning.quiz.stationTimeScale : 1;
+
+		for (const gate of this.gateVisuals) {
+			if (gate.isActive === true) {
+				gate.advance(advanceUnits);
+			}
+		}
+
+		this.detectGateCrossing(quiz);
+	}
+
+	/** Chạy xuyên cổng = trả lời. Chạy qua làn trống thì KHÔNG tính (plan §4.3). */
+	private detectGateCrossing(quiz: QuizGateController): void {
+		const player = this.player;
+		const layout = quiz.layout;
+
+		if (player === null || layout === null || quiz.currentPhase !== "station" || this.answeredThisStation === true) {
+			return;
+		}
+
+		for (let lane = 0; lane < this.gateVisuals.length; lane += 1) {
+			const gate = this.gateVisuals[lane];
+
+			if (gate === undefined || gate.isActive === false) {
+				continue;
+			}
+
+			const crossed = Math.abs(gate.z - tuning.world.playerZ) <= GATE_TRIGGER_HALF_DEPTH;
+
+			if (crossed === false) {
+				continue;
+			}
+
+			// Chỉ tính khi player thật sự đang ở làn của cổng đó.
+			if (player.motion.lane !== lane && player.motion.targetLane !== lane) {
+				continue;
+			}
+
+			const answerKey = layout.lanes[lane];
+
+			if (answerKey === null || answerKey === undefined) {
+				quiz.passEmptyLane();
+				continue;
+			}
+
+			this.answeredThisStation = true;
+			quiz.answer(answerKey, performance.now());
+			return;
+		}
+	}
+
+	/** Kết thúc ván: cập nhật hồ sơ kỹ năng + nộp điểm (mốc nghiệp vụ V1). */
+	private async finishGame(context: GameContext): Promise<void> {
+		const nowMs = performance.now();
+		const snapshot = this.score.snapshot();
+
+		try {
+			await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
+			const result = await bridge.submitScore(this.level, this.session.toScoreStats(snapshot.total, nowMs));
+			context.events.emit("game:over", {
+				score: snapshot.total,
+				coins: snapshot.coins,
+				...(result ?? {})
+			} as GameEvents["game:over"]);
+		} catch (error) {
+			console.warn("[RunScene] không nộp được điểm:", error);
+			context.events.emit("game:over", { score: snapshot.total, coins: snapshot.coins });
+		}
 	}
 
 	private checkCollisions(): void {
@@ -269,9 +517,9 @@ export class RunScene implements GameScene {
 		if (result === "dead") {
 			this.gameOver = true;
 			player.die();
+			context.engine.timeScale = 1;
 			context.events.emit("lives:changed", { lives: 0 });
-			const snapshot = this.score.snapshot();
-			context.events.emit("game:over", { score: snapshot.total, coins: snapshot.coins });
+			void this.finishGame(context);
 			return;
 		}
 
@@ -389,6 +637,17 @@ export class RunScene implements GameScene {
 		this.removeActionListener = null;
 		this.player?.dispose();
 		this.player = null;
+		this.modal?.dispose();
+		this.modal = null;
+		this.hud?.dispose();
+		this.hud = null;
+
+		for (const gate of this.gateVisuals) {
+			gate.dispose();
+		}
+
+		this.gateVisuals.length = 0;
+		this.quiz = null;
 		this.spawn?.dispose();
 		this.spawn = null;
 		this.track.dispose();

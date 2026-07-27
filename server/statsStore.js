@@ -13,6 +13,7 @@
 
 var QuestionModel = require("../shared/questionModel");
 
+var SEP_DIRECTIVE = "sep=,";
 var MAX_ANSWERS_PER_RUN = 60;
 var MAX_ANSWER_MS = 600000;
 var OUTCOMES = ["correct", "wrong", "timeout"];
@@ -120,19 +121,32 @@ function createStatsStore(options) {
 			return Promise.resolve({ recorded: 0 });
 		}
 
-		return ready().then(function () {
+		// P2-5 — lớp học được tra MỘT LẦN cho cả ván rồi đóng dấu vào từng dòng.
+		//
+		// Gắn lúc GHI chứ không join lúc ĐỌC: nếu suy ra lớp lúc đọc thì hôm nay em
+		// nhập mã lớp là toàn bộ lịch sử học tập trước đó của máy hiện ra trong
+		// dashboard của giáo viên. Ở đây, dữ liệu trước lúc vào lớp giữ `class_id`
+		// NULL vĩnh viễn (docs/v2/P2-5-PRIVACY.md §3).
+		return findClassIdForDevice(deviceId).then(function (classId) {
 			return sql.batch(
 				rows.map(function (row) {
 					return {
 						text:
-							"INSERT INTO answer_events (device_id, level, question_id, outcome, answer_ms, mode, difficulty, run_id) " +
-							"VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-						params: [deviceId, row.level, row.questionId, row.outcome, row.answerMs, row.mode, row.difficulty, runId]
+							"INSERT INTO answer_events (device_id, level, question_id, outcome, answer_ms, mode, difficulty, run_id, class_id) " +
+							"VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+						params: [deviceId, row.level, row.questionId, row.outcome, row.answerMs, row.mode, row.difficulty, runId, classId]
 					};
 				})
 			);
 		}).then(function () {
 			return { recorded: rows.length };
+		});
+	}
+
+	/** null = máy chưa vào lớp nào → dữ liệu của ván này ở lại trạng thái ẩn danh. */
+	function findClassIdForDevice(deviceId) {
+		return run("SELECT class_id FROM class_members WHERE device_id = $1", [deviceId]).then(function (result) {
+			return result.rows.length > 0 ? Number(result.rows[0].class_id) : null;
 		});
 	}
 
@@ -145,6 +159,17 @@ function createStatsStore(options) {
 			QuestionModel.assertLevel(filters.level);
 			params.push(filters.level);
 			conditions.push("level = $" + params.length);
+		}
+
+		// P2-5 · lọc theo LỚP THẬT.
+		//
+		// ⚠ Quyền sở hữu lớp KHÔNG kiểm ở đây mà ở `server/app.js`, TRƯỚC khi gọi
+		// hàm này: tới được đây thì `classId` đã là một lớp của chính giáo viên đang
+		// đăng nhập. Nếu một ngày có route thứ hai gọi `getStats`, nó phải làm đúng
+		// bước đó — không có đường tắt nào an toàn hơn ở tầng SQL.
+		if (filters.classId != null && String(filters.classId).trim() !== "") {
+			params.push(Number(filters.classId));
+			conditions.push("class_id = $" + params.length);
 		}
 
 		if (filters.from != null && String(filters.from).trim() !== "") {
@@ -198,7 +223,10 @@ function createStatsStore(options) {
 				"SUM(CASE WHEN outcome <> 'correct' THEN 1 ELSE 0 END) AS wrong " +
 			"FROM answer_events" + where + " GROUP BY question_id, level " +
 			"HAVING COUNT(*) >= 3 " +
-			"ORDER BY (SUM(CASE WHEN outcome <> 'correct' THEN 1 ELSE 0 END)::float / COUNT(*)) DESC, wrong DESC " +
+			// Tie-break cuối trên `question_id`: hai câu cùng tỉ lệ sai và cùng số
+			// lượt sai thì Postgres được tự do trả về theo thứ tự nào cũng đúng, nên
+			// bảng "top 10" sẽ nhảy chỗ giữa hai lần tải mà không ai giải thích được.
+			"ORDER BY (SUM(CASE WHEN outcome <> 'correct' THEN 1 ELSE 0 END)::float / COUNT(*)) DESC, wrong DESC, question_id ASC " +
 			"LIMIT 10",
 			params
 		);
@@ -206,12 +234,22 @@ function createStatsStore(options) {
 		// Phân bố skill lấy từ `skill_profiles` (không lọc theo thời gian — đó là
 		// trạng thái HIỆN TẠI của từng em, không phải sự kiện).
 		var skillParams = [];
-		var skillWhere = "";
+		var skillConditions = [];
 
 		if (filters != null && filters.level != null && String(filters.level).trim() !== "") {
 			skillParams.push(filters.level);
-			skillWhere = " WHERE level = $1";
+			skillConditions.push("level = $" + skillParams.length);
 		}
+
+		// P2-5 — phân bố trình độ của LỚP này. Đây là bảng duy nhất không có cột
+		// `class_id` (nó là trạng thái của máy, không phải sự kiện), nên lọc qua
+		// danh sách thành viên HIỆN TẠI.
+		if (filters != null && filters.classId != null && String(filters.classId).trim() !== "") {
+			skillParams.push(Number(filters.classId));
+			skillConditions.push("device_id IN (SELECT device_id FROM class_members WHERE class_id = $" + skillParams.length + ")");
+		}
+
+		var skillWhere = skillConditions.length > 0 ? " WHERE " + skillConditions.join(" AND ") : "";
 
 		var skillDistribution = run(
 			"SELECT width_bucket(skill, 0, 1, 5) AS bucket, COUNT(*) AS players " +
@@ -282,11 +320,20 @@ function createStatsStore(options) {
 }
 
 /**
- * CSV cho Excel. **BOM UTF-8 là bắt buộc** — thiếu nó thì Excel bản Windows đọc
- * file như CP-1252 và mọi dấu tiếng Việt vỡ thành ký tự lạ (DoD P1-6).
+ * CSV cho Excel. Hai dòng phòng thủ, thiếu một là hỏng với giáo viên Việt Nam:
+ *
+ *   1. **BOM UTF-8** — thiếu là Excel bản Windows đọc file như CP-1252 và mọi dấu
+ *      tiếng Việt vỡ thành ký tự lạ (DoD P1-6).
+ *   2. **Dòng chỉ thị `sep=,`** — Windows tiếng Việt đặt "List separator" là `;`,
+ *      nên nháy đúp một file phân cách bằng `,` sẽ **dồn hết mọi cột vào một cột**.
+ *      Lỗi này có sẵn từ P1-6, do agent P2-6 phát hiện khi giải đúng bài đó cho
+ *      `server/questionImport.js`; P2-5 áp cùng công thức về đây.
+ *
+ * Chỉ thị `sep=` phải nằm NGAY SAU BOM và trước mọi dữ liệu — Excel chỉ đọc nó ở
+ * dòng đầu tiên.
  */
 function statsToCsv(stats) {
-	var lines = [];
+	var lines = [SEP_DIRECTIVE];
 
 	function escapeCell(value) {
 		var text = String(value == null ? "" : value);
@@ -334,5 +381,6 @@ function formatPercent(value) {
 module.exports = {
 	createStatsStore: createStatsStore,
 	statsToCsv: statsToCsv,
+	SEP_DIRECTIVE: SEP_DIRECTIVE,
 	MAX_ANSWERS_PER_RUN: MAX_ANSWERS_PER_RUN
 };

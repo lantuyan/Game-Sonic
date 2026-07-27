@@ -84,6 +84,16 @@ var STATEMENTS = [
 	"CREATE INDEX IF NOT EXISTS idx_answer_events_level ON answer_events (level, created_at DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_answer_events_question ON answer_events (question_id)",
 	"CREATE INDEX IF NOT EXISTS idx_answer_events_created ON answer_events (created_at DESC)",
+	// P2-5 · lớp học của dòng dữ liệu này, GẮN LÚC GHI chứ không suy ra lúc đọc.
+	//
+	// Vì sao không join `class_members` lúc đọc cho gọn: join lúc đọc nghĩa là hôm
+	// nay em nhập mã lớp thì TOÀN BỘ lịch sử học tập trước đó của máy đó lập tức
+	// hiện ra trong dashboard của giáo viên. Gắn lúc ghi giữ đúng lời hứa "vào lớp
+	// từ hôm nay thì lớp thấy từ hôm nay" (docs/v2/P2-5-PRIVACY.md §3).
+	//
+	// NULL = dữ liệu ẩn danh, không thuộc lớp nào. Đó là trạng thái MẶC ĐỊNH.
+	"ALTER TABLE answer_events ADD COLUMN IF NOT EXISTS class_id BIGINT",
+	"CREATE INDEX IF NOT EXISTS idx_answer_events_class ON answer_events (class_id, created_at DESC)",
 	"CREATE TABLE IF NOT EXISTS skill_profiles (" +
 		"device_id TEXT NOT NULL," +
 		"level TEXT NOT NULL," +
@@ -140,7 +150,47 @@ var STATEMENTS = [
 		"ref TEXT," +
 		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
 		"PRIMARY KEY (device_id, item_id)" +
-	")"
+	")",
+
+	// --- P2-5 · lớp học -------------------------------------------------------
+	//
+	// ⚠ HAI BẢNG NÀY LÀM DỮ LIỆU HỌC TẬP VỐN ẨN DANH TRỞ NÊN QUY VỀ MỘT LỚP.
+	// Người dùng cuối là trẻ em, nên danh sách cột dưới đây là một cam kết, không
+	// phải một bản nháp. Rà soát đầy đủ: docs/v2/P2-5-PRIVACY.md.
+	//
+	// `class_codes` — mã lớp do giáo viên tạo:
+	//   · `code` là mã 8 ký tự (server/classCode.js, 2^40 tổ hợp), lưu NGUYÊN VĂN
+	//     chứ không băm — giáo viên phải đọc lại được để chép lên bảng. Đánh đổi đã
+	//     cân nhắc và ghi trong tài liệu rà soát §5.
+	//   · `owner_id` là CHỦ SỞ HỮU. Mọi truy vấn lớp đều phải kèm nó — đây là thứ
+	//     duy nhất ngăn giáo viên A xem lớp của giáo viên B.
+	//   · `expires_at` KHÔNG cho NULL: một mã sống mãi là một mã sẽ lộ.
+	//   · `revoked_at` là đường thu hồi tức thì, độc lập với hết hạn.
+	//   · KHÔNG có cột nào chứa dữ liệu cá nhân của học sinh.
+	"CREATE TABLE IF NOT EXISTS class_codes (" +
+		"id BIGSERIAL PRIMARY KEY," +
+		"code TEXT NOT NULL," +
+		"owner_id TEXT NOT NULL," +
+		"label TEXT NOT NULL," +
+		"level TEXT," +
+		"expires_at TIMESTAMPTZ NOT NULL," +
+		"revoked_at TIMESTAMPTZ," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_class_codes_code ON class_codes (code)",
+	"CREATE INDEX IF NOT EXISTS idx_class_codes_owner ON class_codes (owner_id, created_at DESC)",
+	// `class_members` — máy nào thuộc lớp nào. ĐÚNG BA CỘT, và có test canh không
+	// cho ai lặng lẽ thêm cột thứ tư kiểu "họ tên" hay "ngày sinh".
+	//
+	// Khoá chính là `device_id`: mỗi máy thuộc TỐI ĐA MỘT lớp. Nhập mã lớp mới là
+	// CHUYỂN lớp, không phải vào thêm lớp — trẻ con dùng chung máy ở phòng tin học
+	// thì "thuộc 4 lớp cùng lúc" là một mớ không ai gỡ được.
+	"CREATE TABLE IF NOT EXISTS class_members (" +
+		"device_id TEXT PRIMARY KEY," +
+		"class_id BIGINT NOT NULL," +
+		"joined_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
+	"CREATE INDEX IF NOT EXISTS idx_class_members_class ON class_members (class_id)"
 ];
 
 function applySchema(sql) {
@@ -152,5 +202,8 @@ function applySchema(sql) {
 }
 
 module.exports = {
-	applySchema: applySchema
+	applySchema: applySchema,
+	// P2-5: `npm run migrate --dry-run` in ra đúng danh sách này mà KHÔNG kết nối
+	// CSDL nào. Xuất ra ngoài để chế độ thử không phải đoán xem schema gồm những gì.
+	STATEMENTS: STATEMENTS
 };

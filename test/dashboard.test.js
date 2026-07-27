@@ -311,6 +311,17 @@ test("CSV mở trong Excel KHÔNG vỡ dấu tiếng Việt (DoD P1-6)", async f
 		assert.ok(/charset=utf-8/i.test(response.headers["content-type"]));
 		assert.ok(/attachment; filename=/.test(response.headers["content-disposition"]));
 
+		// P2-5 — CÁI BẪY TIẾNG VIỆT THỨ HAI, ngang tầm BOM và thiếu từ P1-6 tới giờ:
+		// Windows tiếng Việt đặt "List separator" là `;`, nên nháy đúp một file phân
+		// cách bằng `,` sẽ dồn HẾT MỌI CỘT VÀO MỘT CỘT. Dòng chỉ thị `sep=,` phải
+		// nằm ngay sau BOM — Excel chỉ đọc nó ở dòng đầu tiên.
+		assert.equal(
+			response.text.slice(1, 1 + statsStoreModule.SEP_DIRECTIVE.length),
+			statsStoreModule.SEP_DIRECTIVE,
+			"thiếu 'sep=,' là giáo viên mở file ra thấy mọi thứ dồn vào một cột"
+		);
+		assert.equal(response.text.slice(0, 1 + statsStoreModule.SEP_DIRECTIVE.length + 2).endsWith("\r\n"), true);
+
 		// Chữ có dấu phải còn nguyên vẹn.
 		assert.ok(response.text.includes("Độ chính xác theo lớp"));
 		assert.ok(response.text.includes("Top câu sai nhiều nhất"));
@@ -337,6 +348,8 @@ test("CSV thoát dấu phẩy/nháy kép để không lệch cột", function ()
 	assert.ok(csv.includes('"q,có phẩy"'), "ô chứa dấu phẩy phải được bọc nháy kép");
 	assert.ok(csv.includes('"q""có nháy"'), "nháy kép trong ô phải được nhân đôi");
 	assert.equal(csv.charCodeAt(0), 0xfeff);
+	// P2-5: chỉ thị dấu phân cách đứng ngay sau BOM, trước mọi dữ liệu.
+	assert.equal(csv.startsWith("﻿" + statsStoreModule.SEP_DIRECTIVE + "\r\n"), true);
 });
 
 // --- Hợp đồng: một request cho cả ván ---------------------------------------

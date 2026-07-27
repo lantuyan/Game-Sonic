@@ -21,6 +21,8 @@ import {
 	type CosmeticState
 } from "@/systems/cosmeticRules";
 import { isVibrationSupported, setVibrationEnabled } from "@/core/haptics";
+import { formatClassCodeInput, isCompleteClassCode, describeJoinFailure } from "@/systems/classCode";
+import { fetchCurrentClass, getCachedClassLabel, joinClass, leaveClass } from "@/systems/ClassMembership";
 import { UNLOCK_RULES, type UnlockState } from "@/systems/unlockRules";
 import { coinLedger } from "@/systems/economyLedger";
 import { loadWallet, migrateLegacyBestScore, saveWallet, loadSettings, saveSettings } from "@/core/SaveData";
@@ -922,6 +924,8 @@ export class SettingsScreen implements Screen {
 		nicknameLabel.appendChild(this.nicknameInput);
 		body.appendChild(nicknameLabel);
 
+		body.appendChild(this.createClassSection());
+
 		actions.append(
 			createButton({ label: "Xem lại hướng dẫn", onClick: callbacks.onReplayTutorial }),
 			createButton({ label: "Quay lại", onClick: callbacks.onBack })
@@ -931,6 +935,96 @@ export class SettingsScreen implements Screen {
 	}
 
 	private getNickname: () => string;
+
+	private readonly classInput: HTMLInputElement = document.createElement("input");
+	private readonly classStatus: HTMLParagraphElement = document.createElement("p");
+	private readonly classJoinButton: HTMLButtonElement = createButton({
+		label: "Vào lớp",
+		onClick: () => {
+			void this.handleJoinClass();
+		}
+	});
+	private readonly classLeaveButton: HTMLButtonElement = createButton({
+		label: "Rời lớp",
+		onClick: () => {
+			void this.handleLeaveClass();
+		}
+	});
+
+	/**
+	 * P2-5 — ô nhập mã lớp.
+	 *
+	 * Đặt ở Cài đặt chứ không chặn ngay đầu game: **vào lớp là tuỳ chọn**. Em nào
+	 * không có mã vẫn chơi và vẫn học được đủ, không màn hình nào bắt phải khai báo
+	 * mình thuộc lớp nào (docs/v2/P2-5-PRIVACY.md §6). Có nút rời lớp ngay cạnh —
+	 * thứ gì trẻ con bật được thì phải tắt được.
+	 */
+	private createClassSection(): HTMLElement {
+		const wrapper = document.createElement("div");
+		wrapper.className = "field";
+
+		const label = document.createElement("label");
+		label.textContent = "Mã lớp học (nếu thầy cô có cho)";
+		label.htmlFor = "settings-class-code";
+
+		this.classInput.id = "settings-class-code";
+		this.classInput.type = "text";
+		this.classInput.maxLength = 9;
+		this.classInput.placeholder = "VD: ABCD-2345";
+		this.classInput.autocomplete = "off";
+		this.classInput.addEventListener("input", () => {
+			// Định dạng ngay khi gõ: các em chép mã từ trên bảng, không nên phải nhớ
+			// có dấu gạch hay không.
+			this.classInput.value = formatClassCodeInput(this.classInput.value);
+			this.classJoinButton.disabled = isCompleteClassCode(this.classInput.value) === false;
+		});
+
+		this.classJoinButton.disabled = true;
+		this.classLeaveButton.hidden = true;
+		this.classStatus.className = "field__hint";
+		this.classStatus.textContent = "Em chưa vào lớp nào.";
+
+		const buttonRow = document.createElement("div");
+		buttonRow.className = "field__row";
+		buttonRow.append(this.classJoinButton, this.classLeaveButton);
+
+		wrapper.append(label, this.classInput, buttonRow, this.classStatus);
+		return wrapper;
+	}
+
+	private async handleJoinClass(): Promise<void> {
+		this.classJoinButton.disabled = true;
+		this.classStatus.textContent = "Đang gửi mã…";
+
+		const result = await joinClass(this.classInput.value);
+
+		if (result.ok === true && result.class !== undefined) {
+			this.classInput.value = "";
+			this.showClassLabel(result.class.label);
+			return;
+		}
+
+		this.classStatus.textContent = describeJoinFailure(result.reason ?? "network");
+		this.classJoinButton.disabled = isCompleteClassCode(this.classInput.value) === false;
+	}
+
+	private async handleLeaveClass(): Promise<void> {
+		this.classLeaveButton.disabled = true;
+		const left = await leaveClass();
+		this.classLeaveButton.disabled = false;
+
+		if (left === true) {
+			this.showClassLabel("");
+			return;
+		}
+
+		this.classStatus.textContent = "Chưa rời lớp được lúc này, em thử lại sau nhé.";
+	}
+
+	private showClassLabel(label: string): void {
+		this.classStatus.textContent = label === "" ? "Em chưa vào lớp nào." : `Em đang ở lớp: ${label}`;
+		this.classLeaveButton.hidden = label === "";
+	}
 
 	private createSlider(labelText: string, value: number, onInput: (value: number) => void): HTMLLabelElement {
 		const label = document.createElement("label");
@@ -953,6 +1047,15 @@ export class SettingsScreen implements Screen {
 
 	onShow(): void {
 		this.nicknameInput.value = this.getNickname();
+
+		// Hiện ngay tên lớp đã nhớ (không chờ mạng), rồi mới hỏi lại server — mã lớp
+		// có thể đã bị thầy cô thu hồi từ hôm qua.
+		this.showClassLabel(getCachedClassLabel());
+		void fetchCurrentClass().then((info) => {
+			if (info !== null) {
+				this.showClassLabel(info.label);
+			}
+		});
 	}
 }
 

@@ -449,6 +449,59 @@
 					</section>
 
 
+					<!-- P2-5 — Mã lớp học. -->
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Lớp học &amp; mã lớp</h2>
+							<button id="class-refresh" class="button-secondary" type="button">Tải lại</button>
+						</div>
+						<p class="level-meta" style="margin:0 0 14px;">
+							Tạo một mã rồi đọc cho cả lớp. Học sinh vào <strong>Cài đặt → Mã lớp học</strong>, nhập một lần là xong.
+							Mã chỉ dùng để <strong>gắn máy vào lớp</strong> — không em nào xem được số liệu của bạn khác.
+							Mã <strong>lộ ra ngoài thì bấm “Thu hồi”</strong> rồi tạo mã mới; máy lạ đã kịp vào thì bấm “Gỡ khỏi lớp”.
+						</p>
+						<div class="form-row" style="margin-bottom:10px;">
+							<div class="field">
+								<label for="class-label">Tên lớp</label>
+								<input id="class-label" type="text" maxlength="60" placeholder="vd: Lớp 6A — cô Hà" />
+							</div>
+							<div class="field">
+								<label for="class-level">Khối</label>
+								<select id="class-level">
+									<option value="">Không gắn khối</option>
+									<option value="lop6">Lớp 6</option>
+									<option value="lop7">Lớp 7</option>
+									<option value="lop8">Lớp 8</option>
+								</select>
+							</div>
+							<div class="field">
+								<label for="class-expires">Hiệu lực (ngày)</label>
+								<input id="class-expires" type="number" min="1" max="180" step="1" value="30" />
+							</div>
+						</div>
+						<button id="class-create-button" class="button-primary" type="button">Tạo mã lớp</button>
+
+						<div class="table-wrap" style="margin-top:16px;">
+							<table class="table-wide">
+								<thead>
+									<tr>
+										<th>Tên lớp</th>
+										<th>Mã</th>
+										<th>Khối</th>
+										<th>Hết hạn</th>
+										<th>Trạng thái</th>
+										<th>Số máy</th>
+										<th>Hành động</th>
+									</tr>
+								</thead>
+								<tbody id="class-table-body"></tbody>
+							</table>
+						</div>
+						<div id="class-members" class="small muted" style="margin-top:12px;">
+							Bấm “Xem máy” ở một lớp để xem những máy đang thuộc lớp đó.
+						</div>
+					</section>
+
 					<!-- P1-6 — S17 Dashboard giáo viên. -->
 					<section class="panel">
 						<div class="toolbar">
@@ -460,8 +513,15 @@
 						</div>
 						<p class="level-meta" style="margin:0 0 14px;">
 							Số liệu lấy từ chính các ván học sinh đã chơi. Bỏ trống ngày = xem tất cả.
+							Chọn một lớp để xem đúng lớp đó; “Tất cả” là gộp toàn trường.
 						</p>
 						<div class="form-row" style="margin-bottom:14px;">
+							<div class="field">
+								<label for="stats-class">Lớp học</label>
+								<select id="stats-class">
+									<option value="">Tất cả (toàn trường)</option>
+								</select>
+							</div>
 							<div class="field">
 								<label for="stats-from">Từ ngày</label>
 								<input id="stats-from" type="date" />
@@ -1340,6 +1400,9 @@
 				document.getElementById("moderation-refresh").addEventListener("click", loadModeration);
 				document.getElementById("stats-refresh").addEventListener("click", loadStats);
 				document.getElementById("stats-csv").addEventListener("click", downloadStatsCsv);
+				document.getElementById("stats-class").addEventListener("change", loadStats);
+				document.getElementById("class-refresh").addEventListener("click", loadClasses);
+				document.getElementById("class-create-button").addEventListener("click", handleCreateClass);
 				document.getElementById("bank-export-all").addEventListener("click", function () {
 					exportQuestionBank(false);
 				});
@@ -1519,11 +1582,216 @@
 			}
 
 
+			// --- P2-5 · Lớp học & mã lớp --------------------------------------------
+			//
+			// Ba điều cần nhớ khi sửa phần này:
+			//   · Mã lớp chỉ mở cửa GHI (gắn máy vào lớp). Không có route nào cho phép
+			//     người biết mã đọc số liệu — mọi đường đọc đều sau đăng nhập admin.
+			//   · Danh sách máy trong lớp là chỗ NHẠY CẢM NHẤT của cả trang: nó là nơi
+			//     duy nhất biệt danh của một em gắn với một lớp cụ thể. Cố ý KHÔNG hiện
+			//     điểm số hay tỉ lệ đúng của từng em (docs/v2/P2-5-PRIVACY.md §3).
+			//   · Mã hiển thị đầy đủ vì giáo viên phải chép nó lên bảng; bù lại nó có
+			//     hạn dùng bắt buộc và thu hồi được ngay.
+
+			function classStatusLabel(status) {
+				if (status === "revoked") {
+					return "Đã thu hồi";
+				}
+
+				if (status === "expired") {
+					return "Hết hạn";
+				}
+
+				return "Đang dùng";
+			}
+
+			function renderClasses(classes) {
+				var tableBody = document.getElementById("class-table-body");
+
+				if (classes.length === 0) {
+					tableBody.innerHTML = "<tr><td colspan=\"7\" class=\"empty\">Chưa có lớp nào. Tạo mã đầu tiên ở trên.</td></tr>";
+				} else {
+					tableBody.innerHTML = classes.map(function (row) {
+						return "<tr>" +
+							"<td>" + escapeHTML(row.label) + "</td>" +
+							"<td><strong>" + escapeHTML(row.codeDisplay) + "</strong></td>" +
+							"<td>" + escapeHTML(row.level || "—") + "</td>" +
+							"<td class=\"small\">" + escapeHTML(new Date(row.expiresAt).toLocaleDateString("vi-VN")) + "</td>" +
+							"<td>" + escapeHTML(classStatusLabel(row.status)) + "</td>" +
+							"<td>" + row.memberCount + "</td>" +
+							"<td>" +
+								"<button type=\"button\" class=\"button-secondary\" data-class-members=\"" + row.id + "\">Xem máy</button> " +
+								(row.status === "revoked"
+									? ""
+									: "<button type=\"button\" class=\"button-warning\" data-class-revoke=\"" + row.id + "\">Thu hồi</button> ") +
+								"<button type=\"button\" class=\"button-warning\" data-class-delete=\"" + row.id + "\">Xoá lớp</button>" +
+							"</td>" +
+						"</tr>";
+					}).join("");
+
+					tableBody.querySelectorAll("button[data-class-members]").forEach(function (button) {
+						button.addEventListener("click", function () {
+							loadClassMembers(button.getAttribute("data-class-members"));
+						});
+					});
+
+					tableBody.querySelectorAll("button[data-class-revoke]").forEach(function (button) {
+						button.addEventListener("click", function () {
+							if (window.confirm("Thu hồi mã này? Máy đang trong lớp vẫn ở lại, chỉ không ai vào thêm được nữa.") !== true) {
+								return;
+							}
+
+							adminFetch("/api/admin/classes/" + button.getAttribute("data-class-revoke") + "/revoke", { method: "POST" })
+								.then(function () {
+									showNotice("Đã thu hồi mã lớp. Tạo mã mới rồi đọc lại cho lớp nhé.", "success");
+									return loadClasses();
+								})
+								.catch(function (error) {
+									showNotice(error.message, "error");
+								});
+						});
+					});
+
+					tableBody.querySelectorAll("button[data-class-delete]").forEach(function (button) {
+						button.addEventListener("click", function () {
+							// Xoá lớp KHÔNG xoá dữ liệu học tập — nói rõ điều đó ngay trong
+							// câu hỏi, vì "xoá" là từ làm người ta sợ đúng chỗ không cần sợ.
+							if (window.confirm("Xoá lớp này? Số liệu các em đã học vẫn còn trong thống kê toàn trường, chỉ mất liên kết tới lớp.") !== true) {
+								return;
+							}
+
+							adminFetch("/api/admin/classes/" + button.getAttribute("data-class-delete"), { method: "DELETE" })
+								.then(function () {
+									showNotice("Đã xoá lớp. Dữ liệu học tập của các em trở lại trạng thái không gắn lớp.", "success");
+									document.getElementById("class-members").textContent =
+										"Bấm “Xem máy” ở một lớp để xem những máy đang thuộc lớp đó.";
+									return loadClasses();
+								})
+								.catch(function (error) {
+									showNotice(error.message, "error");
+								});
+						});
+					});
+				}
+
+				renderClassFilterOptions(classes);
+			}
+
+			/** Ô chọn lớp của dashboard. Giữ nguyên lựa chọn hiện tại nếu lớp còn tồn tại. */
+			function renderClassFilterOptions(classes) {
+				var select = document.getElementById("stats-class");
+				var current = select.value;
+
+				select.innerHTML = "<option value=\"\">Tất cả (toàn trường)</option>" +
+					classes.map(function (row) {
+						return "<option value=\"" + row.id + "\">" +
+							escapeHTML(row.label) + (row.status === "active" ? "" : " (" + classStatusLabel(row.status) + ")") +
+						"</option>";
+					}).join("");
+
+				select.value = current;
+
+				if (select.value !== current) {
+					select.value = "";
+				}
+			}
+
+			function loadClasses() {
+				return adminFetch("/api/admin/classes")
+					.then(function (payload) {
+						renderClasses(payload.classes || []);
+					})
+					.catch(function (error) {
+						showNotice(error.message, "error");
+					});
+			}
+
+			function loadClassMembers(classId) {
+				return adminFetch("/api/admin/classes/" + classId + "/members")
+					.then(function (payload) {
+						var container = document.getElementById("class-members");
+						var members = payload.members || [];
+
+						if (members.length === 0) {
+							container.textContent = "Lớp này chưa có máy nào vào.";
+							return;
+						}
+
+						container.innerHTML = "<p style=\"margin:0 0 8px;\">Máy đang trong lớp (" + members.length + "):</p>" +
+							"<ul style=\"margin:0;padding-left:18px;\">" + members.map(function (member) {
+								return "<li>" +
+									escapeHTML(member.nickname || "(chưa đặt biệt danh)") +
+									" <span class=\"muted\">· máy " + escapeHTML(String(member.deviceId).slice(0, 8)) + "…" +
+									" · vào lớp " + escapeHTML(new Date(member.joinedAt).toLocaleDateString("vi-VN")) + "</span> " +
+									"<button type=\"button\" class=\"button-secondary\" data-remove-member=\"" +
+										escapeHTML(member.deviceId) + "\" data-remove-class=\"" + classId + "\">Gỡ khỏi lớp</button>" +
+								"</li>";
+							}).join("") + "</ul>";
+
+						container.querySelectorAll("button[data-remove-member]").forEach(function (button) {
+							button.addEventListener("click", function () {
+								if (window.confirm("Gỡ máy này khỏi lớp? Phần dữ liệu máy đó đã ghi cho lớp cũng được gỡ khỏi thống kê của lớp.") !== true) {
+									return;
+								}
+
+								adminFetch(
+									"/api/admin/classes/" + button.getAttribute("data-remove-class") +
+									"/members/" + encodeURIComponent(button.getAttribute("data-remove-member")),
+									{ method: "DELETE" }
+								)
+									.then(function () {
+										showNotice("Đã gỡ máy khỏi lớp.", "success");
+										return Promise.all([loadClasses(), loadClassMembers(classId), loadStats()]);
+									})
+									.catch(function (error) {
+										showNotice(error.message, "error");
+									});
+							});
+						});
+					})
+					.catch(function (error) {
+						showNotice(error.message, "error");
+					});
+			}
+
+			function handleCreateClass() {
+				var label = document.getElementById("class-label").value.trim();
+
+				if (label === "") {
+					showNotice("Thầy cô đặt tên lớp trước nhé.", "error");
+					return;
+				}
+
+				adminFetch("/api/admin/classes", {
+					method: "POST",
+					body: JSON.stringify({
+						label: label,
+						level: document.getElementById("class-level").value || null,
+						expiresInDays: Number(document.getElementById("class-expires").value)
+					})
+				})
+					.then(function (result) {
+						showNotice("Đã tạo lớp “" + label + "” — mã lớp: " + result.class.codeDisplay, "success");
+						document.getElementById("class-label").value = "";
+						return loadClasses();
+					})
+					.catch(function (error) {
+						showNotice(error.message, "error");
+					});
+			}
+
 			// --- P1-6 · Dashboard giáo viên -----------------------------------------
 
 			function statsQuery() {
 				var params = new URLSearchParams();
 				params.set("level", appState.level);
+
+				// P2-5 — lọc theo lớp thật. Rỗng = gộp toàn trường (hành vi cũ của P1-6).
+				var classId = document.getElementById("stats-class").value;
+
+				if (classId !== "") {
+					params.set("classId", classId);
+				}
 
 				var from = document.getElementById("stats-from").value;
 				var to = document.getElementById("stats-to").value;
@@ -1886,7 +2154,9 @@
 				resetQuestionForm();
 				loadCurrentLevelData();
 				loadModeration();
-				loadStats();
+				// Nạp danh sách lớp TRƯỚC khi nạp thống kê: ô chọn lớp phải có sẵn lựa
+				// chọn thì lần tải đầu mới hiển thị đúng cái giáo viên đang nhìn.
+				loadClasses().then(loadStats);
 			}
 
 			requireAdminAccess();

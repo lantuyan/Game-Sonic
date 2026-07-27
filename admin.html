@@ -414,6 +414,41 @@
 					</section>
 
 
+					<!-- P2-6 — Nhập / xuất ngân hàng câu hỏi bằng Excel. -->
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Nhập / xuất ngân hàng câu hỏi (Excel)</h2>
+							<div class="actions">
+								<button id="bank-export-level" class="button-secondary" type="button">Xuất lớp hiện tại</button>
+								<button id="bank-export-all" class="button-success" type="button">Xuất cả 3 lớp</button>
+							</div>
+						</div>
+						<p class="level-meta" style="margin:0 0 14px;">
+							File tải về mở thẳng được bằng Excel và đã giữ đúng dấu tiếng Việt. Sửa xong, lúc lưu lại
+							hãy chọn <strong>“CSV UTF-8 (Comma delimited)”</strong> — chọn “CSV” thường sẽ làm hỏng hết dấu.
+							Giữ nguyên 12 cột của file xuất; thứ tự cột thì tuỳ ý.
+						</p>
+						<div class="form-row" style="margin-bottom:10px;">
+							<div class="field">
+								<label for="bank-import-file">Chọn file đã sửa</label>
+								<input id="bank-import-file" type="file" accept=".csv,text/csv" />
+							</div>
+							<div class="field">
+								<label for="bank-import-mode">Câu KHÔNG có trong file thì sao?</label>
+								<select id="bank-import-mode">
+									<option value="merge">Giữ nguyên (an toàn — mặc định)</option>
+									<option value="replace">Xoá khỏi những lớp có mặt trong file</option>
+								</select>
+							</div>
+						</div>
+						<div class="actions" style="margin-bottom:12px;">
+							<button id="bank-preview-button" class="button-secondary" type="button">Xem trước thay đổi</button>
+							<button id="bank-apply-button" class="button-primary" type="button" disabled>Xác nhận nhập</button>
+						</div>
+						<div id="bank-import-result" class="small muted">Chọn file rồi bấm “Xem trước thay đổi”. Chưa xem trước thì chưa ghi gì vào ngân hàng.</div>
+					</section>
+
+
 					<!-- P1-6 — S17 Dashboard giáo viên. -->
 					<section class="panel">
 						<div class="toolbar">
@@ -1020,6 +1055,13 @@
 				document.querySelectorAll("button").forEach(function (button) {
 					button.disabled = disabled;
 				});
+
+				// P2-6: nút "Xác nhận nhập" KHÔNG theo trạng thái bận chung. Nó chỉ mở
+				// khi đang giữ một bản xem trước hợp lệ — bật lại hàng loạt ở đây sẽ mở
+				// đường ghi cho một kế hoạch không tồn tại.
+				if (disabled !== true) {
+					syncImportApplyButton();
+				}
 			}
 
 			function refreshScreen() {
@@ -1298,6 +1340,20 @@
 				document.getElementById("moderation-refresh").addEventListener("click", loadModeration);
 				document.getElementById("stats-refresh").addEventListener("click", loadStats);
 				document.getElementById("stats-csv").addEventListener("click", downloadStatsCsv);
+				document.getElementById("bank-export-all").addEventListener("click", function () {
+					exportQuestionBank(false);
+				});
+				document.getElementById("bank-export-level").addEventListener("click", function () {
+					exportQuestionBank(true);
+				});
+				document.getElementById("bank-import-file").addEventListener("change", handleImportFileChange);
+				// Đổi chế độ (giữ / xoá) là đổi kế hoạch ⇒ bản xem trước cũ hết hiệu lực.
+				document.getElementById("bank-import-mode").addEventListener("change", function () {
+					lockImportApply();
+					setImportMessage("Đã đổi cách xử lý câu thiếu — xem trước lại trước khi nhập.");
+				});
+				document.getElementById("bank-preview-button").addEventListener("click", handleImportPreview);
+				document.getElementById("bank-apply-button").addEventListener("click", handleImportApply);
 				document.getElementById("block-nickname-button").addEventListener("click", handleBlockNickname);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
 					document.getElementById("answer-" + answerKey).addEventListener("input", function () {
@@ -1569,6 +1625,252 @@
 					.then(renderStats)
 					.catch(function (error) {
 						showNotice(error.message, "error");
+					});
+			}
+
+			// --- P2-6 · Nhập / xuất ngân hàng câu hỏi bằng Excel ---------------------
+			//
+			// Gọi thẳng route admin, KHÔNG thêm hàm vào `questionBank.js` — cùng lý do
+			// đã ghi ở phần kiểm duyệt P1-4: questionBank là hợp đồng tích hợp của
+			// GAME, không phải nơi chứa công cụ quản trị.
+			//
+			// Luồng bắt buộc hai bước: chọn file → **xem trước** → xác nhận. Nút xác
+			// nhận chỉ mở khi có một bản xem trước hợp lệ, và mọi thay đổi (đổi file,
+			// đổi chế độ) đều đóng nó lại — thứ được ghi phải đúng bằng thứ đã xem.
+
+			var bankImport = {
+				csvText: "",
+				digest: "",
+				mode: "merge"
+			};
+
+			function exportQuestionBank(currentLevelOnly) {
+				// Điều hướng thẳng để trình duyệt xử lý Content-Disposition; cookie admin
+				// đi kèm vì cùng origin (giống nút "Xuất CSV" của dashboard).
+				window.location.href = "/api/admin/questions.csv" +
+					(currentLevelOnly === true ? "?level=" + encodeURIComponent(appState.level) : "");
+			}
+
+			function importFetch(url, csvText) {
+				return fetch(url, {
+					method: "POST",
+					credentials: "same-origin",
+					// `text/csv` (không phải `text/plain`) là cố ý: nó buộc trình duyệt
+					// preflight, nên form của trang khác không POST lén vào đây được.
+					headers: { "Content-Type": "text/csv" },
+					body: csvText
+				}).then(function (response) {
+					return response.json().catch(function () {
+						return {};
+					}).then(function (payload) {
+						if (response.ok !== true) {
+							throw new Error(payload.error || "Yêu cầu thất bại (HTTP " + response.status + ").");
+						}
+
+						return payload;
+					});
+				});
+			}
+
+			/**
+			 * Nút "Xác nhận nhập" mở/khoá THEO `digest`, không theo lượt bấm.
+			 *
+			 * Cần hàm riêng vì `setBusyButtons(false)` bật lại MỌI nút trên trang —
+			 * gọi nó sau một lần xem trước thất bại sẽ mở đường ghi cho một kế hoạch
+			 * không tồn tại. Mọi nhánh kết thúc đều phải đi qua đây.
+			 */
+			function syncImportApplyButton() {
+				document.getElementById("bank-apply-button").disabled = bankImport.digest === "";
+			}
+
+			function lockImportApply() {
+				bankImport.digest = "";
+				syncImportApplyButton();
+			}
+
+			function setImportMessage(html) {
+				document.getElementById("bank-import-result").innerHTML = html;
+			}
+
+			function renderImportErrors(payload) {
+				var errors = payload.errors || [];
+				var parts = [];
+
+				if (errors.length > 0) {
+					parts.push("<p><strong>Không nhập được — file có " + (payload.errorCount || errors.length) + " lỗi.</strong> Sửa trong Excel rồi chọn lại file.</p>");
+					parts.push("<ul style=\"margin:0;padding-left:18px;\">" + errors.map(function (item) {
+						// Hai số dòng vì Excel NUỐT dòng chỉ thị `sep=,` ở đầu file —
+						// giáo viên không phải tự trừ đi 1.
+						return "<li>Dòng " + item.line + " trong file (Excel: dòng " + item.excelRow + ") — " + escapeHTML(item.message) + "</li>";
+					}).join("") + "</ul>");
+				}
+
+				if (payload.error) {
+					parts.push("<p>" + escapeHTML(payload.error) + "</p>");
+				}
+
+				setImportMessage(parts.join("") || "<p>Không nhập được file này.</p>");
+			}
+
+			function renderImportPlan(plan) {
+				var parts = [];
+
+				(plan.warnings || []).forEach(function (warning) {
+					parts.push("<p><strong>Lưu ý:</strong> " + escapeHTML(warning) + "</p>");
+				});
+
+				parts.push(
+					"<p><strong>File đọc được " + plan.totals.rows + " câu.</strong> " +
+					"Sẽ thêm <strong>" + plan.totals.added + "</strong>, " +
+					"sửa <strong>" + plan.totals.updated + "</strong>, " +
+					"xoá <strong>" + plan.totals.removed + "</strong>, " +
+					"giữ nguyên " + plan.totals.unchanged + " câu.</p>"
+				);
+
+				parts.push("<div class=\"table-wrap\"><table class=\"table-compact\"><thead><tr>" +
+					"<th>Lớp</th><th>Đang có</th><th>Thêm</th><th>Sửa</th><th>Xoá</th><th>Sau khi nhập</th>" +
+					"</tr></thead><tbody>" +
+					plan.levels.map(function (item) {
+						return "<tr>" +
+							"<td>" + escapeHTML(QuestionBank.LEVEL_LABELS[item.level] || item.level) + "</td>" +
+							"<td>" + item.currentCount + "</td>" +
+							"<td>" + item.added.length + "</td>" +
+							"<td>" + item.updated.length + "</td>" +
+							"<td>" + item.removed.length + "</td>" +
+							"<td>" + item.resultCount + "</td>" +
+						"</tr>";
+					}).join("") +
+					"</tbody></table></div>");
+
+				if ((plan.untouchedLevels || []).length > 0) {
+					parts.push("<p>Không có trong file nên <strong>không bị đụng tới</strong>: " +
+						plan.untouchedLevels.map(function (level) {
+							return escapeHTML(QuestionBank.LEVEL_LABELS[level] || level);
+						}).join(", ") + ".</p>");
+				}
+
+				var removedIds = plan.levels.reduce(function (list, item) {
+					return list.concat(item.removed.map(function (id) {
+						return (QuestionBank.LEVEL_LABELS[item.level] || item.level) + " · " + id;
+					}));
+				}, []);
+
+				if (removedIds.length > 0) {
+					// Xoá là KHÔNG hoàn tác được — liệt kê từng mã ra để giáo viên nhìn
+					// tận mắt trước khi bấm xác nhận.
+					parts.push("<p><strong>Sẽ bị xoá vĩnh viễn:</strong> " +
+						escapeHTML(removedIds.slice(0, 40).join(", ")) +
+						(removedIds.length > 40 ? " … và " + (removedIds.length - 40) + " câu nữa" : "") + ".</p>");
+				}
+
+				if (plan.totals.added + plan.totals.updated + plan.totals.removed === 0) {
+					parts.push("<p>File giống hệt ngân hàng hiện tại — bấm xác nhận cũng không đổi gì.</p>");
+				}
+
+				setImportMessage(parts.join(""));
+			}
+
+			function handleImportFileChange() {
+				lockImportApply();
+				bankImport.csvText = "";
+
+				var file = document.getElementById("bank-import-file").files[0];
+
+				if (file == null) {
+					setImportMessage("Chưa chọn file nào.");
+					return;
+				}
+
+				var reader = new FileReader();
+
+				reader.onerror = function () {
+					setImportMessage("Không đọc được file này.");
+				};
+
+				reader.onload = function () {
+					bankImport.csvText = String(reader.result || "");
+					setImportMessage("Đã đọc “" + escapeHTML(file.name) + "”. Bấm “Xem trước thay đổi” để kiểm tra trước khi ghi.");
+				};
+
+				// Ép UTF-8: BOM trong file ta xuất ra sẽ tự bị bỏ qua, còn file lưu sai
+				// bảng mã sẽ lòi ra ký tự thay thế và server chặn ngay ở bước xem trước.
+				reader.readAsText(file, "utf-8");
+			}
+
+			function handleImportPreview() {
+				if (bankImport.csvText === "") {
+					showNotice("Chọn file CSV đã sửa trước đã.", "error");
+					return;
+				}
+
+				lockImportApply();
+				bankImport.mode = document.getElementById("bank-import-mode").value === "replace" ? "replace" : "merge";
+				setBusyButtons(true);
+				setImportMessage("Đang kiểm tra file…");
+
+				importFetch("/api/admin/questions/import/preview?mode=" + bankImport.mode, bankImport.csvText)
+					.then(function (payload) {
+						if (payload.ok !== true) {
+							renderImportErrors(payload);
+							return;
+						}
+
+						bankImport.digest = payload.digest;
+						renderImportPlan(payload);
+					})
+					.catch(function (error) {
+						setImportMessage("<p>" + escapeHTML(error.message) + "</p>");
+					})
+					.finally(function () {
+						setBusyButtons(false);
+					});
+			}
+
+			function handleImportApply() {
+				if (bankImport.digest === "") {
+					showNotice("Bấm “Xem trước thay đổi” trước khi xác nhận.", "error");
+					return;
+				}
+
+				if (window.confirm("Ghi thay đổi vào ngân hàng câu hỏi? Thao tác này không hoàn tác được.") !== true) {
+					return;
+				}
+
+				setBusyButtons(true);
+
+				importFetch(
+					"/api/admin/questions/import/apply?mode=" + bankImport.mode + "&digest=" + encodeURIComponent(bankImport.digest),
+					bankImport.csvText
+				)
+					.then(function (payload) {
+						if (payload.ok !== true) {
+							renderImportErrors(payload);
+							lockImportApply();
+							return;
+						}
+
+						lockImportApply();
+						document.getElementById("bank-import-file").value = "";
+						bankImport.csvText = "";
+						setImportMessage("Đã ghi vào ngân hàng. Chọn file khác nếu cần nhập tiếp.");
+
+						// Báo thành công SAU khi nạp lại danh sách: `loadCurrentLevelData`
+						// mở đầu bằng `hideNotice()`, nên gọi `showNotice` trước nó thì
+						// thông báo biến mất ngay trước mắt người dùng.
+						return loadCurrentLevelData().then(function () {
+							showNotice(
+								"Đã nhập xong: thêm " + payload.totals.added + ", sửa " + payload.totals.updated +
+								", xoá " + payload.totals.removed + " câu.",
+								"success"
+							);
+						});
+					})
+					.catch(function (error) {
+						setImportMessage("<p>" + escapeHTML(error.message) + "</p>");
+						lockImportApply();
+					})
+					.finally(function () {
+						setBusyButtons(false);
 					});
 			}
 

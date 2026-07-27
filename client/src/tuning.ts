@@ -306,6 +306,40 @@ export const tuning = {
 	scoring: {
 		/** Điểm quãng đường: ×1 mỗi mét (plan §4.4). */
 		pointsPerMeter: 1,
+		/**
+		 * THANG ĐIỂM CÂU HỎI (P2-8) — hệ số nhân vào `question.point`.
+		 *
+		 * Vì sao phải có: plan §4.4 chốt "câu đúng chiếm ~80–90% tổng điểm", nhưng
+		 * hai con số của plan không bao giờ cho ra tỉ lệ đó. Đề thật của ngân hàng
+		 * chỉ đáng 10/15/20/25 điểm (easy→expert), trong khi ván 6 phút cho ~6.500
+		 * điểm quãng đường — câu đúng chiếm chưa tới **2%**. (Test P0-13 tưởng là 18%
+		 * vì nó truyền tay `point = 100`, một giá trị KHÔNG có trong ngân hàng nào.)
+		 *
+		 * Vì sao lại to thế: đó là số học bắt buộc, không phải sở thích. Một ván
+		 * điển hình chỉ có ~8 câu; muốn 8 câu đó chiếm 85% tổng điểm thì cả cụm phải
+		 * đáng ~5.7 lần toàn bộ quãng đường của ván ⇒ mỗi câu ≈ 0,7 lần quãng đường
+		 * một ván. Bất kỳ cách cân nào đạt được 80–90% cũng đều có tính chất này.
+		 *
+		 * Vì sao KHÔNG hạ `pointsPerMeter` thay vì nâng hệ số này:
+		 *   · `nearMiss.points` (10) được chọn theo thang "10 điểm ≈ 10 mét chạy".
+		 *     Hạ điểm quãng đường mà không hạ near-miss là biến near-miss thành
+		 *     nguồn điểm lớn thứ hai của ván — đo được: cùng tỉ lệ điển hình 82,6%,
+		 *     một ván nhiều near-miss tụt xuống 65% ở phương án hạ, nhưng vẫn giữ
+		 *     80,4% ở phương án này;
+		 *   · giữ `pointsPerMeter = 1` thì `server/scoreCheck.js#MAX_SPEED_MPS`
+		 *     (43.4 = 15.5 × 2 × 1.4) không phải đổi, tức không đụng vào tuyến
+		 *     anti-cheat đang chạy;
+		 *   · văn bản plan §4.4 ("quãngĐường×1", "near-miss +10 điểm") vẫn đúng
+		 *     từng chữ; chỉ đúng MỘT con số của công thức được đổi, và đó chính là
+		 *     con số task này được duyệt để đổi.
+		 *
+		 * ⚠ Đổi số này thì PHẢI đổi `ANSWER_POINT_MULTIPLIER` trong
+		 * `server/scoreCheck.js` — `test/anticheat.test.js` và `test/balance.test.js`
+		 * canh cho khỏi quên. Đổi nó cũng là đổi THANG ĐIỂM của bảng xếp hạng: điểm
+		 * cũ và điểm mới không so sánh được nữa, nên phải mở một mùa mới
+		 * (`LEADERBOARD_SEASON2_START`), đừng trộn chung.
+		 */
+		answerPointMultiplier: 300,
 		coinPerPickup: 1,
 		coinPerCorrectAnswer: 5,
 		/** Streak (plan §4.4): 3 đúng ×1.5, 5 đúng ×2 (trần). */

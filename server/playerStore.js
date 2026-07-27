@@ -7,6 +7,7 @@
 var QuestionModel = require("../shared/questionModel");
 var applySchema = require("./schema").applySchema;
 var badwords = require("./badwords-vi");
+var season = require("./season");
 
 var MAX_SCORE = 10000000;
 var MAX_COUNT = 1000000;
@@ -93,13 +94,25 @@ function clampNumber(value, minValue, maxValue, fallback) {
 // configured), leaderboard and skill features degrade gracefully: reads return
 // empty and writes are accepted as no-ops, so the game keeps working with no
 // errors. Persistence lights up automatically once Neon is connected.
-function createDisabledPlayerStore() {
+function createDisabledPlayerStore(seasonStartAt) {
 	return {
 		submitScore: function () {
 			return Promise.resolve({ rank: null, best: null, score: 0, disabled: true });
 		},
-		getLeaderboard: function (level) {
-			return Promise.resolve({ level: level, entries: [], me: null, disabled: true });
+		getLeaderboard: function (level, deviceId, options) {
+			// Vẫn trả ĐỦ mô tả mùa: giao diện phải nói được "đang xem Mùa 2" ngay cả
+			// khi chưa nối CSDL, nếu không học sinh sẽ thấy bảng trống mà không biết
+			// mình đang nhìn mùa nào.
+			var seasonId = season.normalizeSeasonId(options && options.season, seasonStartAt);
+
+			return Promise.resolve({
+				level: level,
+				entries: [],
+				me: null,
+				season: season.describeSeason(seasonId, seasonStartAt),
+				seasons: season.listSeasons(seasonStartAt),
+				disabled: true
+			});
 		},
 		updateNickname: function (deviceId, nickname) {
 			return Promise.resolve({ deviceId: deviceId, nickname: nickname, disabled: true });
@@ -136,12 +149,42 @@ function createDisabledPlayerStore() {
 
 function createPlayerStore(options) {
 	var sql = options && options.sql ? options.sql : null;
+	// P2-8 — `Date` hoặc null. `null` = chưa chốt ngày phát hành ⇒ một bảng duy nhất.
+	var seasonStartAt = options && options.seasonStartAt != null ? options.seasonStartAt : null;
 
 	if (sql == null) {
-		return createDisabledPlayerStore();
+		return createDisabledPlayerStore(seasonStartAt);
 	}
 
 	var readyPromise = applySchema(sql);
+
+	/**
+	 * Mệnh đề lọc theo mùa, nối vào sau `WHERE level = $1`.
+	 *
+	 * Trả về cả `next` (số thứ tự tham số kế tiếp) vì các truy vấn bên dưới còn
+	 * tham số riêng đứng sau (`deviceId`, `LIMIT`) — đánh số tay là cách chắc chắn
+	 * nhất để một ngày nào đó `$2` trỏ nhầm chỗ.
+	 */
+	function seasonFilter(seasonId, firstParamIndex) {
+		var range = season.seasonRange(seasonId, seasonStartAt);
+		var clause = "";
+		var params = [];
+		var next = firstParamIndex;
+
+		if (range.from != null) {
+			clause += " AND created_at >= $" + next;
+			params.push(range.from.toISOString());
+			next += 1;
+		}
+
+		if (range.to != null) {
+			clause += " AND created_at < $" + next;
+			params.push(range.to.toISOString());
+			next += 1;
+		}
+
+		return { clause: clause, params: params, next: next };
+	}
 
 	function ready() {
 		return readyPromise;
@@ -182,14 +225,21 @@ function createPlayerStore(options) {
 				}
 			]);
 		}).then(function () {
+			// P2-8 — hạng và kỷ lục tính TRONG MÙA ĐANG CHẠY. Nếu không, ván V2 đầu
+			// tiên của một em sẽ bị đem so với điểm thang cũ và màn Game Over báo
+			// hạng vô nghĩa. Chưa cấu hình mốc mùa ⇒ mệnh đề rỗng ⇒ y hệt trước đây.
+			var filter = seasonFilter(season.currentSeasonId(seasonStartAt), 2);
+			var viewerIndex = filter.next;
+
 			return sql.query(
 				"WITH best AS (" +
-					"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1 GROUP BY device_id" +
+					"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1" + filter.clause + " GROUP BY device_id" +
 				") " +
 				"SELECT " +
-					"(SELECT best_score FROM best WHERE device_id = $2) AS my_best, " +
-					"(SELECT 1 + COUNT(*) FROM best WHERE best_score > (SELECT best_score FROM best WHERE device_id = $2)) AS my_rank",
-				[level, deviceId]
+					"(SELECT best_score FROM best WHERE device_id = $" + viewerIndex + ") AS my_best, " +
+					"(SELECT 1 + COUNT(*) FROM best WHERE best_score > " +
+						"(SELECT best_score FROM best WHERE device_id = $" + viewerIndex + ")) AS my_rank",
+				[level].concat(filter.params, [deviceId])
 			);
 		}).then(function (result) {
 			var row = result.rows[0] || {};
@@ -203,31 +253,41 @@ function createPlayerStore(options) {
 		});
 	}
 
-	function getLeaderboard(level, deviceId) {
+	/**
+	 * Bảng xếp hạng của MỘT lớp, lọc theo mùa (P2-8).
+	 *
+	 * `options.season` nhận `"2"` (mặc định — mùa đang chạy), `"1"` (mùa cũ, thang
+	 * điểm trước P2-8) hoặc `"all"`. Không dòng dữ liệu nào bị xoá: Mùa 1 luôn tra
+	 * được, kể cả nhiều năm sau.
+	 */
+	function getLeaderboard(level, deviceId, options) {
 		requireLevel(level);
 		var viewerId = deviceId != null ? String(deviceId).trim() : "";
+		var seasonId = season.normalizeSeasonId(options && options.season, seasonStartAt);
+		var filter = seasonFilter(seasonId, 2);
+		var tailIndex = filter.next;
 
 		var entriesPromise = run(
 			"WITH best AS (" +
-				"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1 GROUP BY device_id" +
+				"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1" + filter.clause + " GROUP BY device_id" +
 			"), ranked AS (" +
 				"SELECT device_id, best_score, RANK() OVER (ORDER BY best_score DESC) AS rnk FROM best" +
 			") " +
 			"SELECT r.rnk, r.best_score, p.nickname, r.device_id " +
 			"FROM ranked r JOIN players p ON p.device_id = r.device_id " +
-			"ORDER BY r.rnk ASC, p.nickname ASC LIMIT $2",
-			[level, LEADERBOARD_LIMIT]
+			"ORDER BY r.rnk ASC, p.nickname ASC LIMIT $" + tailIndex,
+			[level].concat(filter.params, [LEADERBOARD_LIMIT])
 		);
 
 		var mePromise = viewerId === "" ? Promise.resolve(null) : run(
 			"WITH best AS (" +
-				"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1 GROUP BY device_id" +
+				"SELECT device_id, MAX(score) AS best_score FROM scores WHERE level = $1" + filter.clause + " GROUP BY device_id" +
 			"), ranked AS (" +
 				"SELECT device_id, best_score, RANK() OVER (ORDER BY best_score DESC) AS rnk FROM best" +
 			") " +
 			"SELECT r.rnk, r.best_score, p.nickname FROM ranked r JOIN players p ON p.device_id = r.device_id " +
-			"WHERE r.device_id = $2",
-			[level, viewerId]
+			"WHERE r.device_id = $" + tailIndex,
+			[level].concat(filter.params, [viewerId])
 		).then(function (result) {
 			if (result.rows.length === 0) {
 				return null;
@@ -247,10 +307,14 @@ function createPlayerStore(options) {
 				};
 			});
 
+			// `level`/`entries`/`me` GIỮ NGUYÊN shape của hợp đồng §7.3.2 — `season`
+			// và `seasons` là field THÊM, client cũ bỏ qua field lạ.
 			return {
 				level: level,
 				entries: entries,
-				me: parts[1]
+				me: parts[1],
+				season: season.describeSeason(seasonId, seasonStartAt),
+				seasons: season.listSeasons(seasonStartAt)
 			};
 		});
 	}

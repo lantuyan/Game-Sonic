@@ -988,6 +988,18 @@
 	flex-wrap: wrap;
 }
 
+/* P2-8 — hàng chọn mùa + dòng "đang xem mùa nào". Ẩn hẳn khi chỉ có một mùa. */
+.leaderboard__seasons[hidden],
+.leaderboard__season-note[hidden] {
+	display: none;
+}
+
+.leaderboard__season-note {
+	margin: var(--space-2) 0 0;
+	text-align: center;
+	color: var(--color-text-muted);
+}
+
 .leaderboard__list {
 	display: grid;
 	gap: var(--space-2);

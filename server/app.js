@@ -13,6 +13,7 @@ var playerStoreModule = require("./playerStore");
 var createSqlClient = require("./sql").createSqlClient;
 var runToken = require("./runToken");
 var scoreCheck = require("./scoreCheck");
+var seasonModule = require("./season");
 var statsStoreModule = require("./statsStore");
 var economyStoreModule = require("./economyStore");
 var shopCatalog = require("./shopCatalog");
@@ -37,7 +38,10 @@ function createApp(overrides) {
 	var playerSql = createSqlClient(config);
 	// P1-7: kho câu hỏi chạy Postgres khi có DATABASE_URL, ngược lại giữ kho JSON.
 	var dataStore = dbModule.createDatabase(config, playerSql);
-	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql });
+	// P2-8 · mốc "Mùa 2" của bảng xếp hạng. `validateConfig` đã kiểm chuỗi đọc được,
+	// nên ở đây parse lại là an toàn. `null` = chưa chốt ngày ⇒ một bảng duy nhất.
+	var seasonStartAt = seasonModule.parseSeasonStart(config.leaderboardSeason2Start);
+	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql, seasonStartAt: seasonStartAt });
 	// P1-6 · dashboard giáo viên. Dùng chung SQL client; schema do playerStore áp
 	// (applySchema là idempotent nên không cần điều phối gì thêm).
 	var statsStore = statsStoreModule.createStatsStore({ sql: playerSql });
@@ -545,10 +549,15 @@ function createApp(overrides) {
 		}
 	});
 
+	// Endpoint #3 của hợp đồng §7.3.2 — shape {level, entries, me} GIỮ NGUYÊN.
+	// P2-8 chỉ THÊM tham số tuỳ chọn `?season=` và hai field `season`/`seasons`.
+	// Không truyền `season` ⇒ mùa đang chạy, đúng thứ client V1 cũ mong đợi.
 	app.get("/api/levels/:level/leaderboard", async function (request, response, next) {
 		try {
-			var deviceId = request.query ? request.query.deviceId : null;
-			response.json(await playerStore.getLeaderboard(request.params.level, deviceId));
+			var query = request.query || {};
+			response.json(
+				await playerStore.getLeaderboard(request.params.level, query.deviceId, { season: query.season })
+			);
 		} catch (error) {
 			next(error);
 		}

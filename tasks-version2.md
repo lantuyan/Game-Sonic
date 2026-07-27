@@ -388,6 +388,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 | [x] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư — *đặc tả chi tiết ngay dưới P2-6* |
 | [x] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | CSV nâng cao (0 phụ thuộc mới) — *đặc tả chi tiết ngay dưới P2-3* |
 | [x] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng — *đặc tả chi tiết ngay dưới P2-5* |
+| [x] P2-8 | Cân lại thang điểm về đúng plan §4.4 + "Mùa 2" cho bảng xếp hạng | 1.5 | Sửa một quyết định đang bị khoá, chủ dự án đã duyệt — *đặc tả chi tiết ngay dưới P2-7* |
 
 ### [x] P2-1 · Biome ④ Không gian + chướng ngại di động + pattern tổ hợp khó — *3 ngày*
 
@@ -832,6 +833,83 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ---
 
+### [x] P2-8 · Cân lại thang điểm về đúng plan §4.4 + "Mùa 2" cho bảng xếp hạng — *1.5 ngày*
+
+**Mục tiêu:** sửa một trong hai gạch đầu dòng đã nằm ở Backlog P2+ từ thời P0-13. plan §4.4 chốt **câu đúng chiếm 80–90% tổng điểm** một ván, nhưng thực tế điểm quãng đường lấn át hoàn toàn. Đổi thang điểm thì điểm cũ và điểm mới không so sánh được nữa, nên **bắt buộc** đi kèm việc mở "Mùa 2" theo đúng khuyến nghị plan §11 câu 5 / rủi ro R10.
+
+> ⚠ Đây là task **mở lại một con số đã chốt** (quy tắc vàng #1). Chủ dự án đã duyệt, và `test/balance.test.js` — file cố ý khoá các con số cân bằng — được sửa để **khoá lại bằng một khẳng định mạnh hơn** (tỉ lệ), chứ không phải để nới ra.
+
+**Con số đo được (mô phỏng tất định trong `test/balance.test.js`, ván điển hình 6 phút):**
+
+| | Quãng đường | Câu hỏi | Thưởng (near-miss) | Tổng | **Tỉ lệ điểm câu hỏi** |
+|---|---:|---:|---:|---:|---:|
+| **TRƯỚC** | 6.460 | 105 | 180 | 6.745 | **1,6 %** |
+| **SAU** | 6.460 | 31.500 | 180 | 38.140 | **82,6 %** |
+
+Cách tính "ván điển hình" (mọi giả định nằm trong `TYPICAL_RUN` của `test/balance.test.js`): 360 giây, **1 chặng boss** (đóng băng thế giới 26,1s ⇒ chỉ 333,9s thật sự chạy), quãng đường tính bằng chính `SpeedController` của game (ramp +5%/30s tới trần ×1.4) ⇒ **6.461 m**; nhịp trạm hiện tại cho **7 câu cổng + 1 câu boss = 8 câu** — đúng khoảng 8–9 câu *thực tế đạt được*, **không** dùng con số 14 trên giấy; **6/8 đúng** (học sinh khá), điểm đề lấy đúng thang ngân hàng thật (easy 10 · medium 15 · hard 20 · expert 25) và đi qua `Combo` thật nên có streak; **18 lần near-miss**.
+
+**Việc cần làm:**
+- [x] **Hằng số mới duy nhất: `tuning.scoring.answerPointMultiplier = 300`** — nhân vào `question.point`. `pointsPerMeter` GIỮ NGUYÊN `1` và `nearMiss.points` GIỮ NGUYÊN `10`.
+- [x] **`Score` vẫn là số học thuần**: việc quy đổi nằm ở hàm `answerPointValue()` (`systems/Score.ts`), gọi ở 4 chỗ có câu hỏi thật trong `scenes/RunScene.ts` (2 cổng + 2 boss).
+- [x] **`server/scoreCheck.js` cập nhật cùng lúc**: thêm `ANSWER_POINT_MULTIPLIER` (= hằng client) và `MAX_ANSWER_MULTIPLIER` (= streak trần × Nhân đôi điểm). `MAX_SPEED_MPS = 43.4` **không đổi** vì `pointsPerMeter` không đổi.
+- [x] **`test/balance.test.js` khoá TỈ LỆ 80–90%** trên ván điển hình, cộng 3 khẳng định phụ: mô hình bám ngân hàng thật + nhịp trạm thật; tỉ lệ không sụp khi người chơi đi săn near-miss; tỉ lệ tăng đơn điệu theo số câu đúng.
+- [x] **Ràng buộc §4.3 (trạm cách nhau 25–40s) KHÔNG bị đụng** — 3 test cũ về nhịp trạm giữ nguyên từng dòng.
+- [x] **Mùa bảng xếp hạng**: `server/season.js` (luật thuần: parse ngày, khoảng nửa mở, nhãn tiếng Việt) + `leaderboardSeason2Start` trong `server/config.js` (đọc `LEADERBOARD_SEASON2_START`) + lọc `scores.created_at` trong `server/playerStore.js`.
+- [x] **Tham số `?season=1|2|all`** là tham số **tuỳ chọn** thêm vào endpoint #3 đã có; `season`/`seasons` là field **thêm** vào phản hồi. Không route mới, không cột mới, không xoá dòng nào.
+- [x] **Hạng + kỷ lục trả về từ `POST /api/scores` tính trong mùa đang chạy** — nếu không, ván V2 đầu tiên bị đem so với thang điểm cũ.
+- [x] **Giao diện S10**: hàng tab mùa + dòng "Đang xem Mùa 2 · Từ 15/08/2026 — thang điểm mới". Chỉ hiện khi thật sự có ≥2 mùa.
+- [x] **`client/src/integration/questionBridge.ts#getLeaderboardPage`** — gọi thẳng endpoint #3 (chữ ký `window.QuestionBank.getLeaderboard(level)` là hợp đồng, không đổi được), hỏng mạng thì ngã về đúng đường cũ qua QuestionBank.
+- [x] **Chỉ số phụ (idempotent)**: `idx_scores_level_created`.
+
+**File đích:** `client/src/tuning.ts` · `client/src/systems/Score.ts` · `client/src/scenes/RunScene.ts` · `client/src/integration/questionBridge.ts` · `client/src/ui/screens/MenuScreens.ts` · `client/src/ui/ui-tokens.css` · `client/src/App.ts` · `server/season.js` (mới) · `server/config.js` · `server/playerStore.js` · `server/scoreCheck.js` · `server/schema.js` · `server/app.js` · `test/balance.test.js` · `test/season.test.js` (mới)
+
+**Phụ thuộc:** P0-8 (streak/Fever/power-up), P1-1 (boss + near-miss), P1-4 (anti-cheat — bắt buộc rà lại), P2-1/P2-2 (chướng ngại di động, near-miss có bậc).
+
+**Tham chiếu:** plan §4.4 (điểm), §4.3 (nhịp trạm — KHÔNG đụng), §7.4 (kiểm chéo điểm), §11 câu 5 + R10 (Mùa 2); `docs/v2/P0-ACCEPTANCE.md` §5; `docs/v2/P1-ACCEPTANCE.md` §4.
+
+**Tiêu chí nghiệm thu (DoD):**
+1. Tỉ lệ điểm câu hỏi trên ván điển hình nằm trong **80–90%**, đo bằng mô phỏng chứ không ước lượng.
+2. Tỉ lệ đó **được khoá bằng test** và test nói rõ phải cân lại chứ không được nới.
+3. Ràng buộc trạm 25–40s không đổi; mâu thuẫn 8–14 câu **không tự quyết**.
+4. Bảng **Mùa 1 vẫn tra được**, số dòng trong `scores` không đổi.
+5. Ngày ranh giới đọc từ **cấu hình**, đổi ngày là đổi cách chia mà không sửa mã.
+6. Chưa cấu hình ngày ⇒ hành vi bảng xếp hạng **y hệt trước P2-8**.
+7. `server/scoreCheck.js` nhất quán với hằng số client; ván hợp lệ tốt nhất không bị tố oan, điểm bịa vẫn bị bắt.
+8. 13 endpoint cũ, chữ ký `window.QuestionBank`, 5 khoá localStorage `-v1` không đổi; `npm run ci` xanh.
+
+**Đã làm (nhánh `v2/p2-08-scoring-season2`):** thang điểm câu hỏi ×300 (1 hằng số mới + 1 hàm thuần), `scoreCheck` cập nhật kèm sửa một lỗi thật, mùa bảng xếp hạng lọc theo `created_at` với mốc nằm ở cấu hình, giao diện S10 có tab mùa + dòng "đang xem mùa nào". **18 test mới** (4 trong `test/balance.test.js`, 14 trong `test/season.test.js`), `npm run ci` **494/494**, ngân sách **6.33 MB / 10 MB** (không thêm asset, không thêm phụ thuộc).
+
+**Quyết định đáng nêu:**
+· **Nâng điểm câu hỏi thay vì hạ điểm quãng đường — và đây là quyết định có số liệu, không phải khẩu vị.** `nearMiss.points = 10` được chọn theo thang "10 điểm ≈ 10 mét chạy". Hạ `pointsPerMeter` mà không hạ near-miss là biến near-miss thành nguồn điểm lớn thứ hai của ván: đo được, phương án hạ cho cùng tỉ lệ điển hình nhưng tụt còn **~65%** ở ván nhiều near-miss, trong khi phương án đã chọn giữ **80,4%**. Thêm nữa, giữ `pointsPerMeter = 1` nghĩa là `MAX_SPEED_MPS` của anti-cheat không phải đụng, và văn bản plan §4.4 ("quãngĐường×1", "near-miss +10 điểm") vẫn đúng từng chữ.
+· **Hệ số ×300 to là điều BẮT BUỘC, không phải lỡ tay.** Ván điển hình chỉ có ~8 câu; muốn 8 câu chiếm 85% tổng điểm thì cả cụm phải đáng ~5,7 lần toàn bộ quãng đường ⇒ mỗi câu ≈ 0,7 lần quãng đường một ván. Mọi cách cân đạt 80–90% đều có tính chất này; khác nhau chỉ là số 0 nằm ở đâu.
+· **`Score` không biết gì về thang điểm.** Quy đổi nằm ở `answerPointValue()`, nên `recordAnswer(true, 100, 2) === 200` vẫn đọc ra đúng nghĩa "point × streak" chứ không có phép nhân ẩn — và bộ test cũ của P0 không phải sửa một dòng nào.
+· **Khoá TỈ LỆ, không khoá hằng số.** Hằng số nào cũng đổi được miễn tỉ lệ còn đúng; tỉ lệ sai thì bảng xếp hạng thôi đo năng lực Toán. Test còn đối chiếu mô hình với ngân hàng `questions/lop6.json` thật và với nhịp trạm thật, nên mô hình không thể trôi thành văn chương.
+· **Mốc mùa mặc định là RỖNG.** Deploy P2-8 lên production không làm bảng xếp hạng đổi một chữ; mùa mới chỉ mở khi chủ dự án đặt `LEADERBOARD_SEASON2_START`. Đặt sai định dạng thì **server không khởi động** kèm thông báo rõ — bỏ qua âm thầm nghĩa là trộn hai thang điểm vào một bảng và không ai phát hiện.
+· **`2026-08-15` hiểu là 00:00 GIỜ VIỆT NAM, không phải UTC.** `new Date("2026-08-15")` của JS là 00:00 UTC = 07:00 sáng ở Việt Nam — mốc sẽ cắt vào giữa tiết học đầu tiên.
+· **Khoảng mùa là NỬA MỞ `[from, to)`.** Bản ghi rơi đúng vào mili-giây mốc thuộc Mùa 2 và chỉ Mùa 2; không dòng nào bị đánh rơi, không dòng nào đếm hai lần.
+· **`?season` gõ sai KHÔNG trả 400** mà rơi về mùa đang chạy. Một tham số sai trên thanh địa chỉ không đáng để học sinh nhìn thấy bảng trắng.
+· **`bestScoreByLevel` trong hồ sơ người chơi (P2-3) cố ý KHÔNG chia mùa.** Đó là lịch sử cá nhân, không phải một bảng xếp hạng — trộn thang ở đó chỉ làm con số to lên chứ không làm sai thứ hạng của ai.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· Task chỉ ghi "chỉnh `pointsPerMeter` và/hoặc `question.point`". `question.point` nằm trong ngân hàng câu hỏi (dữ liệu của giáo viên) và trong `questionBank.js`/`shared/questionModel.js` (cấm sửa), nên đòn bẩy tương đương và hợp lệ duy nhất là một hệ số nhân trong `tuning.ts`.
+· Sửa thêm một chỗ ngoài đặc tả ở màn Bảng xếp hạng: hàng của chính mình nay đọc `entry.isMe` do server tính. `App.ts` truyền `getDeviceId: () => null`, nên trước đây **không ván nào được tô sáng** dù server đã gửi sẵn cờ đó.
+· **Mâu thuẫn 8–14 câu/ván vẫn CHƯA được quyết và task này không tự quyết** — chỉ dùng con số thực tế (8 câu) làm đầu vào cho phép đo. Gạch đầu dòng đó vẫn nằm nguyên ở Backlog P2+.
+
+**Lỗi THẬT phát hiện được trong task này:**
+· **(nặng — anti-cheat sẽ tố oan đúng học sinh giỏi nhất)** `server/scoreCheck.js` tính trần điểm câu hỏi bằng `correctCount × maxPoint × 2` với chú thích "×2 cho streak trần" — **bỏ quên power-up Nhân đôi điểm**, thứ nhân thẳng vào `answerScore` qua `Score.pointMultiplier`. Hệ số hợp lệ tối đa là **×4** (streak ×2 × Nhân đôi điểm ×2). Trước P2-8 lỗi này vô hại vì điểm câu hỏi quá nhỏ so với phần quãng đường nên dung sai nuốt hết; sau khi câu hỏi thành 80–90% tổng điểm thì đúng ván tốt nhất — chuỗi đúng dài **và** nhặt được Nhân đôi điểm — mới là ván bị đánh dấu `verified = false`. Nếu `ANTICHEAT_ENFORCE=1` được bật (đang có trong Checklist release P1) thì ván đó bị **từ chối thẳng**.
+· **(vừa — phép đo cân bằng của P0-13 sai một bậc độ lớn)** Test "điểm câu hỏi chiếm ưu thế" truyền `question.point = 100`, một giá trị **không tồn tại trong ngân hàng nào** (đề thật là 10/15/20/25). Nó báo 18% và ghi lại con số "~1.000 điểm câu hỏi" vào Backlog; tỉ lệ thật lúc đó là **1,6%**, tức vấn đề nghiêm trọng hơn hồ sơ ghi khoảng 11 lần. Bài học đã đưa thẳng vào test mới: mô hình phải đối chiếu với ngân hàng thật, và test sẽ đỏ nếu ngân hàng đổi thang điểm.
+· **(nhẹ — không ai được tô sáng trên bảng xếp hạng)** `App.ts` truyền `getDeviceId: () => null` cho `LeaderboardScreen`, nên điều kiện `entry.deviceId === deviceId` không bao giờ đúng và `data-self="true"` không bao giờ được đặt — trong khi server vẫn gửi sẵn `entry.isMe`.
+
+**Đã nghiệm thu bằng mô phỏng và test tự động** (PGlite cục bộ, cấu hình truyền tay, `databaseUrl` rỗng tường minh, **không đọc `.env`**, **KHÔNG chạm Neon**): tỉ lệ 82,6% trên ván điển hình; 80,4% ở ván 60 near-miss có chuỗi; 57,5% ở ván 3/8 câu đúng và 90,1% ở ván 8/8 (đơn điệu, ghi nhận rõ là đúng thiết kế); ván điển hình và ván tốt nhất về lý thuyết đều qua `checkPlausibility`, điểm gấp 10 lần vẫn bị bắt; mở Mùa 2 giữa hai lô dữ liệu → Mùa 1 vẫn tra được đủ 2 bản ghi, `COUNT(*)` không đổi; cùng một CSDL với mốc 2020 và mốc 2099 cho hai cách chia khác hẳn nhau (chứng minh ngày nằm ở cấu hình); màn S10 in đúng "Đang xem Mùa 2 · Từ 15/08/2026 …" và bấm "Mùa 1" hỏi lại server đúng mùa đó.
+
+**Chưa nghiệm thu được ở môi trường này:**
+- [ ] Chơi thật một ván trên trình duyệt để xem con số **38.000** có "đọc ra được" với học sinh lớp 6 không (đếm số count-up ở màn Game Over dài hơn hẳn).
+- [ ] Chạy trên **Neon thật** — mọi test dùng PGlite. Truy vấn mùa chỉ thêm `AND created_at >= $n`, không có cú pháp lạ.
+- [ ] `npm run migrate -- --yes-production` (agent **không** chạy — đúng ràng buộc an toàn). P2-8 chỉ thêm **một chỉ số**, thiếu nó thì chậm chứ không sai.
+- [ ] Một học kỳ dùng thật để biết 80–90% có đúng là tỉ lệ tạo động lực học Toán hay không — đó là câu hỏi giáo dục, không phải câu hỏi kỹ thuật.
+
+---
+
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
 - [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.
@@ -845,6 +923,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 - [ ] Riêng release P2-6: không cần biến môi trường hay migrate nào. Sau deploy, vào admin bấm **"Xuất cả 3 lớp"**, mở file bằng **Excel thật trên Windows tiếng Việt** — phải thấy đủ 12 cột và đủ dấu. Sửa một ô rồi lưu lại bằng **"CSV UTF-8 (Comma delimited)"**, nhập lại ở chế độ mặc định (giữ nguyên) và đối chiếu bảng xem trước trước khi xác nhận.
 - [ ] Riêng release P2-5: chạy `npm run migrate -- --dry-run` để xem trước, rồi `npm run migrate -- --yes-production` **TRƯỚC** khi deploy (bảng `class_codes`/`class_members` và cột `answer_events.class_id` phải có trước khi giáo viên đầu tiên tạo mã). Không cần biến môi trường mới. Sau deploy: vào admin tạo một lớp thử, nhập mã từ máy học sinh, chơi một ván rồi kiểm dashboard lọc đúng lớp đó. **Nói với giáo viên ba điều:** mã lớp là *quyền vào lớp* chứ không phải mật khẩu xem điểm; mã lộ thì bấm **Thu hồi** rồi **Gỡ khỏi lớp** chứ đừng xoá lớp; và **đừng đặt tên lớp bằng tên học sinh**. Chi tiết: [`docs/v2/P2-5-PRIVACY.md`](docs/v2/P2-5-PRIVACY.md) §8.
 - [ ] Riêng release P2-7: chạy `npm run migrate -- --dry-run` rồi `npm run migrate -- --yes-production` **TRƯỚC** khi deploy (bảng `admin_users` phải có trước lần đăng nhập đầu tiên; thiếu bảng thì vẫn vào được bằng mật khẩu cũ, chỉ là chưa tạo được tài khoản riêng). Không cần biến môi trường mới. Sau deploy: (1) đăng nhập bằng **đúng mật khẩu cũ, bỏ trống ô tên đăng nhập** để xác nhận đường di trú; (2) vào panel **"Tài khoản quản trị"** tạo cho mỗi thầy cô một tài khoản riêng; (3) **rồi mới** xoá biến `ADMIN_PASSWORD_HASH` trên Vercel và deploy lại — chừng nào biến đó còn, mật khẩu cũ vẫn mở được tài khoản `admin`. **Nói với giáo viên hai điều:** lớp học và mã lớp **thuộc về tài khoản đã tạo ra chúng** (tài khoản mới bắt đầu với danh sách lớp trống, đó không phải lỗi), còn ngân hàng câu hỏi thì dùng chung cả trường.
+- [ ] Riêng release P2-8: **thang điểm đã đổi** (câu đúng ×300 ⇒ một ván khá đi từ ~6.700 lên ~38.000 điểm). Thứ tự bắt buộc: (1) đặt biến môi trường **`LEADERBOARD_SEASON2_START`** trên Vercel = **ngày phát hành**, dạng `YYYY-MM-DD` (hiểu là 00:00 giờ Việt Nam) hoặc ISO đầy đủ có múi giờ — **đặt TRƯỚC hoặc CÙNG LÚC deploy**, vì mọi ván chơi sau thời điểm deploy đã là thang điểm mới; (2) deploy; (3) mở Bảng xếp hạng kiểm thấy tab **Mùa 2 / Mùa 1 / Tất cả** và dòng "Đang xem Mùa 2 · Từ …"; bấm **Mùa 1** phải thấy lại đúng bảng cũ. Không có biến đó thì game vẫn chạy bình thường nhưng **điểm hai thang bị trộn chung một bảng** — sai lệch âm thầm, không có thông báo nào. Gõ sai định dạng thì **server không khởi động** (có ghi rõ lý do trong log) — đó là chủ ý. Chạy `npm run migrate -- --dry-run` rồi `--yes-production` nếu muốn có chỉ số `idx_scores_level_created`; thiếu nó chỉ chậm chứ không sai. **Nói với giáo viên hai điều:** điểm cũ **không mất**, nằm ở tab "Mùa 1"; và **đừng so điểm Mùa 1 với Mùa 2** — hai thang khác nhau.
 - [ ] ⚠ **Từ P2-7, bookmark `/admin.html` GIỮ NGUYÊN** nhưng file phía sau nó nay do Vite sinh ra. Máy nào đã cài PWA từ trước sẽ **tự nhận bản mới sau một lần tải lại** — trang admin đã được gỡ khỏi precache của Service Worker (trước P2-7 nó bị đóng băng ở bản thời P0; xem mục Lỗi của P2-7).
 - [ ] ⚠ **Từ P2-5, `npm run migrate` không còn chạy thẳng vào production được nữa** — thiếu `--yes-production` là script dừng và thoát khác 0. Nếu có script/CI nào đang gọi `npm run migrate`, phải cập nhật nó (hoặc đặt `MIGRATE_CONFIRM=yes-production` cho môi trường đó).
 - [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
@@ -852,6 +931,6 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ## 6. Backlog P2+ (ý tưởng mới phát sinh — KHÔNG làm nếu chưa được duyệt)
 
-- **Mâu thuẫn 8–14 câu/ván (cần khách/PO quyết):** plan §4.3 chốt trạm mỗi 25–40s nhưng §8 đòi 8–14 câu/ván 3–6 phút — chu kỳ tối thiểu 37s ⇒ tối đa 9 câu/ván 6 phút. P0 đã chỉnh trong dải đã chốt (25–35s) để chạm cận dưới 8 câu. Muốn 14 câu phải đổi thiết kế: hạ khoảng cách trạm còn ~12–15s, hoặc nới ván lên 8–10 phút. Chi tiết: `docs/v2/P0-ACCEPTANCE.md` §5.
-- **Điểm quãng đường lấn át điểm câu hỏi:** plan §4.4 muốn câu đúng chiếm 80–90% tổng điểm, nhưng ván 5 phút cho ~4.650 điểm quãng đường so với ~1.000 điểm câu hỏi. Cần giảm `pointsPerMeter` hoặc tăng `question.point` ở P1.
+- **⏳ VẪN CHƯA QUYẾT — Mâu thuẫn 8–14 câu/ván (cần khách/PO quyết):** plan §4.3 chốt trạm mỗi 25–40s nhưng §8 đòi 8–14 câu/ván 3–6 phút — chu kỳ tối thiểu 37s ⇒ tối đa 9 câu/ván 6 phút. P0 đã chỉnh trong dải đã chốt (25–35s) để chạm cận dưới 8 câu. Muốn 14 câu phải đổi thiết kế: hạ khoảng cách trạm còn ~12–15s, hoặc nới ván lên 8–10 phút. Chi tiết: `docs/v2/P0-ACCEPTANCE.md` §5. **P2-8 KHÔNG tự quyết việc này** — nó chỉ dùng con số *thực tế đạt được* (8 câu/ván 6 phút) làm đầu vào cho phép đo cân bằng, và không đụng một hằng số nào của §4.3.
+- **✅ ĐÃ GIẢI QUYẾT ở P2-8 — Điểm quãng đường lấn át điểm câu hỏi:** plan §4.4 muốn câu đúng chiếm 80–90% tổng điểm. Tỉ lệ thật đo lại được là **1,6%**, không phải ~18% như hồ sơ P0-13 ghi — phép đo cũ truyền `question.point = 100` trong khi ngân hàng thật chỉ có 10/15/20/25. **Cách giải:** thêm `tuning.scoring.answerPointMultiplier = 300` nhân vào `question.point`; **giữ nguyên** `pointsPerMeter = 1` và `nearMiss.points = 10` (hạ điểm quãng đường mà không hạ near-miss sẽ làm near-miss thành nguồn điểm lớn thứ hai — đo được: 65% ở ván nhiều near-miss, so với 80,4% của cách đã chọn). Kết quả: **82,6%** trên ván điển hình, **khoá lại bằng test tỉ lệ** trong `test/balance.test.js` chứ không khoá từng hằng số rời. Kéo theo: mở **Mùa 2** cho bảng xếp hạng (`LEADERBOARD_SEASON2_START`) và sửa một lỗi thật ở `server/scoreCheck.js`. Chi tiết: mục P2-8.
 - **2 con vật thiếu clip `jump`/`slide`** (Kenney Cube Pets chỉ có idle/walk/run) — hiện fallback sang `run`. P1 có thể dựng thêm clip hoặc đổi sang pack khác.

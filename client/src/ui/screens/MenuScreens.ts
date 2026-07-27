@@ -31,6 +31,7 @@ import { tuning } from "@/tuning";
 import { readRaw, writeRaw } from "@/core/SaveData";
 import type { Screen, ScreenName } from "@/ui/Screens";
 import type { LeaderboardEntry } from "@/integration/questionBank.d";
+import type { LeaderboardPage } from "@/integration/questionBridge";
 
 export const LEVELS = [
 	{ id: "lop6", label: "Lớp 6" },
@@ -722,7 +723,7 @@ export class GameOverScreen implements Screen {
 
 export interface LeaderboardCallbacks {
 	onBack(): void;
-	loadEntries(level: string): Promise<LeaderboardEntry[]>;
+	loadPage(level: string, seasonId?: string): Promise<LeaderboardPage>;
 	getDeviceId(): string | null;
 }
 
@@ -732,8 +733,13 @@ export class LeaderboardScreen implements Screen {
 
 	private readonly listElement: HTMLDivElement;
 	private readonly tabs: HTMLButtonElement[] = [];
+	/** P2-8 — hàng tab mùa. Rỗng (và ẩn) khi server chưa mở mùa nào. */
+	private readonly seasonBar: HTMLDivElement;
+	private readonly seasonNote: HTMLParagraphElement;
 	private readonly callbacks: LeaderboardCallbacks;
 	private level = "lop6";
+	/** `undefined` = để server chọn mùa đang chạy. */
+	private seasonId: string | undefined = undefined;
 
 	constructor(callbacks: LeaderboardCallbacks) {
 		this.callbacks = callbacks;
@@ -758,10 +764,23 @@ export class LeaderboardScreen implements Screen {
 			tabBar.appendChild(tab);
 		}
 
+		this.seasonBar = document.createElement("div");
+		this.seasonBar.className = "tabbar leaderboard__seasons";
+		this.seasonBar.setAttribute("role", "tablist");
+		this.seasonBar.setAttribute("aria-label", "Chọn mùa");
+		this.seasonBar.hidden = true;
+
+		// Dòng chữ này là YÊU CẦU chứ không phải trang trí: sau khi đổi thang điểm,
+		// một bảng không ghi rõ mùa là một bảng nói dối — 30.000 điểm của Mùa 2 và
+		// 4.000 điểm của Mùa 1 nằm cạnh nhau mà không có gì giải thích.
+		this.seasonNote = document.createElement("p");
+		this.seasonNote.className = "leaderboard__season-note";
+		this.seasonNote.hidden = true;
+
 		this.listElement = document.createElement("div");
 		this.listElement.className = "leaderboard__list";
 
-		body.append(tabBar, this.listElement);
+		body.append(tabBar, this.seasonBar, this.seasonNote, this.listElement);
 		actions.appendChild(createButton({ label: "Quay lại", onClick: callbacks.onBack }));
 	}
 
@@ -785,11 +804,48 @@ export class LeaderboardScreen implements Screen {
 		this.listElement.textContent = "Đang tải…";
 
 		try {
-			const entries = await this.callbacks.loadEntries(this.level);
-			this.render(entries);
+			const page = await this.callbacks.loadPage(this.level, this.seasonId);
+			this.renderSeasons(page);
+			this.render(page.entries);
 		} catch {
 			this.listElement.textContent = "Chưa tải được bảng xếp hạng. Em thử lại sau nhé.";
 		}
+	}
+
+	/** Dựng hàng tab mùa + dòng "đang xem mùa nào". */
+	private renderSeasons(page: LeaderboardPage): void {
+		// Một mùa duy nhất ("Tất cả") = chưa tới ngày mở Mùa 2 ⇒ không bày ra khái
+		// niệm "mùa" làm gì cho rối.
+		if (page.season === null || page.seasons.length < 2) {
+			this.seasonBar.hidden = true;
+			this.seasonNote.hidden = true;
+			this.seasonBar.replaceChildren();
+			return;
+		}
+
+		this.seasonBar.hidden = false;
+		this.seasonBar.replaceChildren();
+
+		for (const season of page.seasons) {
+			const tab = createButton({
+				label: season.label,
+				onClick: () => {
+					this.seasonId = season.id;
+					void this.refresh();
+				}
+			});
+			tab.setAttribute("role", "tab");
+			tab.dataset.season = season.id;
+			const selected = season.id === page.season.id;
+			tab.dataset.selected = selected ? "true" : "false";
+			tab.setAttribute("aria-selected", selected ? "true" : "false");
+			this.seasonBar.appendChild(tab);
+		}
+
+		this.seasonNote.hidden = false;
+		this.seasonNote.textContent =
+			`Đang xem ${page.season.label}` +
+			(page.season.description === "" ? "" : ` · ${page.season.description}`);
 	}
 
 	private render(entries: readonly LeaderboardEntry[]): void {
@@ -810,7 +866,9 @@ export class LeaderboardScreen implements Screen {
 			// Huy chương cho top 3 — icon kèm số, không chỉ màu.
 			const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : String(rank);
 
-			if (deviceId !== null && entry.deviceId === deviceId) {
+			// `entry.isMe` do server tính (nó biết `deviceId` từ query). So sánh tay ở
+			// client là đường dự phòng cho bản server cũ chưa gửi field đó.
+			if (entry.isMe === true || (deviceId !== null && entry.deviceId === deviceId)) {
 				row.dataset.self = "true";
 			}
 

@@ -53,6 +53,10 @@ var STATEMENTS = [
 		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
 	")",
 	"CREATE INDEX IF NOT EXISTS idx_scores_level_score ON scores (level, score DESC)",
+	// P2-8: bảng xếp hạng lọc theo mùa = lọc theo `created_at`. Không thêm cột nào —
+	// mốc mùa nằm ở cấu hình (`LEADERBOARD_SEASON2_START`), dữ liệu cũ giữ nguyên
+	// từng dòng và vẫn tra được ở tab "Mùa 1".
+	"CREATE INDEX IF NOT EXISTS idx_scores_level_created ON scores (level, created_at DESC)",
 	// P1-4: điểm nộp KHÔNG kèm vé hợp lệ, hoặc trượt kiểm chéo tính hợp lý, vẫn được
 	// nhận nhưng đánh dấu verified = false. ADD COLUMN IF NOT EXISTS để chạy được
 	// trên CSDL đã có dữ liệu, không cần migration thủ công.

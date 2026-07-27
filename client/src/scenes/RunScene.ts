@@ -13,7 +13,7 @@ import { syncCurvedWorldUniforms } from "@/fx/CurvedWorld";
 import { AssetManager } from "@/core/AssetManager";
 import { Player } from "@/entities/Player";
 import { Spawn, type ObstacleTemplates } from "@/systems/Spawn";
-import { Score } from "@/systems/Score";
+import { answerPointValue, Score } from "@/systems/Score";
 import { Lives } from "@/systems/Lives";
 import { computeRampFactor, SpeedController } from "@/systems/Speed";
 import { findCollision } from "@/systems/Collision";
@@ -451,7 +451,7 @@ export class RunScene implements GameScene {
 				(this.totals.correctByDifficulty[question.difficulty] ?? 0) + 1;
 			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
-			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
+			const gained = this.score.recordAnswer(true, answerPointValue(question.point), this.combo.multiplier);
 			this.score.addCoin(tuning.boss.coinReward);
 			this.bossVisual?.breakShield();
 			context.events.emit("score:changed", { score: this.score.total, delta: gained });
@@ -471,7 +471,7 @@ export class RunScene implements GameScene {
 			willRepeat: this.reviewQueue.has(question.id)
 		});
 		this.combo.registerWrong();
-		this.score.recordAnswer(false, question.point, 1);
+		this.score.recordAnswer(false, answerPointValue(question.point), 1);
 
 		const result = this.lives.takeBossPenalty();
 		context.events.emit("boss:resolved", { result: outcome, livesLeft: this.lives.current });
@@ -657,7 +657,7 @@ export class RunScene implements GameScene {
 
 			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
-			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
+			const gained = this.score.recordAnswer(true, answerPointValue(question.point), this.combo.multiplier);
 			context.events.emit("score:changed", { score: this.score.total, delta: gained });
 			this.gateVisuals[quiz?.layout?.correctLane ?? 1]?.flashCorrect();
 			return;
@@ -675,7 +675,7 @@ export class RunScene implements GameScene {
 			willRepeat: this.reviewQueue.has(question.id)
 		});
 		this.combo.registerWrong();
-		this.score.recordAnswer(false, question.point, 1);
+		this.score.recordAnswer(false, answerPointValue(question.point), 1);
 		this.player?.stumble();
 		this.spawn?.onWrongAnswer();
 		// Cổng đúng lóe xanh để học sinh thấy đáp án đúng ở đâu.

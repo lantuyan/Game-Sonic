@@ -190,6 +190,93 @@ export async function getLeaderboard(level: string): Promise<LeaderboardEntry[]>
 	return [];
 }
 
+// --- Bảng xếp hạng theo mùa (P2-8) -------------------------------------------
+
+export interface LeaderboardSeason {
+	id: string;
+	label: string;
+	description: string;
+	startAt: string | null;
+	endAt: string | null;
+	current: boolean;
+}
+
+export interface LeaderboardPage {
+	entries: LeaderboardEntry[];
+	/** Mùa đang xem. `null` khi server chưa biết mùa (bản cũ) — giao diện ẩn tab. */
+	season: LeaderboardSeason | null;
+	seasons: LeaderboardSeason[];
+}
+
+function toSeason(value: unknown): LeaderboardSeason | null {
+	if (value === null || typeof value !== "object") {
+		return null;
+	}
+
+	const raw = value as Record<string, unknown>;
+
+	if (typeof raw.id !== "string" || typeof raw.label !== "string") {
+		return null;
+	}
+
+	return {
+		id: raw.id,
+		label: raw.label,
+		description: typeof raw.description === "string" ? raw.description : "",
+		startAt: typeof raw.startAt === "string" ? raw.startAt : null,
+		endAt: typeof raw.endAt === "string" ? raw.endAt : null,
+		current: raw.current === true
+	};
+}
+
+/**
+ * Bảng xếp hạng KÈM thông tin mùa.
+ *
+ * Vì sao không đi qua `window.QuestionBank.getLeaderboard`: chữ ký của nó là hợp
+ * đồng §7.3.1 (`getLeaderboard(level)`, không có tham số mùa) và `questionBank.js`
+ * nằm trong danh sách cấm sửa. Nên hàm này gọi thẳng endpoint #3 — vẫn ĐÚNG endpoint
+ * cũ, chỉ thêm tham số `?season=` tuỳ chọn.
+ *
+ * Hỏng mạng / server bản cũ chưa biết mùa → ngã về đúng đường cũ qua QuestionBank
+ * (có sẵn fallback offline của V1) và trả `season: null`, giao diện tự ẩn phần mùa.
+ */
+export async function getLeaderboardPage(level: string, seasonId?: string): Promise<LeaderboardPage> {
+	const deviceId = await getDeviceId();
+
+	try {
+		const query = new URLSearchParams();
+
+		if (deviceId !== null) {
+			query.set("deviceId", deviceId);
+		}
+
+		if (seasonId !== undefined && seasonId !== "") {
+			query.set("season", seasonId);
+		}
+
+		const suffix = query.toString();
+		const response = await fetch(
+			`/api/levels/${encodeURIComponent(level)}/leaderboard${suffix === "" ? "" : `?${suffix}`}`,
+			{ cache: "no-store", credentials: "same-origin" }
+		);
+
+		if (response.ok === false) {
+			throw new Error(`HTTP ${response.status}`);
+		}
+
+		const payload = (await response.json()) as Record<string, unknown>;
+		const rawSeasons = Array.isArray(payload.seasons) ? payload.seasons : [];
+
+		return {
+			entries: Array.isArray(payload.entries) ? (payload.entries as LeaderboardEntry[]) : [],
+			season: toSeason(payload.season),
+			seasons: rawSeasons.map(toSeason).filter((item): item is LeaderboardSeason => item !== null)
+		};
+	} catch {
+		return { entries: await getLeaderboard(level), season: null, seasons: [] };
+	}
+}
+
 export async function getNickname(): Promise<string> {
 	const api = await loadQuestionBank();
 	return api.getNickname() ?? "";
@@ -480,6 +567,7 @@ export function resetBridgeForTests(): void {
 
 export type {
 	AnsweredEntry,
+	LeaderboardEntry,
 	LegacyQuestion,
 	LevelBundle,
 	SessionStats,

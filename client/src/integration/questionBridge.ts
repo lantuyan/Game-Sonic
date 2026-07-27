@@ -205,6 +205,25 @@ export async function getLevelLabels(): Promise<Record<string, string>> {
 }
 
 /**
+ * Mã máy (`endlessrunner-device-id-v1`) — P2-3 cần nó để gọi các route kinh tế.
+ *
+ * Đi qua đây chứ không đọc thẳng localStorage: khoá đó thuộc 5 khoá `-v1` của hợp
+ * đồng (plan §7.3.3) và do `questionBank.js` sở hữu, nên `questionBridge.ts` vẫn
+ * phải là TẦNG DUY NHẤT chạm vào (quy tắc vàng #3). Bản questionBank cũ không có
+ * `getDeviceId` → trả null, và phía gọi bỏ qua đồng bộ thay vì nổ lỗi.
+ */
+export async function getDeviceId(): Promise<string | null> {
+	const api = await loadQuestionBank();
+
+	if (typeof api.getDeviceId !== "function") {
+		return null;
+	}
+
+	const deviceId = api.getDeviceId();
+	return typeof deviceId === "string" && deviceId.trim() !== "" ? deviceId : null;
+}
+
+/**
  * `avgAnswerMs` để cá nhân hóa thời lượng trạm (plan §4.3).
  * Thiếu dữ liệu (ván đầu tiên) → null, phía gọi dùng hệ số 1.0.
  */

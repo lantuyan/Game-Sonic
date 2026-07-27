@@ -95,6 +95,51 @@ var STATEMENTS = [
 		"games_played INTEGER NOT NULL DEFAULT 0," +
 		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
 		"PRIMARY KEY (device_id, level)" +
+	")",
+
+	// --- P2-3 · nền kinh tế server-side --------------------------------------
+	//
+	// `coin_ledger` là SỔ CÁI APPEND-ONLY và là nguồn sự thật DUY NHẤT của số dư.
+	// Không có UPDATE, không có DELETE — mỗi lần xu đổi là một dòng mới. Đây là
+	// điều kiện để trả lời được câu hỏi "vì sao em ấy có 1.240 xu": số dư suy ra
+	// được, còn một cột `balance` bị ghi đè thì không suy ra được gì cả.
+	//
+	// ⚠ CỐ Ý KHÔNG khoá ngoại tới `players`: bản ghi player chỉ sinh ra khi em đó
+	// NỘP ĐIỂM lần đầu, mà xu thì có từ ván đầu tiên. Khoá ngoại ở đây nghĩa là
+	// ván đầu của mọi em đều mất xu — cùng lý do `answer_events` (P1-6) không khoá.
+	"CREATE TABLE IF NOT EXISTS coin_ledger (" +
+		"id BIGSERIAL PRIMARY KEY," +
+		"device_id TEXT NOT NULL," +
+		// Khoá tự nhiên do client sinh. Cùng `ref` gửi lại = KHÔNG có gì xảy ra.
+		"ref TEXT NOT NULL," +
+		"kind TEXT NOT NULL," +
+		// Dương = nhận xu, âm = tiêu xu. BIGINT vì tổng cả đời có thể vượt int32.
+		"amount BIGINT NOT NULL," +
+		"reason TEXT," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
+	// Chống nhân đôi xu ở tầng CSDL, không phải ở tầng ứng dụng: đứt mạng giữa
+	// chừng rồi client gửi lại là chuyện BÌNH THƯỜNG, phải vô hại theo thiết kế.
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_coin_ledger_ref ON coin_ledger (device_id, ref)",
+	"CREATE INDEX IF NOT EXISTS idx_coin_ledger_device ON coin_ledger (device_id, created_at DESC)",
+	// Bộ đệm số dư. KHÔNG bao giờ tính bằng `coins = coins + delta` — luôn tính lại
+	// bằng SUM trên sổ cái trong CÙNG transaction, nên nó không thể trôi khỏi sổ.
+	"CREATE TABLE IF NOT EXISTS wallet (" +
+		"device_id TEXT PRIMARY KEY," +
+		"coins BIGINT NOT NULL DEFAULT 0," +
+		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
+	// Quyền sở hữu (nhân vật P1-3 + ngoại hình P2-2). `source` để giáo viên/admin
+	// phân biệt được món MUA bằng xu với món nhận nhờ mốc thành tích.
+	"CREATE TABLE IF NOT EXISTS unlocks (" +
+		"device_id TEXT NOT NULL," +
+		"item_id TEXT NOT NULL," +
+		"slot TEXT NOT NULL," +
+		"source TEXT NOT NULL," +
+		"paid_coins INTEGER NOT NULL DEFAULT 0," +
+		"ref TEXT," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
+		"PRIMARY KEY (device_id, item_id)" +
 	")"
 ];
 

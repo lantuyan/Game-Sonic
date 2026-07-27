@@ -24,6 +24,7 @@ import {
 	type CosmeticSlot,
 	type CosmeticState
 } from "@/systems/cosmeticRules";
+import { coinLedger } from "@/systems/economyLedger";
 
 export type PurchaseResult =
 	| { ok: true; paidCoins: number }
@@ -125,6 +126,10 @@ export class Unlocks {
 		if (state.status === "claimable") {
 			this.state.unlocked.push(characterId);
 			this.persist();
+			// P2-3 — server GHI NHẬN nguồn `achievement` chứ không thẩm định mốc: Q6
+			// (plan §3) đã chốt tiến trình là local-trust, và giả vờ kiểm được thứ chỉ
+			// tồn tại trên máy người chơi thì tệ hơn là nói thẳng ra.
+			coinLedger()?.recordPurchase(characterId, 0, "achievement");
 			return { ok: true, paidCoins: 0 };
 		}
 
@@ -137,6 +142,9 @@ export class Unlocks {
 		saveWallet({ ...wallet, coins: wallet.coins - rule.price });
 		this.state.unlocked.push(characterId);
 		this.persist();
+		// Báo sổ cái NGAY trong cùng lời gọi đã trừ ví — cùng lý do như việc trừ ví
+		// nằm cùng chỗ với việc mở khoá: không nhánh nào được đi một nửa.
+		coinLedger()?.recordPurchase(characterId, rule.price, "coins");
 		return { ok: true, paidCoins: rule.price };
 	}
 
@@ -224,6 +232,7 @@ export class Unlocks {
 		}
 
 		this.persist();
+		coinLedger()?.recordPurchase(id, item.price, "coins");
 		return { ok: true, paidCoins: item.price };
 	}
 
@@ -248,6 +257,7 @@ export class Unlocks {
 			}
 
 			saveWallet({ ...wallet, coins: wallet.coins - coinCost });
+			coinLedger()?.record("revive", -coinCost, "Hồi sinh");
 		}
 
 		const key = todayKey(now);

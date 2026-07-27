@@ -13,6 +13,8 @@ var createSqlClient = require("./sql").createSqlClient;
 var runToken = require("./runToken");
 var scoreCheck = require("./scoreCheck");
 var statsStoreModule = require("./statsStore");
+var economyStoreModule = require("./economyStore");
+var shopCatalog = require("./shopCatalog");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -34,6 +36,8 @@ function createApp(overrides) {
 	// P1-6 · dashboard giáo viên. Dùng chung SQL client; schema do playerStore áp
 	// (applySchema là idempotent nên không cần điều phối gì thêm).
 	var statsStore = statsStoreModule.createStatsStore({ sql: playerSql });
+	// P2-3 · ví / sổ cái xu / quyền sở hữu. Dùng chung SQL client; schema idempotent.
+	var economyStore = economyStoreModule.createEconomyStore({ sql: playerSql });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -71,6 +75,37 @@ function createApp(overrides) {
 				: "ip:" + (request.ip || "unknown");
 		},
 		message: { error: "Em nộp điểm hơi nhanh, đợi một chút nhé." }
+	});
+
+	// P2-3 · giới hạn tần suất cho các route kinh tế.
+	//
+	// ĐẾM THEO `deviceId` LẤY TỪ ĐƯỜNG DẪN, không theo IP — cùng một lý do đã ghi
+	// dài ở `scoreLimiter`: cả phòng máy trường đi qua một IP sau NAT, đếm theo IP
+	// là 30 em chia nhau một hạn mức. Ở đây `deviceId` nằm trong `req.params` (route
+	// dạng `/api/players/:deviceId/...`), nên keyGenerator đọc params trước, ngã về
+	// body rồi mới tới IP. Có test khoá cả ba nhánh — nếu express đổi thời điểm gán
+	// `req.params` thì phải biết ngay, chứ không phải phát hiện lúc cả lớp bị chặn.
+	//
+	// 60/phút/máy: rộng hơn `scoreLimiter` vì một lần đẩy outbox có thể theo sau
+	// một lần mua và một lần đọc hồ sơ, mà vẫn đủ chặt để chặn vòng lặp bơm xu.
+	var economyLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 60,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		keyGenerator: function (request) {
+			var fromParams = request.params != null ? request.params.deviceId : null;
+			var fromBody = request.body != null ? request.body.deviceId : null;
+			var deviceId = typeof fromParams === "string" && fromParams.trim() !== ""
+				? fromParams
+				: (typeof fromBody === "string" ? fromBody : "");
+
+			return deviceId.trim() !== ""
+				? "device:" + deviceId.trim().slice(0, 64)
+				: "ip:" + (request.ip || "unknown");
+		},
+		message: { error: "Thao tác hơi nhanh, em đợi một chút nhé." }
 	});
 
 	var loginLimiter = rateLimit({
@@ -299,6 +334,70 @@ function createApp(overrides) {
 	app.post("/api/runs/summary", scoreLimiter, async function (request, response, next) {
 		try {
 			response.json(await statsStore.recordRunSummary(request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	// --- Nền kinh tế server-side (P2-3) ---------------------------------------
+	//
+	// 5 route MỚI, không đụng một ký tự nào của 13 route cũ (hợp đồng §7.3.2).
+	//
+	// Không route nào yêu cầu vé ván chơi: `ANTICHEAT_ENFORCE` còn tắt ở production
+	// và chỉ bật sau khi đa số máy lên V2 (Checklist release P1). Bắt vé ở đây là
+	// khoá cửa với đúng những em đang có xu cần di trú.
+
+	/**
+	 * Bảng giá cửa hàng — NGUỒN SỰ THẬT của giá.
+	 *
+	 * Công khai và không rate-limit: nó là dữ liệu tĩnh, không đụng CSDL, và client
+	 * gọi đúng một lần mỗi phiên. Client vẫn giữ bảng giá riêng làm bản dự phòng
+	 * offline (PWA), nhưng số tiền THỰC SỰ bị trừ luôn là con số ở đây.
+	 */
+	app.get("/api/shop/catalog", function (request, response) {
+		response.json({ items: shopCatalog.listCatalog() });
+	});
+
+	app.get("/api/players/:deviceId/profile", economyLimiter, async function (request, response, next) {
+		try {
+			response.json(await economyStore.getProfile(request.params.deviceId));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	/**
+	 * Di trú ví local → server. An toàn khi gọi lại: khoá tự nhiên cố định trong
+	 * `economyStore.MIGRATION_REF` + `ON CONFLICT DO NOTHING`.
+	 */
+	app.post("/api/players/:deviceId/wallet/migrate", economyLimiter, async function (request, response, next) {
+		try {
+			response.json(await economyStore.migrateLocalWallet(request.params.deviceId, request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	/** Một mẻ bút toán (một lần đẩy outbox). Mỗi dòng có kết quả riêng. */
+	app.post("/api/players/:deviceId/wallet/entries", economyLimiter, async function (request, response, next) {
+		try {
+			response.json(await economyStore.recordEntries(request.params.deviceId, request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	/**
+	 * Mua một món. Giá lấy từ `server/shopCatalog.js`, KHÔNG từ body — gửi
+	 * `price: 1` lên đây không có tác dụng gì.
+	 *
+	 * Không đủ xu → 200 với `{ ok: false, reason: "not-enough-coins" }` chứ không
+	 * phải 4xx: đây là câu trả lời bình thường của cửa hàng, không phải lỗi giao
+	 * thức, và client cần đọc được số dư kèm theo để hiển thị.
+	 */
+	app.post("/api/players/:deviceId/purchases", economyLimiter, async function (request, response, next) {
+		try {
+			response.json(await economyStore.purchase(request.params.deviceId, request.body || {}));
 		} catch (error) {
 			next(error);
 		}

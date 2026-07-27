@@ -15,10 +15,23 @@ import {
 	type UnlockProgress,
 	type UnlockState
 } from "@/systems/unlockRules";
+import {
+	defaultCosmeticId,
+	evaluateCosmetic,
+	getCosmetic,
+	ownsCosmetic,
+	resolveEquipped,
+	type CosmeticSlot,
+	type CosmeticState
+} from "@/systems/cosmeticRules";
 
 export type PurchaseResult =
 	| { ok: true; paidCoins: number }
 	| { ok: false; reason: "unknown-character" | "already-unlocked" | "not-enough-coins" };
+
+export type CosmeticPurchaseResult =
+	| { ok: true; paidCoins: number }
+	| { ok: false; reason: "unknown-cosmetic" | "already-owned" | "not-enough-coins" };
 
 export class Unlocks {
 	private state: UnlocksV2;
@@ -127,6 +140,93 @@ export class Unlocks {
 		return { ok: true, paidCoins: rule.price };
 	}
 
+	// --- Ngoại hình: skin + trail (P2-2) --------------------------------------
+	//
+	// Cùng một kỷ luật một-đường-đi như nhân vật: đây là NƠI DUY NHẤT ghi quyền sở
+	// hữu ngoại hình và là nơi duy nhất trừ xu cho nó. Cửa hàng chỉ gọi vào đây.
+
+	get ownedCosmeticIds(): readonly string[] {
+		return this.state.cosmetics;
+	}
+
+	ownsCosmetic(id: string): boolean {
+		return ownsCosmetic(id, this.state.cosmetics);
+	}
+
+	evaluateCosmetic(id: string): CosmeticState {
+		return evaluateCosmetic(id, this.state.cosmetics, loadWallet().coins);
+	}
+
+	/** Id đang trang bị, đã chuẩn hoá (rác/chưa mua → mặc định). */
+	equipped(slot: CosmeticSlot): string {
+		const stored = slot === "skin" ? this.state.equippedSkin : this.state.equippedTrail;
+		return resolveEquipped(slot, stored, this.state.cosmetics);
+	}
+
+	/**
+	 * Trang bị một món. Trả về false khi món không tồn tại, sai ô, hoặc chưa mua —
+	 * mặc đồ chưa mua phải bị chặn Ở ĐÂY, không phải ở tầng UI.
+	 */
+	equip(id: string): boolean {
+		const item = getCosmetic(id);
+
+		if (item === undefined || ownsCosmetic(id, this.state.cosmetics) === false) {
+			return false;
+		}
+
+		if (item.slot === "skin") {
+			this.state.equippedSkin = id;
+		} else {
+			this.state.equippedTrail = id;
+		}
+
+		this.persist();
+		return true;
+	}
+
+	/** Gỡ về mặc định (Nguyên bản / Không vệt). */
+	unequip(slot: CosmeticSlot): void {
+		if (slot === "skin") {
+			this.state.equippedSkin = defaultCosmeticId("skin");
+		} else {
+			this.state.equippedTrail = defaultCosmeticId("trail");
+		}
+
+		this.persist();
+	}
+
+	/** Mua bằng xu. Trừ ví NGAY trong cùng lời gọi, y như `purchase`. */
+	purchaseCosmetic(id: string): CosmeticPurchaseResult {
+		const item = getCosmetic(id);
+
+		if (item === undefined) {
+			return { ok: false, reason: "unknown-cosmetic" };
+		}
+
+		if (ownsCosmetic(id, this.state.cosmetics) === true) {
+			return { ok: false, reason: "already-owned" };
+		}
+
+		const wallet = loadWallet();
+
+		if (wallet.coins < item.price) {
+			return { ok: false, reason: "not-enough-coins" };
+		}
+
+		saveWallet({ ...wallet, coins: wallet.coins - item.price });
+		this.state.cosmetics.push(id);
+		// Mua xong mặc luôn: bắt bấm thêm một nút nữa mới thấy thứ vừa trả tiền là
+		// một bước thừa mà ai cũng phải làm.
+		if (item.slot === "skin") {
+			this.state.equippedSkin = id;
+		} else {
+			this.state.equippedTrail = id;
+		}
+
+		this.persist();
+		return { ok: true, paidCoins: item.price };
+	}
+
 	// --- Hồi sinh (P1-5) ------------------------------------------------------
 
 	/** Số lần hồi sinh đã dùng HÔM NAY. Sang ngày mới tự về 0. */
@@ -162,6 +262,7 @@ export class Unlocks {
 
 	private persist(): void {
 		this.state.signature = signUnlocks(this.state.unlocked);
+		this.state.cosmeticSignature = signUnlocks(this.state.cosmetics);
 		saveUnlocks(this.state);
 	}
 }

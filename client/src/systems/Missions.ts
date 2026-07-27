@@ -12,7 +12,11 @@ import {
 	isMissionComplete,
 	missionDelta,
 	newlyEarnedBadges,
+	nextStreakMilestone,
+	streakMilestoneAt,
+	streakRewardCoins,
 	type BadgeDefinition,
+	type StreakMilestone,
 	type BadgeProgress,
 	type DailyMissions,
 	type MissionDefinition,
@@ -41,8 +45,13 @@ const DEFAULT_STATE: MissionsStateV2 = {
 export interface MissionRunResult {
 	completedMissions: MissionDefinition[];
 	newBadges: BadgeDefinition[];
+	/** Tổng xu trao trong ván này — GỒM cả thưởng mốc chuỗi ngày. */
 	coinsAwarded: number;
 	streakDays: number;
+	/** P2-2 — mốc chuỗi ngày vừa chạm (null = hôm nay không chạm mốc nào). */
+	streakMilestone: StreakMilestone | null;
+	/** Xu riêng của mốc chuỗi ngày, để màn kết thúc nói rõ tiền tới từ đâu. */
+	streakCoins: number;
 }
 
 function yesterdayKey(now: Date): string {
@@ -160,7 +169,15 @@ export class Missions {
 
 		// Chuỗi ngày cập nhật TRƯỚC khi chấm huy hiệu, để huy hiệu "chơi 7 ngày liên
 		// tiếp" được trao ngay trong ván khiến nó đạt mốc.
+		const previousStreakDays = this.state.streak.days;
 		this.state.streak = advanceStreak(this.state.streak, todayKey(now), yesterdayKey(now));
+
+		// P2-2 — thưởng mốc chuỗi ngày. Cộng vào CÙNG biến `coins` để chỉ có đúng
+		// một chỗ chạm ví trong cả hàm: hai lời gọi `saveWallet` là hai cơ hội để
+		// một nhánh ghi đè nhánh kia (`loadWallet` của nhánh sau đọc trước khi nhánh
+		// trước ghi xong thì phần thưởng đầu biến mất).
+		const streakCoins = streakRewardCoins(previousStreakDays, this.state.streak.days);
+		coins += streakCoins;
 
 		const newBadges = newlyEarnedBadges(this.badgeProgress, this.state.earnedBadges);
 
@@ -179,8 +196,15 @@ export class Missions {
 			completedMissions: completed,
 			newBadges,
 			coinsAwarded: coins,
-			streakDays: this.state.streak.days
+			streakDays: this.state.streak.days,
+			streakMilestone: streakCoins > 0 ? streakMilestoneAt(this.state.streak.days) : null,
+			streakCoins
 		};
+	}
+
+	/** Mốc chuỗi ngày kế tiếp — S13 dùng để nói "còn N ngày nữa". */
+	get nextMilestone(): StreakMilestone | null {
+		return nextStreakMilestone(this.state.streak.days);
 	}
 
 	private persist(): void {

@@ -21,7 +21,10 @@ import patternData from "@/data/patterns.json";
 import { QuizGateController } from "@/systems/QuizGate";
 import { BossGateController, type BossOutcome } from "@/systems/BossGate";
 import { pickBossDifficultyIndex, pickBossQuestion } from "@/systems/bossRules";
-import { NearMissTracker } from "@/systems/NearMiss";
+import { NearMissChainTracker, NearMissTracker } from "@/systems/NearMiss";
+import { isWorldRunning, worldSpeedUnitsPerSec } from "@/systems/worldSpeed";
+import { Trail } from "@/fx/Trail";
+import { applySkin } from "@/fx/CharacterSkin";
 import {
 	earnsShield,
 	LearningStatsRecorder,
@@ -65,6 +68,8 @@ export class RunScene implements GameScene {
 	private lighting: WorldLighting | null = null;
 	private context: GameContext | null = null;
 	private player: Player | null = null;
+	/** P2-2 — vệt chạy. Luôn tồn tại; `setCosmetic` quyết định có vẽ hay không. */
+	private readonly trail = new Trail();
 	private removeActionListener: (() => void) | null = null;
 
 	private spawn: Spawn | null = null;
@@ -89,6 +94,8 @@ export class RunScene implements GameScene {
 	private boss: BossGateController | null = null;
 	private bossVisual: BossVisual | null = null;
 	private readonly nearMiss = new NearMissTracker();
+	/** P2-2 — chuỗi near-miss liên tiếp (gãy khi đâm thật). */
+	private readonly nearMissChain = new NearMissChainTracker();
 	/** Câu đã dùng trong ván (cổng lẫn boss) — boss không hỏi lại câu đã gặp. */
 	private readonly usedQuestionIds = new Set<string>();
 	/** Vé một-ván (P1-4). null = không xin được, điểm sẽ ghi `verified = false`. */
@@ -97,7 +104,13 @@ export class RunScene implements GameScene {
 	/** 0 → camera thường, 1 → camera cắt cảnh boss. Trôi mềm qua `boss.cameraDollySec`. */
 	private bossCameraBlend = 0;
 	private bossApproach = 0;
-	/** Phanh thế giới của boss: 1 = chạy bình thường, 0 = đứng im. */
+	/**
+	 * Phanh thế giới của boss (và câu hồi sinh P1-5): 1 = chạy bình thường, 0 = đứng im.
+	 *
+	 * ⚠ CHỦ SỞ HỮU DUY NHẤT của biến này là `updateBoss` / `updateRevival`. Đồng hồ
+	 * chậm (P2-2) là một hệ số NHÂN riêng, hợp thành ở `systems/worldSpeed.ts` —
+	 * xem lý do dài trong file đó.
+	 */
 	private worldSpeedFactor = 1;
 
 	// --- Học tập nâng cao (P1-5) ---
@@ -178,6 +191,10 @@ export class RunScene implements GameScene {
 
 		this.playerAnchor.position.set(0, 0, tuning.world.playerZ);
 		this.scene.add(this.playerAnchor);
+		// Vệt gắn vào anchor (không vào group của player): toạ độ trong `TrailPath`
+		// đã là "x của làn, z lùi về sau", nên nếu gắn vào player thì nó sẽ bị kéo
+		// theo cả lúc đổi làn và đuôi vệt lượn theo — sai hẳn ý nghĩa của vệt.
+		this.trail.attachTo(this.playerAnchor);
 
 		context.quality.onChange((settings) => {
 			context.renderer.applyQuality(settings);
@@ -225,8 +242,38 @@ export class RunScene implements GameScene {
 			this.loadQuiz(context),
 			this.loadBoss()
 		]);
+		// Ngoại hình áp SAU khi mọi model đã nạp xong: con trùm là bản clone của
+		// `robot.glb`, nên nếu nhuộm người chơi trước lúc trùm clone thì trùm nhận
+		// luôn màu skin. Thứ tự này khép hẳn khe đó lại.
+		this.applyCosmetics();
 		this.bindDevCharacterSwap(context);
 		this.positionCamera(0);
+	}
+
+	/** Mặc skin + trail đang trang bị (P2-2). `Unlocks` đã chuẩn hoá id chưa mua. */
+	private applyCosmetics(): void {
+		this.unlocks.reload();
+		// `swapCharacter` gọi `playerAnchor.clear()` nên vệt bị gỡ theo — gắn lại ở
+		// đây thay vì chỉ ở `enter()`. `Object3D.add` cùng cha là thao tác rỗng.
+		this.trail.attachTo(this.playerAnchor);
+		this.trail.setCosmetic(this.unlocks.equipped("trail"));
+
+		const model = this.player?.modelRoot;
+
+		if (model !== undefined) {
+			applySkin(model, this.unlocks.equipped("skin"));
+		}
+	}
+
+	/** Vệt chạy: chỉ ghi vào bộ đệm đã cấp phát sẵn — không cấp phát mỗi frame. */
+	private updateTrail(advanceUnits: number): void {
+		const motion = this.player?.motion;
+
+		if (motion === undefined) {
+			return;
+		}
+
+		this.trail.update(advanceUnits, motion.x, motion.y);
 	}
 
 	/**
@@ -694,7 +741,9 @@ export class RunScene implements GameScene {
 	 * làn an toàn. Giữ được ngân sách draw call và không cần thêm InstancedMesh.
 	 */
 	private updatePowerups(deltaSec: number, advanceUnits: number): void {
-		this.powerups.update(deltaSec);
+		// Đồng hồ chậm tạm dừng khi thế giới đóng băng (modal boss / câu hồi sinh),
+		// nếu không 6 giây quà tặng bốc hơi trong lúc người chơi đang đọc đề.
+		this.powerups.update(deltaSec, isWorldRunning(this.worldSpeedFactor));
 
 		if (this.pendingPowerup !== null) {
 			this.pendingPowerupZ += advanceUnits;
@@ -721,7 +770,7 @@ export class RunScene implements GameScene {
 			return;
 		}
 
-		const kinds: PowerupKind[] = ["magnet", "shield", "doublePoints", "speedBoost"];
+		const kinds: PowerupKind[] = ["magnet", "shield", "doublePoints", "speedBoost", "slowClock"];
 		this.pendingPowerup = kinds[Math.floor(this.quizRandom() * kinds.length)] ?? "magnet";
 		this.pendingPowerupZ = -tuning.world.fogNear;
 		this.scheduleNextPowerup();
@@ -856,6 +905,7 @@ export class RunScene implements GameScene {
 		// Model trong cache dùng chung, phải clone để 2 lần nạp không giẫm lên nhau.
 		this.player = new Player(model.scene.clone(true), model.clips);
 		this.player.attachTo(this.playerAnchor);
+		this.applyCosmetics();
 	}
 
 	private async loadDecor(): Promise<void> {
@@ -903,16 +953,16 @@ export class RunScene implements GameScene {
 	 */
 	get speedUnitsPerSec(): number {
 		// Luyện tập chạy chậm hơn (plan §4.6): mục tiêu là đọc kịp đề, không phải
-		// luyện phản xạ. Tăng tốc (P1-5) nhân thêm trong 6 giây.
-		const practiceFactor = this.practiceMode === true ? tuning.learning.practiceSpeedFactor : 1;
-
-		return (
-			this.speedFactor *
-			tuning.speed.unitsPerSecondAtOne *
-			this.worldSpeedFactor *
-			practiceFactor *
-			this.powerups.speedMultiplier
-		);
+		// luyện phản xạ. Tăng tốc (P1-5) nhân thêm trong 6 giây, Đồng hồ chậm (P2-2)
+		// chia bớt trong 6 giây.
+		return worldSpeedUnitsPerSec({
+			speedFactor: this.speedFactor,
+			unitsPerSecondAtOne: tuning.speed.unitsPerSecondAtOne,
+			brakeFactor: this.worldSpeedFactor,
+			practiceFactor: this.practiceMode === true ? tuning.learning.practiceSpeedFactor : 1,
+			boostFactor: this.powerups.speedMultiplier,
+			slowClockFactor: this.powerups.worldSlowFactor
+		});
 	}
 
 	get distanceM(): number {
@@ -936,7 +986,11 @@ export class RunScene implements GameScene {
 		this.spawn?.setIntensity(computeRampFactor(this.speed.elapsed), this.boss?.stageIndex ?? 0);
 		this.spawn?.update(deltaSec, advance);
 		this.consumeInput();
-		this.player?.update(deltaSec, this.speedFactor);
+		// Nhịp chân phải theo Đồng hồ chậm, nếu không nhân vật sẽ "trượt patin":
+		// cảnh trôi chậm mà chân vẫn guồng như cũ đọc ra là máy giật, không phải quà.
+		// KHÔNG nhân phanh boss vào đây — lúc đóng băng, người chơi vẫn chạy tại chỗ
+		// (hành vi đã có từ P1-1), đó là thứ giữ cho cảnh cắt không thành ảnh tĩnh.
+		this.player?.update(deltaSec, this.speedFactor * this.powerups.worldSlowFactor);
 
 		this.score.setDistance(this.track.distanceM);
 		this.updateRevival(deltaSec);
@@ -945,7 +999,8 @@ export class RunScene implements GameScene {
 		this.updatePowerups(deltaSec, advance);
 		this.applyMagnet(deltaSec);
 		this.checkCollisions();
-		this.checkNearMiss();
+		this.checkNearMiss(deltaSec);
+		this.updateTrail(advance);
 		this.collectCoins();
 		this.publishScore();
 		this.hud?.update(deltaSec);
@@ -990,8 +1045,9 @@ export class RunScene implements GameScene {
 	 * frame này — boss chỉ được xen vào khi cổng Toán đang rảnh, nếu không màn hình
 	 * sẽ có hai đề chồng nhau.
 	 *
-	 * `timeScale` ưu tiên boss > trạm: modal boss đóng băng hẳn thế giới (timeScale 0)
-	 * vì người chơi đang bị chặn đường, không phải đang lái.
+	 * Modal boss đóng băng hẳn CHUYỂN ĐỘNG THẾ GIỚI (phanh `worldSpeedFactor` về 0)
+	 * vì người chơi đang bị chặn đường, không phải đang lái — chứ KHÔNG đụng tới
+	 * `engine.timeScale`, xem cảnh báo ngay dưới đây.
 	 */
 	private updateBoss(deltaSec: number): void {
 		const boss = this.boss;
@@ -1060,8 +1116,8 @@ export class RunScene implements GameScene {
 		}
 	}
 
-	/** Near-miss (P1-1). Chạy SAU `checkCollisions` để cờ `consumed` đã đúng frame này. */
-	private checkNearMiss(): void {
+	/** Near-miss (P1-1, tinh chỉnh P2-2). Chạy SAU `checkCollisions` để cờ `consumed` đã đúng frame này. */
+	private checkNearMiss(deltaSec: number): void {
 		const player = this.player;
 		const spawn = this.spawn;
 		const context = this.context;
@@ -1069,6 +1125,8 @@ export class RunScene implements GameScene {
 		if (player === null || spawn === null || context === null || this.gameOver === true) {
 			return;
 		}
+
+		this.nearMissChain.update(deltaSec);
 
 		const awarded = this.nearMiss.sample(
 			{
@@ -1087,11 +1145,27 @@ export class RunScene implements GameScene {
 			return;
 		}
 
-		const points = tuning.nearMiss.points * awarded;
+		const award = this.nearMissChain.register(
+			awarded,
+			this.nearMiss.lastPerfectCount,
+			tuning.nearMiss.points
+		);
+
+		if (award === null) {
+			return;
+		}
+
 		this.totals.nearMisses += awarded;
-		this.score.addBonus(points);
-		this.audio.play("near-miss");
-		context.events.emit("nearmiss", { points, total: this.score.total });
+		this.score.addBonus(award.points);
+		// Cao độ tăng dần theo chuỗi: tai nghe ra mình đang nối được, không cần đọc HUD.
+		this.audio.play("near-miss", award.pitch);
+		context.events.emit("nearmiss", {
+			points: award.points,
+			total: this.score.total,
+			chain: award.chain,
+			multiplier: award.multiplier,
+			perfect: award.perfect > 0
+		});
 	}
 
 	/** Chạy xuyên cổng = trả lời. Chạy qua làn trống thì KHÔNG tính (plan §4.3). */
@@ -1307,6 +1381,9 @@ export class RunScene implements GameScene {
 		}
 
 		hit.consumed = true;
+		// P2-2 — đâm là gãy chuỗi near-miss, ngay cả khi có khiên đỡ hộ. Chuỗi đo
+		// "lướt sát mà KHÔNG chạm"; khiên cứu được tim chứ không cứu được sự thật.
+		this.nearMissChain.break();
 
 		// LUYỆN TẬP (P1-5): không có tim, va chạm chỉ làm vấp + chậm lại. Mục tiêu
 		// của chế độ này là ôn đề, không phải sống sót.
@@ -1473,6 +1550,7 @@ export class RunScene implements GameScene {
 		this.removeActionListener = null;
 		this.player?.dispose();
 		this.player = null;
+		this.trail.dispose();
 		this.audio.dispose();
 		this.modal?.dispose();
 		this.modal = null;

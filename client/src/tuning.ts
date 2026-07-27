@@ -250,7 +250,57 @@ export const tuning = {
 		movingHalfWidth: 0.9,
 		/** Mép trên rào thấp (nhảy qua) và mép dưới rào cao (trượt lọt). */
 		lowTopY: 0.9,
-		highGapY: 1.05
+		highGapY: 1.05,
+
+		// --- P2-2 · tinh chỉnh -------------------------------------------------
+		/**
+		 * Bậc PERFECT: khoảng hở dưới ngưỡng này thì điểm nhân thêm.
+		 *
+		 * Là bậc THÊM VÀO chứ không thay `thresholdUnits` — plan §4.4 đã chốt
+		 * "<0.4 unit" là near-miss, và đổi con số đó là mở lại quyết định thiết kế
+		 * (quy tắc vàng #1). 0.18 ≈ nửa bề rộng bàn tay so với 0.42 nửa bề rộng
+		 * người chơi: đủ hẹp để phải cố ý mới ăn được.
+		 */
+		perfectUnits: 0.18,
+		perfectMultiplier: 2,
+		/**
+		 * Chuỗi near-miss: đếm số lần lướt sát liên tiếp trong cửa sổ này.
+		 * 3.5s ≈ hai cụm chướng ngại ở tốc độ chuẩn — đủ để nối chuỗi bằng kỹ năng,
+		 * không đủ để ăn may hai lần rời rạc.
+		 */
+		chainWindowSec: 3.5,
+		chainTier1: 3,
+		chainTier1Multiplier: 1.5,
+		chainTier2: 6,
+		chainTier2Multiplier: 2,
+		chainTier3: 10,
+		chainTier3Multiplier: 3,
+		/** Cao độ tiếng "sát nút" tăng dần theo chuỗi, kẹp ở `chainPitchMax`. */
+		chainPitchStep: 0.05,
+		chainPitchMax: 1.45
+	},
+
+	/**
+	 * Ngoại hình mua được (P2-2). Bảng skin/trail (giá, màu) nằm ở
+	 * `systems/cosmeticRules.ts` — ở đây chỉ có hằng số game-feel của phần hình.
+	 */
+	cosmetic: {
+		/**
+		 * Số điểm tối đa của vệt chạy. Cấp phát MỘT LẦN lúc dựng (Float32Array),
+		 * nên con số này là trần bộ nhớ chứ không phải mục tiêu — 48 điểm ×
+		 * `trailSpacingUnits` 0.55 = 26 unit, thừa cho vệt dài 9 unit kể cả lúc
+		 * người chơi lượn zic-zac.
+		 */
+		trailPointCapacity: 48,
+		/** Khoảng cách giữa 2 điểm — đo bằng QUÃNG ĐƯỜNG, không theo thời gian. */
+		trailSpacingUnits: 0.55,
+		/** Vệt dài bao nhiêu unit phía sau player. */
+		trailMaxLengthUnits: 9,
+		/** Nửa bề rộng dải ruy-băng lúc mới sinh; thu nhỏ dần về đuôi. */
+		trailHalfWidth: 0.3,
+		/** Nâng dải khỏi mặt đường một chút để không z-fighting với vạch kẻ. */
+		trailHeightOffset: 0.16,
+		trailOpacity: 0.72
 	},
 
 	scoring: {
@@ -283,7 +333,22 @@ export const tuning = {
 		spawnIntervalMaxSec: 45,
 		/** Bán kính hút coin khi có Magnet / Fever. */
 		magnetRadius: 9,
-		magnetPullSpeed: 26
+		magnetPullSpeed: 26,
+
+		/**
+		 * ĐỒNG HỒ CHẬM (P2-2) — làm chậm THẾ GIỚI, không làm chậm người chơi.
+		 *
+		 * 0.55 chứ không phải 0.3: mục đích là cho thêm thời gian ĐỌC tình huống,
+		 * không phải biến ván thành đi bộ. Ở 0.3 thì nhân vật vẫn chạy animation
+		 * nhanh trong khi cảnh trôi lờ đờ, đọc ra là "game bị lag" chứ không phải
+		 * "mình đang được ưu ái".
+		 *
+		 * ⚠ Đây là hệ số NHÂN riêng (`systems/worldSpeed.ts`), KHÔNG được ghi vào
+		 * `worldSpeedFactor` — biến đó thuộc về phanh Boss Gate / hồi sinh.
+		 * Và tuyệt đối không dùng `engine.timeScale`: timeScale nhỏ/0 treo vòng lặp.
+		 */
+		slowClockSec: 6,
+		slowClockFactor: 0.55
 	},
 
 	spawn: {

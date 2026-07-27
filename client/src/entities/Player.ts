@@ -15,7 +15,7 @@ export class Player {
 	readonly motion = new PlayerMotion();
 
 	private readonly animator: CharacterAnimator;
-	private readonly modelRoot: Object3D;
+	private readonly model: Object3D;
 
 	private invincibleRemainingSec = 0;
 	private blinkPhase = 0;
@@ -32,22 +32,27 @@ export class Player {
 	};
 
 	constructor(model: Object3D, clips: readonly AnimationClip[]) {
-		this.modelRoot = model;
-		CharacterAnimator.normalizeHeight(this.modelRoot);
+		this.model = model;
+		CharacterAnimator.normalizeHeight(this.model);
 
 		// Model quay mặt về phía camera (thế giới chạy tới, player nhìn về -z).
-		this.modelRoot.rotation.y = Math.PI;
+		this.model.rotation.y = Math.PI;
 
-		this.modelRoot.traverse((child) => {
+		this.model.traverse((child) => {
 			child.castShadow = true;
 			child.receiveShadow = false;
 		});
 
-		this.group.add(this.modelRoot);
+		this.group.add(this.model);
 		this.group.name = "player";
 
-		this.animator = new CharacterAnimator(this.modelRoot, clips);
+		this.animator = new CharacterAnimator(this.model, clips);
 		this.animator.play("run");
+	}
+
+	/** Gốc của model — P2-2 nhuộm skin lên đây (`fx/CharacterSkin.ts`). */
+	get modelRoot(): Object3D {
+		return this.model;
 	}
 
 	get pose(): PlayerPose {
@@ -108,9 +113,9 @@ export class Player {
 			this.blinkPhase += deltaSec * tuning.player.invincibleBlinkHz * Math.PI * 2;
 			// Nhấp nháy bằng visible thay vì opacity: không cần material transparent,
 			// nên không phá thứ tự vẽ và không tốn thêm draw call.
-			this.modelRoot.visible = Math.sin(this.blinkPhase) > -0.3;
+			this.model.visible = Math.sin(this.blinkPhase) > -0.3;
 		} else {
-			this.modelRoot.visible = true;
+			this.model.visible = true;
 		}
 
 		if (events.landed === true) {
@@ -152,7 +157,7 @@ export class Player {
 
 	private updateSquash(deltaSec: number): void {
 		if (this.squashRemainingSec <= 0) {
-			this.modelRoot.scale.y = this.modelRoot.scale.x;
+			this.model.scale.y = this.model.scale.x;
 			return;
 		}
 
@@ -162,7 +167,7 @@ export class Player {
 		const progress = 1 - this.squashRemainingSec / tuning.player.landSquashSec;
 		const amount = Math.sin(progress * Math.PI);
 		const squash = 1 - (1 - tuning.player.landSquashScale) * amount;
-		this.modelRoot.scale.y = this.modelRoot.scale.x * squash;
+		this.model.scale.y = this.model.scale.x * squash;
 	}
 
 	private syncTransform(): void {

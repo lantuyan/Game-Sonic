@@ -129,8 +129,15 @@ export class Hud {
 			events.on("biome:changed", ({ label }) => {
 				this.showToast(`Chặng mới: ${label}`, 3);
 			}),
-			events.on("nearmiss", ({ points }) => {
-				this.showNearMiss(points);
+			events.on("nearmiss", ({ points, chain, multiplier, perfect }) => {
+				this.showNearMiss(points, chain, multiplier, perfect);
+			}),
+			// P2-2 — Đồng hồ chậm phải NÓI RA là đang bật, nếu không người chơi chỉ
+			// thấy thế giới chậm lại và tưởng máy giật.
+			events.on("powerup:started", ({ kind, durationSec }) => {
+				if (kind === "slowClock") {
+					this.showToast(`Đồng hồ chậm! Thế giới trôi chậm ${Math.round(durationSec)} giây ⏳`, 2.2);
+				}
 			})
 		);
 	}
@@ -147,8 +154,16 @@ export class Hud {
 		this.bannerElement.classList.add("is-pop");
 	}
 
-	showNearMiss(points: number): void {
-		this.nearMissElement.textContent = `SÁT NÚT! +${points}`;
+	/**
+	 * P2-2 — ba tầng thông tin trong một dòng, đọc được trong 0.8 giây:
+	 * bậc (SÁT NÚT / CỰC SÁT), điểm, và chuỗi nếu đang có. Chuỗi 1–2 KHÔNG hiện
+	 * "×1" — một hệ số không làm gì mà vẫn nhấp nháy chỉ là nhiễu.
+	 */
+	showNearMiss(points: number, chain = 1, multiplier = 1, perfect = false): void {
+		const chainText = multiplier > 1 ? ` · CHUỖI ${chain} ×${multiplier}` : "";
+		this.nearMissElement.textContent = `${perfect ? "CỰC SÁT!" : "SÁT NÚT!"} +${points}${chainText}`;
+		this.nearMissElement.dataset.tier = perfect ? "perfect" : "near";
+		this.nearMissElement.dataset.chain = multiplier > 1 ? "true" : "false";
 		this.nearMissElement.hidden = false;
 		this.nearMissTimer = 0.8;
 		this.nearMissElement.classList.remove("is-pop");

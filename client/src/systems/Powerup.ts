@@ -9,8 +9,11 @@
 
 import { tuning } from "@/tuning";
 
-/** P1-5 thêm `speedBoost` — chạy nhanh hơn 6 giây, đổi lại khó né hơn. */
-export type PowerupKind = "magnet" | "shield" | "doublePoints" | "speedBoost";
+/**
+ * P1-5 thêm `speedBoost` — chạy nhanh hơn 6 giây, đổi lại khó né hơn.
+ * P2-2 thêm `slowClock` — Đồng hồ chậm: thế giới trôi chậm lại 6 giây.
+ */
+export type PowerupKind = "magnet" | "shield" | "doublePoints" | "speedBoost" | "slowClock";
 
 export interface PowerupState {
 	kind: PowerupKind;
@@ -25,7 +28,28 @@ const DURATIONS: Record<PowerupKind, number> = {
 	magnet: tuning.powerup.magnetSec,
 	shield: 0,
 	doublePoints: tuning.powerup.doublePointsSec,
-	speedBoost: tuning.learning.speedBoostSec
+	speedBoost: tuning.learning.speedBoostSec,
+	slowClock: tuning.powerup.slowClockSec
+};
+
+/**
+ * Power-up nào đếm giờ theo THẾ GIỚI thay vì theo đồng hồ thật (P2-2).
+ *
+ * Chỉ Đồng hồ chậm. Lý do hẹp và cụ thể: giá trị của nó đo bằng quãng đường mà
+ * người chơi được đi chậm lại. Nếu nó vẫn hao trong lúc thế giới bị ĐÓNG BĂNG
+ * (modal của Boss Gate, câu hồi sinh — cả hai kéo 10–25 giây) thì món quà 6 giây
+ * bốc hơi sạch trong lúc người chơi đang đọc đề, và bên ngoài nhìn vào chỉ thấy
+ * "nhặt được cái gì đó rồi chẳng thấy gì xảy ra".
+ *
+ * Magnet/×2 điểm/Tăng tốc GIỮ NGUYÊN cách đếm cũ: đổi chúng là đổi cân bằng của
+ * P0-8/P1-5 mà task này không được phép mở lại.
+ */
+const WORLD_TIME_KINDS: Record<PowerupKind, boolean> = {
+	magnet: false,
+	shield: false,
+	doublePoints: false,
+	speedBoost: false,
+	slowClock: true
 };
 
 export class Powerups {
@@ -104,6 +128,21 @@ export class Powerups {
 		return this.isActive("speedBoost") === true ? tuning.learning.speedBoostFactor : 1;
 	}
 
+	/**
+	 * Hệ số làm chậm THẾ GIỚI do Đồng hồ chậm (P2-2).
+	 *
+	 * Trả về 1 khi không bật. KHÔNG BAO GIỜ trả 0: thế giới đứng im là việc của
+	 * phanh Boss Gate, và một power-up thì không được có quyền đó.
+	 */
+	get worldSlowFactor(): number {
+		if (this.isActive("slowClock") === false) {
+			return 1;
+		}
+
+		// Kẹp lại phòng khi `?debug` chỉnh tay xuống 0 — vẫn phải chạy được.
+		return Math.min(Math.max(tuning.powerup.slowClockFactor, 0.1), 1);
+	}
+
 	/** Bán kính hút coin: 0 khi không có Magnet và không Fever. */
 	magnetRadius(feverActive: boolean): number {
 		if (this.isActive("magnet") === true || feverActive === true) {
@@ -113,8 +152,17 @@ export class Powerups {
 		return 0;
 	}
 
-	update(deltaSec: number): void {
+	/**
+	 * @param worldRunning thế giới có đang thật sự chuyển động không. `false` thì
+	 *   những power-up đếm theo thế giới (xem `WORLD_TIME_KINDS`) tạm dừng đồng hồ.
+	 *   Mặc định `true` để mọi lời gọi cũ giữ nguyên hành vi.
+	 */
+	update(deltaSec: number, worldRunning = true): void {
 		for (const [kind, remaining] of this.timers) {
+			if (worldRunning === false && WORLD_TIME_KINDS[kind] === true) {
+				continue;
+			}
+
 			const next = Math.max(remaining - deltaSec, 0);
 
 			if (next === 0) {
@@ -143,4 +191,4 @@ export class Powerups {
 	}
 }
 
-export { DURATIONS as POWERUP_DURATIONS };
+export { DURATIONS as POWERUP_DURATIONS, WORLD_TIME_KINDS as POWERUP_WORLD_TIME_KINDS };

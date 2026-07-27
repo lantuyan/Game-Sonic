@@ -382,7 +382,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 | # | Gói | Ước lượng | Ghi chú |
 |---|---|---|---|
 | [x] P2-1 | Biome ④ Không gian (hoặc Đền cổ) + chướng ngại di động + pattern tổ hợp khó | 3 | Quaternius Space Kit / KayKit Dungeon — *đặc tả chi tiết ngay dưới bảng* |
-| [ ] P2-2 | Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao | 2 | |
+| [x] P2-2 | Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao | 2 | *đặc tả chi tiết ngay dưới P2-1* |
 | [ ] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) |
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
 | [ ] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư |
@@ -434,6 +434,64 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 **Lỗi THẬT phát hiện khi làm task này (không do P2-1 gây ra):** `Spawn`/`Track` dựng InstancedMesh từ **mesh đầu tiên** tìm được trong GLB (`firstMesh`), nên prop nhiều mesh mất lặng lẽ các phần còn lại — hộp quà chặn làn của biome ③ mất dải ruy-băng, chiếc thuyền của biome ② mất một phần. Không lỗi console, không cảnh báo, chỉ là thiếu. Đã thêm bước `flatten() + join()` vào `assets:build` (mọi kit Kenney dùng chung một atlas `colormap` nên gộp sạch) và test canh MỌI model biome có đúng một mesh.
 
 **Chưa nghiệm thu được ở môi trường này:** xem chiếc tàu bay trôi ngang ở TẦM GẦN. Sandbox treo `requestAnimationFrame` ở ~1 fps (hạn chế đã ghi từ P0-13), mà chu kỳ "thung lũng nghỉ" lại đếm bằng giây nên thực tế phải chờ hàng phút mới có một cụm chướng ngại. Đã kiểm được: biome ④ dựng đúng (trời tím, đất đỏ, vạch kẻ xanh lơ, **52 draw call / 100**, 53–70k tam giác), `movingObstacles:1` hiện trong panel `?debug`, console sạch. Máy thật: mở `/?debug&biome=3`.
+
+---
+
+### [x] P2-2 · Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao — *2 ngày*
+
+**Mục tiêu:** bốn việc nhỏ nhưng đụng vào bốn hệ đã có (Shop/Unlocks, PowerUps, NearMiss, Missions). Ràng buộc bao trùm: **không thêm một byte asset nào** — sau P2-1 ngân sách initial đã ở 6.24 MB / 10 MB và còn 5 gói P2 chưa làm.
+
+**Việc cần làm:**
+- [x] **Skin nhân vật** — biến thể ngoại hình dùng chung cho MỌI nhân vật, làm bằng **đổi màu/vật liệu** (tint + emissive trên material đã clone), KHÔNG tải model mới. Nối vào hệ Shop/Unlocks P1-3: mua bằng xu, `Unlocks` là nơi duy nhất ghi quyền sở hữu.
+- [x] **Trail (vệt chạy)** — dải ruy-băng phía sau nhân vật. Hình học **cấp phát sẵn một lần** (BufferGeometry + Float32Array cố định, `setDrawRange`); đường nóng chỉ được ghi vào mảng có sẵn — quy tắc vàng #6.
+- [x] **Cửa hàng 2 tab** — S12 tách "Nhân vật" / "Ngoại hình"; màn Ngoại hình chọn và **trang bị** skin + trail, có mục "Mặc định" miễn phí để luôn gỡ ra được.
+- [x] **Đồng hồ chậm** — power-up thứ 5 (`slowClock`), làm chậm THẾ GIỚI vài giây. Dùng đúng cơ chế phanh riêng của Boss Gate/hồi sinh, **cấm `engine.timeScale` nhỏ hoặc bằng 0**. Phanh boss và đồng hồ chậm là HAI biến khác nhau, hợp thành bằng phép nhân trong một hàm thuần có test.
+- [x] **Near-miss tinh chỉnh** — thêm bậc `PERFECT` (khoảng hở rất nhỏ, điểm nhân thêm), chuỗi liên tiếp trong cửa sổ thời gian (×1.5 / ×2 / ×3), phản hồi thị giác (HUD đổi bậc + hiện chuỗi) và âm thanh (cao độ tăng dần theo chuỗi). Đâm một cái là gãy chuỗi.
+- [x] **Daily streak nâng cao** — mốc thưởng xu theo ngày (2/3/5/7), `Missions` là nơi duy nhất trao xu; hiển thị dải 7 ngày + mốc kế tiếp ở S13, và số ngày ở S2 Home.
+- [x] Mọi hằng số game-feel mới vào `client/src/tuning.ts`; bảng ngoại hình (giá, màu) ở `systems/cosmeticRules.ts` cùng khuôn với `systems/unlockRules.ts`.
+- [x] Unit test cho **mọi logic thuần**: giá/sở hữu/trang bị ngoại hình, hợp thành phanh thế giới, chuỗi near-miss, mốc streak, bộ đệm điểm của trail.
+
+**File đích:** `client/src/systems/cosmeticRules.ts` (mới) · `client/src/systems/worldSpeed.ts` (mới) · `client/src/fx/trailPath.ts` (mới) · `client/src/fx/Trail.ts` (mới) · `client/src/fx/CharacterSkin.ts` (mới) · `client/src/systems/Unlocks.ts` · `client/src/systems/Powerup.ts` · `client/src/systems/NearMiss.ts` · `client/src/systems/missionRules.ts` · `client/src/systems/Missions.ts` · `client/src/core/SaveData.ts` · `client/src/scenes/RunScene.ts` · `client/src/entities/Player.ts` · `client/src/ui/Hud.ts` · `client/src/ui/screens/MenuScreens.ts` · `client/src/ui/ui-tokens.css` · `client/src/core/GameContext.ts` · `client/src/core/AudioManager.ts` · `client/src/App.ts` · `client/src/tuning.ts` · `test/cosmetics.test.js` (mới) · `test/nearmiss.test.js` · `test/missions.test.js`
+
+**Phụ thuộc:** P0-8 (PowerUps), P1-1 (near-miss + phanh `worldSpeedFactor`), P1-3 (Shop/Unlocks), P1-8 (Missions/streak).
+
+**Tham chiếu:** plan §4.4 (power-up, near-miss, streak), §5.1–5.2 (S12 cửa hàng, juice), §6.3 (ngân sách).
+
+**Tiêu chí nghiệm thu (DoD):**
+1. Skin/trail mua được bằng xu, trang bị/gỡ được; đóng mở lại trình duyệt vẫn giữ; **`Unlocks` là nơi duy nhất** ghi quyền sở hữu và trừ xu (test đọc mã nguồn canh không có `saveWallet` thứ hai).
+2. Sửa tay localStorage để "sở hữu" ngoại hình chưa mua → bị chữ ký bắt và bỏ qua, đúng như danh sách nhân vật của P1-3.
+3. Không thêm file asset nào; ngân sách initial **không tăng quá 20 KB** so với 6.24 MB, vẫn ≤10 MB; trail tốn đúng 1 draw call và chỉ khi có trang bị.
+4. Trail không cấp phát trong game loop: test đọc mã nguồn canh `TrailPath.push/advance` và `Trail.update` không có `new`/`[]`/`{}`.
+5. Đồng hồ chậm KHÔNG bao giờ ghi vào phanh của Boss Gate; `worldSpeedUnitsPerSec` là hàm thuần, có test khoá: phanh boss 0 → 0 dù đồng hồ chậm bật, và đồng hồ chậm một mình **không bao giờ cho ra 0** (thế giới không được đứng im).
+6. Đồng hồ chậm KHÔNG bị hao khi thế giới đang đóng băng (modal boss / câu hồi sinh) — nếu không thì 6 giây quà tặng bốc hơi trong lúc người chơi đang đọc đề.
+7. Near-miss: chuỗi cộng đúng bậc, hết cửa sổ thì về 0, va chạm làm gãy chuỗi ngay; bậc `PERFECT` chỉ ăn khi khoảng hở dưới ngưỡng hẹp; **mọi test P1-1 cũ vẫn xanh nguyên** (đâm thật vẫn 0 thưởng).
+8. Streak: đúng mốc 2/3/5/7 mới trả xu, mỗi mốc **một lần cho mỗi chuỗi**, chơi nhiều ván trong ngày không trả thêm; chạm trần 7 rồi chơi tiếp KHÔNG trả lại thưởng ngày 7 (không có vòng lặp cày xu). Gãy chuỗi vẫn không bị phạt gì.
+9. S13 hiện dải 7 ngày, đánh dấu ngày đã qua và mốc thưởng, nói rõ mốc kế tiếp; S2 Home hiện số ngày.
+10. `npm run ci` xanh toàn bộ, không lỗi console ở happy path.
+
+**Đã làm (nhánh `v2/p2-02-cosmetics`):** 4 skin + 4 trail bán trong tab "Ngoại hình" của S12 (`systems/cosmeticRules.ts` thuần + `Unlocks` giữ quyền sở hữu, chữ ký riêng), vệt chạy `fx/trailPath.ts` (bộ đệm cấp phát sẵn) + `fx/Trail.ts` (1 draw call), power-up thứ năm **Đồng hồ chậm** hợp thành qua `systems/worldSpeed.ts`, near-miss thêm bậc **CỰC SÁT** và **chuỗi ×1.5/×2/×3**, chuỗi ngày có **mốc thưởng 2/3/5/7** hiển thị bằng dải 7 ngày ở S13 và số ngày ở S2. **39 test mới** (`test/cosmetics.test.js` 24, `test/nearmiss.test.js` +9, `test/missions.test.js` +6), `npm run ci` **336/336**, ngân sách **6.25 MB / 10 MB** (+0.01 MB, không thêm file asset nào).
+
+**Quyết định đáng nêu:**
+· **Skin là TINT, không phải model.** Bốn skin bằng model là ~+2 MB cho thứ thuần trang trí, trong khi cái người chơi thật sự nhìn thấy ở nhân vật cao 1.75 unit chạy 15 unit/s là MÀU. Tint NHÂN với màu gốc chứ không thay hẳn, nên áo giáp sáng và dây lưng tối vẫn giữ tương phản thay vì bôi thành một khối màu.
+· **Skin thuộc về NGƯỜI CHƠI, không khoá theo nhân vật.** Mua "Ánh vàng" rồi đổi sang Vẹt mà mất skin thì cảm giác là bị lừa.
+· **Đồng hồ chậm là hệ số NHÂN riêng, không ghi vào `worldSpeedFactor`.** Phanh Boss Gate ĐẶT giá trị tuyệt đối mỗi frame; nếu Đồng hồ chậm cũng ghi vào đó thì hoặc boss lerp đè lên (hiệu ứng biến mất), hoặc lúc hết giờ nó đặt lại 1 giữa khi modal boss còn mở (thế giới lao đi sau lưng đề bài). Hợp thành nằm ở `systems/worldSpeed.ts` — hàm thuần, có test khoá cả hai chiều.
+· **Đồng hồ chậm TẠM DỪNG khi thế giới đóng băng.** Modal boss kéo 12–25 giây, câu hồi sinh 10 giây; nếu đồng hồ vẫn hao thì 6 giây quà tặng bốc hơi trong lúc người chơi đang đọc đề và bên ngoài chỉ thấy "nhặt được gì đó rồi chẳng có gì xảy ra". Cơ chế viết tổng quát (`POWERUP_WORLD_TIME_KINDS`) nhưng CHỈ bật cho `slowClock` — Magnet/×2/Tăng tốc giữ nguyên cách đếm để không mở lại cân bằng P0-8/P1-5.
+· **Nhịp chân theo Đồng hồ chậm, nhưng KHÔNG theo phanh boss.** Cảnh trôi chậm mà chân guồng như cũ đọc ra là máy giật; còn lúc boss đóng băng thì người chơi vẫn chạy tại chỗ (hành vi từ P1-1) — đó là thứ giữ cho cắt cảnh không thành ảnh tĩnh.
+· **Ngưỡng near-miss 0.4 GIỮ NGUYÊN** (plan §4.4 đã chốt). "Tinh chỉnh" làm bằng cách THÊM một bậc hẹp hơn bên trong (`perfectUnits` 0.18, ×2 điểm) và một trục mới là chuỗi liên tiếp — cộng thêm chứ không sửa quyết định thiết kế. Chuỗi gãy khi đâm, **kể cả khi khiên đỡ hộ**: khiên cứu tim chứ không cứu sự thật "đã chạm".
+· **Mốc streak dừng ở trần 7 của P1-8.** Thêm mốc ngày 30 là ép trẻ con đi học đủ tháng — đúng thứ mà ghi chú "KHÔNG phạt khi gãy chuỗi" của P1-8 muốn tránh. Hệ quả cần thiết: chạm trần thì `days` không tăng nên không mốc nào trả lần hai — **không có vòng lặp cày xu**, có test khoá.
+· **Giá ngoại hình (120–250) thấp hơn nhân vật rẻ nhất (300)**, có test canh: trang trí không được cạnh tranh với việc mở một bạn chạy mới. Tổng thưởng trọn tuần là 350 xu — đủ mua món ngoại hình đắt nhất, chưa đủ mua nhân vật chỉ bằng cách điểm danh.
+· **Chữ ký ngoại hình TÁCH khỏi chữ ký nhân vật.** Gộp chung là mọi bản lưu đã có từ P1-3 thành "sai chữ ký" và cả lớp mất sạch nhân vật đã mua ngay trong lần cập nhật.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· Task ghi "skin/trail nhân vật"; ở đây skin **dùng chung cho cả 7 nhân vật** thay vì mỗi nhân vật một bộ riêng — lý do ở mục quyết định trên, và nó cũng là cách duy nhất giữ được ràng buộc 0 byte asset.
+· Không thêm khoá localStorage mới: ngoại hình lưu chung `endlessrunner-unlocks-v2`, đúng tiền lệ P1-5 đã đặt cho số lần hồi sinh ("một khoá ít hơn là một chỗ ít hỏng hơn"). Vẫn đúng quy tắc vàng #2 vì không đụng 5 khoá `-v1`.
+
+**Lỗi THẬT phát hiện khi làm task này:**
+· **(do P2-2 gây ra, đã sửa)** Dải ruy-băng của vệt chạy nằm ngang trong mặt phẳng XZ và thứ tự đỉnh cho pháp tuyến hướng XUỐNG, nên với `FrontSide` mặc định camera (ở trên) chỉ thấy mặt sau và bị back-face cull. Không lỗi console, không cảnh báo — vệt đơn giản là không tồn tại. Chỉ phát hiện được bằng cách mở game ra nhìn. Đã đặt `side: DoubleSide` và thêm test đọc mã nguồn canh.
+· **(có sẵn, đã sửa)** Chú thích của `RunScene.updateBoss` và `BossGate.isFrozen` vẫn ghi "đóng băng thế giới (timeScale = 0)" trong khi code ngay dưới nó cảnh báo đúng điều ngược lại và dùng `worldSpeedFactor`. Chú thích sai ở đúng chỗ nguy hiểm nhất là lời mời cho người sau đi vào bẫy treo vòng lặp; đã sửa cả hai.
+· **(có sẵn, KHÔNG sửa)** `RunScene.loadPlayer` dùng thẳng `model.scene` từ cache `AssetManager` trong khi `swapCharacter` lại `clone(true)` — hai đường nạp cùng một nhân vật không giống nhau. Không sửa vì `clone(true)` trên `SkinnedMesh` không rebind skeleton một cách đáng tin, mà đường chính đang chạy tốt; P2-2 chỉ né hệ quả bằng cách cấp material riêng theo CHỦ (`fx/CharacterSkin.ts` — người chơi và con trùm có thể cùng là `robot.glb`) và áp skin SAU khi mọi model đã nạp xong.
+
+**Chưa nghiệm thu được ở môi trường này:** cảm giác thật của Đồng hồ chậm và của chuỗi near-miss. Sandbox treo `requestAnimationFrame` ở ~1 fps (hạn chế đã ghi từ P0-13), mà power-up spawn mỗi 30–45 giây và chuỗi near-miss cần né liên tiếp trong 3.5 giây — không dựng lại được bằng tay. Đã kiểm trực tiếp trên trang: mua skin/trail trong S12 (xu 5000 → 4850 → 4600, hàng đổi sang "Đang mặc"), nhân vật vào ván **đúng màu vàng**, vệt cầu vồng hiện sau lưng, **56 draw call / 100** (55 khi không có vệt), S13 vẽ đủ dải 7 ngày + mốc, S2 hiện "Chuỗi 5 ngày", console sạch. Máy thật: mở `/?debug`, mua ở Cửa hàng → tab Ngoại hình.
 
 ---
 

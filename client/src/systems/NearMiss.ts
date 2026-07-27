@@ -95,6 +95,13 @@ function overlapsZ(player: NearMissPlayer, band: NearMissBand): boolean {
 }
 
 export class NearMissTracker {
+	/** Số near-miss bậc PERFECT trong lần `sample()` gần nhất (P2-2). */
+	private perfectInLastSample = 0;
+
+	get lastPerfectCount(): number {
+		return this.perfectInLastSample;
+	}
+
 	/**
 	 * Đo một frame. Trả về SỐ near-miss vừa chốt trong frame này (thường 0 hoặc 1;
 	 * cụm 2 chướng ngại song song có thể cho 2).
@@ -102,6 +109,8 @@ export class NearMissTracker {
 	 * Gọi SAU `findCollision` trong cùng frame để cờ `consumed` đã đúng.
 	 */
 	sample(player: NearMissPlayer, bands: readonly NearMissBand[]): number {
+		this.perfectInLastSample = 0;
+
 		if (tuning.nearMiss.enabled !== 1) {
 			return 0;
 		}
@@ -138,6 +147,10 @@ export class NearMissTracker {
 
 			if (band.nearMissMin >= 0 && band.nearMissMin < tuning.nearMiss.thresholdUnits) {
 				awarded += 1;
+
+				if (band.nearMissMin < tuning.nearMiss.perfectUnits) {
+					this.perfectInLastSample += 1;
+				}
 			}
 		}
 
@@ -149,4 +162,122 @@ export class NearMissTracker {
 export function resetNearMiss(band: NearMissBand): void {
 	band.nearMissMin = Number.POSITIVE_INFINITY;
 	band.nearMissAwarded = false;
+}
+
+// --- Chuỗi near-miss (P2-2) --------------------------------------------------
+
+/**
+ * Hệ số nhân điểm theo độ dài chuỗi. Bậc thang chứ không tăng đều: người chơi
+ * phải CẢM được lúc lên bậc, và một đường cong liên tục thì không ai cảm thấy gì.
+ */
+export function chainMultiplier(chain: number): number {
+	if (chain >= tuning.nearMiss.chainTier3) {
+		return tuning.nearMiss.chainTier3Multiplier;
+	}
+
+	if (chain >= tuning.nearMiss.chainTier2) {
+		return tuning.nearMiss.chainTier2Multiplier;
+	}
+
+	if (chain >= tuning.nearMiss.chainTier1) {
+		return tuning.nearMiss.chainTier1Multiplier;
+	}
+
+	return 1;
+}
+
+/** Cao độ tiếng "sát nút" — tăng dần theo chuỗi để tai nghe ra mình đang nối. */
+export function chainPitch(chain: number): number {
+	const raised = 1 + Math.max(chain - 1, 0) * tuning.nearMiss.chainPitchStep;
+	return Math.min(raised, tuning.nearMiss.chainPitchMax);
+}
+
+export interface NearMissAward {
+	/** Số near-miss vừa chốt trong frame này. */
+	count: number;
+	/** Trong đó bao nhiêu cái đạt bậc PERFECT. */
+	perfect: number;
+	/** Độ dài chuỗi SAU khi cộng. */
+	chain: number;
+	multiplier: number;
+	/** Điểm đã cộng (đã làm tròn). */
+	points: number;
+	pitch: number;
+}
+
+/**
+ * Đếm chuỗi near-miss liên tiếp.
+ *
+ * Luật:
+ *   · mỗi near-miss nối chuỗi và làm mới cửa sổ `chainWindowSec`;
+ *   · hết cửa sổ mà không có cái nào → chuỗi về 0 (không phạt, chỉ là hết);
+ *   · VA CHẠM THẬT → gãy ngay lập tức. Đây là điều làm chuỗi có ý nghĩa: phần
+ *     thưởng lớn nhất của trò chơi này chỉ tới với người dám lướt sát mà KHÔNG đâm.
+ *
+ * Thuần số học, không cấp phát trong `update` — object trả về chỉ sinh ở đúng
+ * frame có thưởng (hiếm), không phải mỗi frame.
+ */
+export class NearMissChainTracker {
+	private chain = 0;
+	private windowRemainingSec = 0;
+
+	get current(): number {
+		return this.chain;
+	}
+
+	get remainingSec(): number {
+		return this.windowRemainingSec;
+	}
+
+	reset(): void {
+		this.chain = 0;
+		this.windowRemainingSec = 0;
+	}
+
+	/** Gãy chuỗi vì đâm chướng ngại. */
+	break(): void {
+		this.reset();
+	}
+
+	update(deltaSec: number): void {
+		if (this.windowRemainingSec <= 0) {
+			return;
+		}
+
+		this.windowRemainingSec -= deltaSec;
+
+		if (this.windowRemainingSec <= 0) {
+			this.chain = 0;
+			this.windowRemainingSec = 0;
+		}
+	}
+
+	/**
+	 * Cộng `count` near-miss vừa chốt (trong đó `perfect` cái đạt bậc PERFECT).
+	 *
+	 * Hệ số nhân lấy theo chuỗi SAU khi cộng, và bậc PERFECT nhân thêm cho đúng
+	 * số cái đạt bậc chứ không cho cả cụm — hai chướng ngại chốt cùng frame thì
+	 * cái lướt sát hơn mới được nhân.
+	 */
+	register(count: number, perfect: number, basePoints: number): NearMissAward | null {
+		if (count <= 0) {
+			return null;
+		}
+
+		const perfectCount = Math.min(Math.max(perfect, 0), count);
+		this.chain += count;
+		this.windowRemainingSec = tuning.nearMiss.chainWindowSec;
+
+		const multiplier = chainMultiplier(this.chain);
+		const weighted = count - perfectCount + perfectCount * tuning.nearMiss.perfectMultiplier;
+
+		return {
+			count,
+			perfect: perfectCount,
+			chain: this.chain,
+			multiplier,
+			points: Math.round(basePoints * weighted * multiplier),
+			pitch: chainPitch(this.chain)
+		};
+	}
 }

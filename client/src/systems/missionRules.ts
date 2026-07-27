@@ -286,3 +286,69 @@ export function advanceStreak(state: StreakState, todayKey: string, yesterdayKey
 
 	return { lastDate: todayKey, days: 1 };
 }
+
+// --- Mốc thưởng theo chuỗi ngày (P2-2) ---------------------------------------
+
+export interface StreakMilestone {
+	day: number;
+	coins: number;
+	label: string;
+}
+
+/**
+ * Mốc thưởng xu theo ngày thứ mấy của chuỗi.
+ *
+ * Đường cong CỐ Ý dốc về cuối (20 → 40 → 90 → 200): ngày 2 chỉ cần đủ để người
+ * chơi phát hiện ra "à, quay lại có quà", còn ngày 7 phải đáng để nhớ. Tổng một
+ * chuỗi trọn vẹn là 350 xu — hơn món ngoại hình đắt nhất (250, xem
+ * `systems/cosmeticRules.ts`), nên bảy ngày đi học đều đổi được một thứ NHÌN THẤY
+ * ĐƯỢC, mà vẫn chưa đủ mua một bạn chạy mới (300 trở lên) chỉ bằng cách điểm danh.
+ *
+ * KHÔNG có mốc nào vượt quá `tuning.missions.streakCapDays` (7). Trần đó là quyết
+ * định thiết kế của P1-8 ("không biến việc nghỉ một hôm thành mất mát lớn") và
+ * task này không mở lại nó — thêm mốc ngày 30 là ép trẻ con đi học đủ tháng.
+ * Hệ quả cần thiết: chạm trần rồi thì `days` không tăng nữa nên không mốc nào
+ * trả lại lần hai — không có vòng lặp cày xu.
+ */
+export const STREAK_MILESTONES: readonly StreakMilestone[] = [
+	{ day: 2, coins: 20, label: "Ngày thứ 2 liên tiếp" },
+	{ day: 3, coins: 40, label: "Ngày thứ 3 liên tiếp" },
+	{ day: 5, coins: 90, label: "Ngày thứ 5 liên tiếp" },
+	{ day: 7, coins: 200, label: "Trọn tuần chăm chỉ" }
+];
+
+/** Mốc rơi ĐÚNG vào ngày này (null = ngày không có mốc). */
+export function streakMilestoneAt(day: number): StreakMilestone | null {
+	return STREAK_MILESTONES.find((milestone) => milestone.day === day) ?? null;
+}
+
+/** Mốc kế tiếp để hiển thị "còn N ngày nữa" (null = đã lấy hết). */
+export function nextStreakMilestone(day: number): StreakMilestone | null {
+	return STREAK_MILESTONES.find((milestone) => milestone.day > day) ?? null;
+}
+
+/**
+ * Thưởng khi chuỗi ngày đi từ `previousDays` lên `currentDays`.
+ *
+ * Nhận CẢ HAI đầu chứ không chỉ ngày hiện tại, vì đó là chỗ duy nhất phân biệt
+ * được "hôm nay vừa lên ngày 3" với "hôm nay chơi ván thứ tư trong ngày 3".
+ * Chuỗi tụt (gãy rồi bắt đầu lại) trả 0 — không phạt, cũng không thưởng lại.
+ */
+export function streakRewardCoins(previousDays: number, currentDays: number): number {
+	if (currentDays <= previousDays) {
+		return 0;
+	}
+
+	let coins = 0;
+
+	// Cộng dồn mọi mốc nằm trong khoảng vừa vượt qua: chuỗi chỉ tăng từng ngày một
+	// nên bình thường chỉ có 0 hoặc 1 mốc, nhưng cứ tính đúng để không phụ thuộc
+	// vào giả định đó.
+	for (const milestone of STREAK_MILESTONES) {
+		if (milestone.day > previousDays && milestone.day <= currentDays) {
+			coins += milestone.coins;
+		}
+	}
+
+	return coins;
+}

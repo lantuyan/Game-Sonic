@@ -27,7 +27,8 @@ export interface GameEvents {
 	"boss:countdown": { secondsLeft: number };
 	"boss:closed": Record<string, never>;
 	"biome:changed": { index: number; label: string };
-	"nearmiss": { points: number; total: number };
+	/** P2-2 — `chain` là độ dài chuỗi liên tiếp, `perfect` là bậc lướt cực sát. */
+	"nearmiss": { points: number; total: number; chain: number; multiplier: number; perfect: boolean };
 	"powerup:started": { kind: string; durationSec: number };
 	"powerup:ended": { kind: string };
 	"player:hit": { livesLeft: number };

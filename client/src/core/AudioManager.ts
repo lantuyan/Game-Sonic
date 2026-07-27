@@ -109,7 +109,12 @@ export class AudioManager {
 		}
 	}
 
-	play(name: SfxName): void {
+	/**
+	 * @param rate cao độ (1 = nguyên bản). P2-2 dùng để tiếng "sát nút" lên dần
+	 *   theo chuỗi — kẹp trong dải Howler chấp nhận (0.5–4) để giá trị lạ từ
+	 *   `?debug` không làm câm tiếng.
+	 */
+	play(name: SfxName, rate = 1): void {
 		const howl = this.sfx.get(name);
 
 		if (howl === undefined) {
@@ -127,6 +132,7 @@ export class AudioManager {
 
 		this.lastPlayedAtMs.set(name, nowMs);
 		howl.volume(this.sfxVolume);
+		howl.rate(Math.min(Math.max(Number.isFinite(rate) ? rate : 1, 0.5), 4));
 		howl.play();
 	}
 

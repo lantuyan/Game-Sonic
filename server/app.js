@@ -24,11 +24,12 @@ function createApp(overrides) {
 	var config = configModule.resolveConfig(overrides);
 	configModule.validateConfig(config);
 
-	var dataStore = dbModule.createDatabase(config);
-	// Player data (leaderboard/skill) uses a separate Postgres client: Neon when
-	// DATABASE_URL is set, embedded PGlite locally, or null on Vercel without Neon
-	// (features degrade gracefully). The question bank stays on an in-memory JSON store.
+	// Một SQL client dùng chung cho MỌI kho: leaderboard/skill, thống kê, và (từ
+	// P1-7) cả ngân hàng câu hỏi khi có Neon. Neon khi có DATABASE_URL, PGlite nhúng
+	// ở máy dev, hoặc null trên Vercel chưa cấu hình Neon (tính năng tắt êm).
 	var playerSql = createSqlClient(config);
+	// P1-7: kho câu hỏi chạy Postgres khi có DATABASE_URL, ngược lại giữ kho JSON.
+	var dataStore = dbModule.createDatabase(config, playerSql);
 	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql });
 	// P1-6 · dashboard giáo viên. Dùng chung SQL client; schema do playerStore áp
 	// (applySchema là idempotent nên không cần điều phối gì thêm).

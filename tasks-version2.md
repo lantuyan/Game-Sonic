@@ -349,9 +349,17 @@ Bảng `answer_events(id, device_id, level, question_id, outcome, answer_ms, mod
 · mỗi test backend gọi `mkdtempSync` riêng ⇒ mỗi test một cluster PGlite vài chục MB nằm lại trong thư mục tạm; chạy `npm test` nhiều lần là **đầy ổ đĩa thật** (đã xảy ra, 25GB rác). Mọi file test giờ dùng chung MỘT `pgDataDir` cho cả file.
 **Chưa nghiệm thu được ở môi trường này:** mở file CSV bằng Excel thật trên Windows (test đã canh BOM + charset + CRLF + chữ có dấu còn nguyên).
 
-### [ ] P1-7 · Question bank → Neon — *3 ngày*
+### [x] P1-7 · Question bank → Neon — *3 ngày*
 Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `explanation`, `quiz_mode`); store mới thay JSON-store trong `server/db.js` khi có `DATABASE_URL` (giữ nguyên interface + fallback JSON khi không DB — dev offline vẫn chạy); migrate: seed từ `questions/*.json` chỉ khi bảng rỗng (idempotent, thêm vào `scripts/migrate-neon.js`); **API surface không đổi** (contract-test phải xanh nguyên trạng).
 **DoD:** trên preview có Neon: admin sửa câu → redeploy/cold-start → chỉnh sửa còn nguyên; không có `DATABASE_URL` → hành vi như hiện tại; full test xanh.
+**Đã làm (nhánh `v2/p1-07-neon`):** bảng `questions` + `level_settings` trong `server/schema.js`, `server/questionStore.js` (cùng 6 phương thức + cùng shape bundle với kho JSON), `server/db.js` chọn kho theo `DATABASE_URL`, `scripts/migrate-neon.js` gieo hạt idempotent. 14 test mới chạy trên PGlite thật (`test/question-store.test.js`); contract-test xanh nguyên trạng.
+**Quyết định đáng nêu:**
+· Cột `position` giữ THỨ TỰ câu như file JSON gốc — hợp đồng §7.3.1 nói game pop từ cuối mảng, nên để Postgres tự sắp là đổi luôn câu nào ra trước.
+· Gieo hạt kiểm theo TỪNG LỚP, không kiểm tổng: thêm lớp 9 ở P2 thì lớp mới được gieo mà 3 lớp cũ giáo viên đã sửa không bị đụng.
+· Riêng bước gieo hạt dùng `ON CONFLICT DO NOTHING` — hai instance serverless khởi động cùng lúc trên CSDL rỗng sẽ cùng thấy `COUNT(*) = 0` và cùng gieo. `replaceQuestionsForLevel` thì NGƯỢC LẠI, trùng id là lỗi thật của bộ đề và giáo viên phải được báo.
+· Lỗi kiểm tra đầu vào REJECT chứ không throw đồng bộ: giao diện nửa-đồng-bộ-nửa-bất-đồng-bộ làm người gọi dùng `.catch()` để lọt đúng những lỗi hay gặp nhất.
+· **Không** dùng PGlite cho kho câu hỏi ở máy dev dù nó có sẵn — làm vậy thì đường chạy của dev khác production và bug chỉ lộ khi deploy. Đúng DoD "không có `DATABASE_URL` → hành vi như hiện tại".
+**Chưa nghiệm thu được ở môi trường này:** chạy thật trên preview có Neon (không có `DATABASE_URL` trong sandbox). Cold-start đã mô phỏng bằng cách dựng lại store trên cùng CSDL — đúng điều xảy ra khi instance serverless bị thu hồi.
 
 ### [ ] P1-8 · Nhiệm vụ ngày, huy hiệu, Hồ sơ học tập, rung Android — *2 ngày*
 3 nhiệm vụ/ngày sinh từ seed ngày (vd "trả lời đúng 10 câu", "chạy 2000m", "3 câu hình học đúng") thưởng coin, local `endlessrunner-missions-v2`; huy hiệu kiến thức (mốc câu đúng theo chủ đề/độ khó) + chuỗi ngày chăm chỉ (trần 7 ngày, không phạt gãy chuỗi kiểu áp lực); S13 Hồ sơ: accuracy theo độ khó (từ skill profile), đồ thị tiến bộ đơn giản, huy hiệu, số câu "đang nợ" trong review queue. Kèm: **rung nhẹ Android** (`navigator.vibrate` feature-detect — iOS không hỗ trợ) khi va chạm/sai, toggle trong S11.

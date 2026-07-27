@@ -1,6 +1,7 @@
 "use strict";
 
 var path = require("path");
+var season = require("./season");
 
 function resolveNumber(value, fallbackValue) {
 	var numericValue = Number(value);
@@ -43,6 +44,21 @@ function resolveConfig(overrides) {
 				: String(process.env.ANTICHEAT_ENFORCE || "") === "1",
 		nodeEnv: values.nodeEnv || process.env.NODE_ENV || "development",
 		/**
+		 * P2-8 — mốc bắt đầu "Mùa 2" của bảng xếp hạng (plan §11 câu 5).
+		 *
+		 * CHUỖI THÔ, chưa parse: `resolveConfig` cố ý không ném lỗi (nhiều test dựng
+		 * app bằng `createApp({...})` và không nên chết vì một biến môi trường lạ ở
+		 * máy khác). `validateConfig` mới là chỗ ném — tức chỉ khi server thật khởi động.
+		 *
+		 * Rỗng = **chưa chốt ngày phát hành** ⇒ bảng xếp hạng chạy y như trước P2-8,
+		 * chỉ có một bảng "Tất cả". Chủ dự án đặt `LEADERBOARD_SEASON2_START` lúc phát
+		 * hành là mùa mới tự mở, không cần deploy lại client.
+		 */
+		leaderboardSeason2Start:
+			values.leaderboardSeason2Start != null
+				? String(values.leaderboardSeason2Start)
+				: String(process.env.LEADERBOARD_SEASON2_START || ""),
+		/**
 		 * P2-7 — số lần đăng nhập admin cho phép mỗi phút mỗi IP.
 		 *
 		 * CỐ Ý **không đọc biến môi trường**: đây là tuyến chặn dò mật khẩu, và một
@@ -73,6 +89,11 @@ function validateConfig(config) {
 	if (isPlaceholderSecret(config.adminPasswordHash)) {
 		throw new Error("Missing ADMIN_PASSWORD_HASH. Generate one with \"npm run hash-password -- <password>\" and add it to .env.");
 	}
+
+	// P2-8: ngày ranh giới gõ sai thì DỪNG HẲN. Bỏ qua âm thầm nghĩa là bảng xếp
+	// hạng lặng lẽ trộn thang điểm cũ với thang điểm mới, và không ai phát hiện ra
+	// cho tới khi một học sinh hỏi vì sao bạn mình 4.000 điểm lại đứng trên mình 30.000.
+	season.parseSeasonStart(config.leaderboardSeason2Start);
 }
 
 module.exports = {

@@ -1,11 +1,32 @@
 // Điểm & coin (plan §4.4).
 //
-//   score = quãngĐường×1 + Σ(câuĐúng × question.point × streakMultiplier)
+//   score = quãngĐường×1 + Σ(câuĐúng × answerPointValue(question.point) × streakMultiplier)
 //
 // Câu đúng cố ý chiếm ~80–90% tổng điểm: BXH phải đo NĂNG LỰC TOÁN chứ không phải
 // khả năng chạy lâu. Thuần số học → unit test trực tiếp.
+//
+// P2-8: `Score` vẫn là SỐ HỌC THUẦN — nó nhân đúng những gì được đưa vào và không
+// biết gì về thang điểm. Việc quy đổi `question.point` sang thang của bảng xếp hạng
+// nằm ở `answerPointValue()` bên dưới và được gọi ở nơi có câu hỏi thật
+// (`scenes/RunScene.ts`). Tách như vậy để `recordAnswer(true, 100, 2) === 200` vẫn
+// đọc ra đúng nghĩa "point × streak", không phải một phép nhân ẩn.
 
 import { tuning } from "@/tuning";
+
+/**
+ * Quy đổi `question.point` (10/15/20/25 trong ngân hàng thật) sang thang điểm bảng
+ * xếp hạng của V2 — xem `tuning.scoring.answerPointMultiplier` để biết vì sao.
+ *
+ * Giá trị lạ (thiếu field, NaN) → 0 thay vì NaN: một câu hỏi nhập thiếu điểm không
+ * được phép biến cả ván thành `NaN` trên bảng xếp hạng.
+ */
+export function answerPointValue(questionPoint: number): number {
+	if (Number.isFinite(questionPoint) === false || questionPoint <= 0) {
+		return 0;
+	}
+
+	return questionPoint * tuning.scoring.answerPointMultiplier;
+}
 
 export interface ScoreSnapshot {
 	total: number;
@@ -63,7 +84,9 @@ export class Score {
 
 	/**
 	 * Ghi nhận 1 câu trả lời.
-	 * Điểm câu đúng = question.point × streakMultiplier × pointMultiplier.
+	 * Điểm câu đúng = questionPoint × streakMultiplier × pointMultiplier.
+	 *
+	 * `questionPoint` đã phải đi qua `answerPointValue()` ở phía gọi.
 	 */
 	recordAnswer(correct: boolean, questionPoint: number, streakMultiplier: number): number {
 		this.totalAnswered += 1;

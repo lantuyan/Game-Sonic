@@ -2,7 +2,8 @@
 
 // Kiểm chéo tính hợp lý của điểm (P1-4, thống nhất với plan §7.4).
 //
-//   score ≤ durationMs/1000 × MAX_SPEED_MPS + correctCount × maxPoint(level) × 2
+//   score ≤ durationMs/1000 × MAX_SPEED_MPS
+//           + correctCount × maxPoint(level) × ANSWER_POINT_MULTIPLIER × MAX_ANSWER_MULTIPLIER
 //   (dung sai 10%)   và   durationMs ≥ 45s
 //
 // Vi phạm KHÔNG bị từ chối — điểm vẫn được nhận nhưng `verified = false` và ghi log.
@@ -21,7 +22,35 @@
  */
 var MAX_SPEED_MPS = 43.4;
 
-/** Dung sai 10% — đủ để nuốt sai số làm tròn và các khoản thưởng lặt vặt. */
+/**
+ * P2-8 — thang điểm câu hỏi. = `tuning.scoring.answerPointMultiplier` của client.
+ *
+ * ⚠ Đổi con số đó trong `client/src/tuning.ts` mà quên ở đây thì trần tụt xuống
+ * 1/300 điểm câu hỏi thật ⇒ **mọi học sinh trả lời đúng đều bị đánh dấu nghi vấn**.
+ * `test/anticheat.test.js` và `test/balance.test.js` canh cho khỏi quên.
+ */
+var ANSWER_POINT_MULTIPLIER = 300;
+
+/**
+ * Hệ số nhân LỚN NHẤT một câu đúng có thể ăn:
+ *   `scoring.streakTier2Multiplier` (2, streak ≥5) × `powerup.doublePointsMultiplier` (2).
+ *
+ * Trước P2-8 chỗ này là hằng `2` với chú thích "×2 cho streak trần" — **thiếu mất
+ * power-up Nhân đôi điểm**, vốn nhân thẳng vào `answerScore` (`Score.pointMultiplier`).
+ * Hồi đó không lộ ra vì điểm câu hỏi quá nhỏ so với phần quãng đường nên dung sai
+ * nuốt hết; sau khi câu hỏi thành 80–90% tổng điểm thì đúng học sinh giỏi nhất —
+ * chuỗi đúng dài + nhặt được Nhân đôi điểm — mới là người bị tố oan.
+ */
+var MAX_ANSWER_MULTIPLIER = 4;
+
+/**
+ * Dung sai 10% — đủ để nuốt sai số làm tròn và các khoản thưởng lặt vặt.
+ *
+ * Near-miss (`Score.addBonus`) CỐ Ý không có mặt trong công thức trần: nó phụ thuộc
+ * số chướng ngại lướt sát, thứ server không đo được. Nó được nuốt bởi phần dôi của
+ * số hạng quãng đường — trần dùng tốc độ TRẦN 43.4 điểm/giây trong khi ván mặc định
+ * chỉ chạy ~18 điểm/giây, tức mỗi giây đã dôi sẵn ~25 điểm cho phần thưởng lặt vặt.
+ */
 var TOLERANCE = 1.1;
 
 /** Ván ngắn hơn 45s không thể có điểm thật (plan §7.4). */
@@ -42,8 +71,11 @@ function checkPlausibility(payload, maxPoint) {
 		safeMaxPoint = 100;
 	}
 
-	// Trần: điểm quãng đường tối đa + điểm câu hỏi tối đa (×2 cho streak trần).
-	var ceiling = ((durationMs / 1000) * MAX_SPEED_MPS + correctCount * safeMaxPoint * 2) * TOLERANCE;
+	// Trần: điểm quãng đường tối đa + điểm câu hỏi tối đa (streak trần × Nhân đôi điểm).
+	var ceiling =
+		((durationMs / 1000) * MAX_SPEED_MPS +
+			correctCount * safeMaxPoint * ANSWER_POINT_MULTIPLIER * MAX_ANSWER_MULTIPLIER) *
+		TOLERANCE;
 
 	if (durationMs < MIN_DURATION_MS) {
 		return { plausible: false, reason: "duration-too-short", ceiling: ceiling };
@@ -59,6 +91,8 @@ function checkPlausibility(payload, maxPoint) {
 module.exports = {
 	checkPlausibility: checkPlausibility,
 	MAX_SPEED_MPS: MAX_SPEED_MPS,
+	ANSWER_POINT_MULTIPLIER: ANSWER_POINT_MULTIPLIER,
+	MAX_ANSWER_MULTIPLIER: MAX_ANSWER_MULTIPLIER,
 	MIN_DURATION_MS: MIN_DURATION_MS,
 	TOLERANCE: TOLERANCE
 };

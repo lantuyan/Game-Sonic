@@ -174,7 +174,8 @@ export class App {
 			onBack: () => {
 				this.screens.show("home");
 			},
-			loadEntries: (level) => bridge.getLeaderboard(level),
+			// P2-8 — lấy cả thông tin mùa, không chỉ danh sách.
+			loadPage: (level, seasonId) => bridge.getLeaderboardPage(level, seasonId),
 			getDeviceId: () => null
 		});
 

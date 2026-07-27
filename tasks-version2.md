@@ -385,7 +385,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 | [x] P2-2 | Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao | 2 | *đặc tả chi tiết ngay dưới P2-1* |
 | [x] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) — *đặc tả chi tiết ngay dưới P2-2* |
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
-| [ ] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư |
+| [x] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư — *đặc tả chi tiết ngay dưới P2-6* |
 | [x] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | CSV nâng cao (0 phụ thuộc mới) — *đặc tả chi tiết ngay dưới P2-3* |
 | [ ] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng |
 
@@ -636,6 +636,81 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ---
 
+### [x] P2-5 · Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật — *2.5 ngày*
+
+**Mục tiêu:** giáo viên tạo được một mã lớp, học sinh nhập MỘT LẦN để gắn máy vào lớp, và dashboard P1-6 từ đó trả số liệu **của đúng lớp đó** thay vì gộp cả trường.
+
+> ⚠ **Đây là task làm cho dữ liệu học tập vốn ẩn danh trở nên QUY ĐƯỢC VỀ MỘT LỚP.** Người dùng cuối là **trẻ em**. Vì vậy rà quyền riêng tư không phải ghi chú kèm theo mà là một hạng mục nghiệm thu ngang hàng với code — kết luận đầy đủ ở [`docs/v2/P2-5-PRIVACY.md`](docs/v2/P2-5-PRIVACY.md).
+
+**Việc cần làm:**
+- [x] **Hai bảng mới** trên schema idempotent hiện có (`server/schema.js`, `CREATE TABLE IF NOT EXISTS`): `class_codes` (mã lớp + chủ sở hữu + hạn dùng + dấu thu hồi) và `class_members` (máy nào thuộc lớp nào). Thêm cột `answer_events.class_id` bằng `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` + index.
+- [x] **Mã KHÔNG đoán được:** sinh bằng `crypto.randomBytes`, bảng chữ 32 ký tự đã bỏ ký tự dễ đọc nhầm (`I O 0 1`), độ dài 8 ⇒ **2^40 tổ hợp**. Module thuần `server/classCode.js` để kiểm được bằng test thống kê.
+- [x] **Hết hạn + thu hồi:** `expires_at` **BẮT BUỘC** (mặc định 30 ngày, chọn 1–180), `revoked_at` cho phép thu hồi tức thì. Mã hết hạn/bị thu hồi **không vào lớp được nữa**, và đó là hai đường độc lập.
+- [x] **Giáo viên chỉ thấy lớp CỦA MÌNH:** `class_codes.owner_id`; phiên đăng nhập admin mang claim `owner` (mặc định `admin` — P2-7 mới có nhiều tài khoản thật). Truy vấn lớp của người khác trả **404, không phải 403** — 403 là xác nhận "lớp đó có tồn tại".
+- [x] **5 route admin + 3 route học sinh (bổ sung, không đụng 13 route cũ):** `GET/POST /api/admin/classes` · `POST /api/admin/classes/:id/revoke` · `DELETE /api/admin/classes/:id` · `GET /api/admin/classes/:id/members` · `DELETE /api/admin/classes/:id/members/:deviceId`; phía học sinh `POST /api/classes/join` · `GET /api/players/:deviceId/class` · `DELETE /api/players/:deviceId/class`. Rate-limit route học sinh **đếm theo `deviceId`** (khuôn `scoreLimiter`), route admin theo IP (khuôn `importLimiter`).
+- [x] **Gắn lớp tại thời điểm GHI, không phải lúc đọc:** `POST /api/runs/summary` tra lớp của máy rồi ghi `class_id` vào từng dòng `answer_events`. Hệ quả cố ý: **dữ liệu trước khi vào lớp vĩnh viễn không thuộc về lớp nào** — vào lớp không mở hồi tố lịch sử học tập của em đó.
+- [x] **Dashboard lọc theo lớp thật:** `GET /api/admin/stats?classId=` + `stats.csv?classId=` (kiểm quyền sở hữu TRƯỚC khi lọc), ô chọn lớp trong panel "Thống kê lớp học" của `admin.html`, panel mới "Lớp học & mã lớp" (tạo/xem/thu hồi/xoá lớp, danh sách thành viên, gỡ một máy khỏi lớp).
+- [x] **Client:** ô "Mã lớp học" trong S11 (nhập một lần, hiện tên lớp đang tham gia, **rời lớp được**). Luật chuẩn hoá mã là hàm thuần trong `client/src/systems/classCode.ts`, có test. Không thêm khoá localStorage mới — tên lớp là bộ đệm hiển thị nằm trong `endlessrunner-settings-v2`.
+- [x] **Rà quyền riêng tư** (`docs/v2/P2-5-PRIVACY.md`): liệt kê trường nào trở nên nhận dạng được và ai xem được; chứng minh mã không đoán được / hết hạn / thu hồi được; chứng minh giáo viên chỉ xem lớp mình; khẳng định **không thu thập thêm một trường dữ liệu cá nhân nào**.
+- [x] **Việc phụ 1 — bịt bẫy `npm run migrate` chạy thẳng vào production** (lỗi có sẵn, ghi ở P2-3): thêm `--dry-run` (in ra câu lệnh sẽ chạy, KHÔNG kết nối) và bắt buộc cờ `--yes-production` (hoặc `MIGRATE_CONFIRM=yes-production`) khi đích không phải localhost/PGlite. Luật là hàm thuần trong `server/migrateGuard.js`, có test.
+- [x] **Việc phụ 2 — `statsStore.statsToCsv` thiếu dòng `sep=,`** (lỗi có sẵn từ P1-6, P2-6 phát hiện): áp đúng công thức của `server/questionImport.js`, cập nhật test P1-6.
+
+**File đích:** `server/schema.js` · `server/classCode.js` (mới) · `server/classStore.js` (mới) · `server/migrateGuard.js` (mới) · `server/statsStore.js` · `server/auth.js` · `server/app.js` · `scripts/migrate-neon.js` · `admin.html` · `client/src/systems/classCode.ts` (mới) · `client/src/systems/ClassMembership.ts` (mới) · `client/src/core/SaveData.ts` · `client/src/ui/screens/MenuScreens.ts` · `client/src/App.ts` · `docs/v2/P2-5-PRIVACY.md` (mới) · `test/class-codes.test.js` (mới) · `test/migrate-guard.test.js` (mới) · `test/dashboard.test.js`
+
+**Phụ thuộc:** P1-6 (dashboard + `answer_events`), P1-7 (khuôn store Postgres + `guard()` idempotent), P2-3 (khuôn rate-limit theo `deviceId`, khuôn "tắt êm" khi thiếu CSDL), P2-6 (công thức CSV cho Excel).
+
+**Tham chiếu:** plan §7.3 (hợp đồng — mọi thứ mới là BỔ SUNG), §7.4 bảng P2, §10 (rủi ro); `server/questionStore.js` (khuôn `guard()`); `server/playerStore.js` (khuôn "tắt êm").
+
+**Tiêu chí nghiệm thu (DoD):**
+1. **Mã lớp không đoán được:** không gian mã ≥ 2^40; 5.000 mã sinh liên tiếp **không trùng nhau một cái nào** và phủ đều bảng chữ; mã không chứa `I O 0 1`; sinh bằng `crypto.randomBytes`, **không** `Math.random` (test đọc mã nguồn canh).
+2. **Hết hạn có hiệu lực:** mã quá `expires_at` → vào lớp thất bại với lý do `expired`, và **không** tạo thành viên mới.
+3. **Thu hồi có hiệu lực NGAY:** thu hồi xong, cùng mã đó vào lớp thất bại với lý do `revoked`. Thành viên cũ giữ nguyên (thu hồi là đóng cửa vào, không phải xoá lớp).
+4. **Giáo viên A không xem được lớp của giáo viên B:** liệt kê lớp không thấy lớp người khác; `?classId=` của người khác → **404**; thu hồi/xoá/gỡ thành viên của người khác → **404** và dữ liệu không đổi.
+5. **Dashboard lọc đúng lớp:** hai lớp cùng chơi → `?classId=` của lớp A trả đúng số của lớp A; máy chưa vào lớp nào không lọt vào bất kỳ lớp nào; số liệu trước khi vào lớp **không** được gắn hồi tố.
+6. **Không thu thập thêm dữ liệu cá nhân:** `class_members` chỉ có `class_id/device_id/joined_at`; toàn bộ schema mới không có trường họ tên thật/ngày sinh/email/số điện thoại (test đọc `server/schema.js` canh cả một danh sách từ khoá).
+7. **Xoá lớp trả dữ liệu về ẩn danh:** xoá lớp → `answer_events.class_id` của lớp đó về `NULL`, thành viên bị gỡ, và dashboard tổng vẫn còn đủ số câu (dữ liệu học tập không bị mất, chỉ mất liên kết lớp).
+8. **`npm run migrate` có rào production:** đích Neon mà không có cờ → **dừng, thoát khác 0, không chạm CSDL**; có `--dry-run` → in ra đúng danh sách câu lệnh và không kết nối; đích localhost/PGlite → chạy bình thường không cần cờ.
+9. **CSV thống kê có `sep=,`** ngay sau BOM và vẫn giữ BOM + CRLF + `charset=utf-8` (test P1-6 cập nhật, không hạ chuẩn cũ).
+10. **13 endpoint cũ + 5 khoá localStorage `-v1` + chữ ký `window.QuestionBank` không đổi** — contract-test xanh nguyên.
+11. Không có `DATABASE_URL` → mọi route lớp học trả `disabled: true`, không route nào ném 500, game chơi bình thường.
+12. `npm run ci` xanh toàn bộ.
+
+**Đã làm (nhánh `v2/p2-05-class-codes`):** hai bảng `class_codes`/`class_members` + cột `answer_events.class_id` (`server/schema.js`), module thuần `server/classCode.js` (2^40 tổ hợp, `crypto.randomBytes`) + kho `server/classStore.js`, 8 route mới trong `server/app.js` với `classJoinLimiter` đếm theo `deviceId`, panel "Lớp học & mã lớp" + ô chọn lớp trong dashboard của `admin.html`, ô nhập mã ở S11 (`systems/classCode.ts` + `systems/ClassMembership.ts`), rào chắn `server/migrateGuard.js` cho `npm run migrate`, và `sep=,` cho `statsToCsv`. **35 test mới** (`test/class-codes.test.js` 26, `test/migrate-guard.test.js` 9), `npm run ci` **454/454**, ngân sách **6.26 MB / 10 MB** (không thêm asset).
+
+**Rà quyền riêng tư — kết luận:** [`docs/v2/P2-5-PRIVACY.md`](docs/v2/P2-5-PRIVACY.md). Tóm tắt: thứ DUY NHẤT trở nên nhận dạng được là **biệt danh ↔ một lớp cụ thể**, và **chỉ giáo viên sở hữu lớp đó** xem được. Dashboard giữ nguyên mức TỔNG HỢP — không có bảng "học lực từng em theo tên", cố ý. Không thêm một trường dữ liệu cá nhân nào.
+
+**Quyết định đáng nêu:**
+· **Mã lớp chỉ mở cửa GHI, không mở cửa ĐỌC.** Biết mã thì gắn được MÁY CỦA MÌNH vào lớp, hết; không route công khai nào nhận `classId`. Nhờ ranh giới này, kịch bản "mã lộ ⇒ người lạ xem được tiến độ cả lớp" mà task lo là **bất khả thi theo thiết kế**, và cái còn lại — người lạ làm bẩn số liệu — xử lý được bằng Thu hồi + Gỡ khỏi lớp.
+· **Gắn lớp lúc GHI (`answer_events.class_id`), không join lúc ĐỌC.** Join lúc đọc thì hôm nay em nhập mã là toàn bộ lịch sử học tập trước đó của máy hiện ra cho giáo viên. Đóng dấu lúc ghi giữ đúng lời hứa "vào lớp từ hôm nay thì lớp thấy từ hôm nay". Đắt thêm đúng MỘT truy vấn cho mỗi ván (một request/ván từ P1-6).
+· **`owner_id` đưa vào ngay bây giờ, dù hôm nay chỉ có một tài khoản admin.** P2-7 chỉ cần phát token với `owner` khác nhau là cách ly tự động đúng; không có giai đoạn nào hệ thống chạy với quyền sở hữu "để tính sau". Test ký tay một token `owner: "teacher-b"` (đúng thứ P2-7 sẽ phát) và kiểm 6 đường tấn công đều **404 chứ không 403** — 403 là câu xác nhận "lớp đó có thật".
+· **Bảng chữ 32 ký tự bỏ `I O 0 1`.** Mã được đọc to trong lớp và chép tay lên bảng; "0 hay O" là lỗi nhập liệu chắc chắn xảy ra, và mỗi lần xảy ra là một lượt thử hỏng của một em học sinh chứ không phải của kẻ tấn công. 32 cũng là ước của 256 nên `byte % 32` không có sai lệch modulo.
+· **Rate-limit KHÔNG phải tuyến phòng thủ chống dò mã** (kẻ tấn công đổi `deviceId` là có hạn mức mới) — 2^40 mới là. Ghi rõ ngay trong `server/app.js` để không ai tưởng 12 lượt/phút là đủ rồi rút ngắn mã.
+· **Một máy thuộc TỐI ĐA một lớp** (khoá chính là `device_id`). Nhập mã mới là CHUYỂN lớp. Ở phòng tin học dùng chung máy, "thuộc 4 lớp cùng lúc" là một mớ không ai gỡ được.
+· **Xoá lớp trả dữ liệu về ẩn danh, không xoá dữ liệu học tập** (`class_id` về NULL). Xoá dòng là vừa mất dữ liệu dạy học vừa không cần thiết cho quyền riêng tư.
+· **Bất đối xứng có chủ ý giữa "học sinh rời lớp" và "giáo viên gỡ khỏi lớp".** Rời lớp chỉ dừng từ nay về sau; gỡ khỏi lớp xoá cả liên kết dữ liệu cũ. Gỡ là đường xử lý sự cố lộ mã nên phải lấy được phần đã bơm vào; còn cho một em tự xoá ngược số liệu tổng hợp là mở đúng một đường làm hỏng dữ liệu của cả lớp.
+· **Danh sách thành viên hiện biệt danh nhưng KHÔNG hiện điểm/tỉ lệ đúng của từng em.** Giáo viên cần một cái tên để gỡ đúng máy khi mã bị lộ; một bảng học lực theo tên là hồ sơ đánh giá trẻ em và cần quyết định của nhà trường, không phải một dòng SQL của agent.
+· **Rào migrate kiểm TRƯỚC khi tạo SQL client** — bị chặn thì không một kết nối nào được mở. Host lạ đọc không nổi thì coi là TỪ XA: đoán sai theo hướng "chắc là máy mình" đúng là cách tai nạn xảy ra.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· Bảng P2 ghi "dashboard lọc theo lớp thật"; ở đây **lọc là TỔNG HỢP theo lớp**, không phải bảng từng em. Lý do ở mục quyết định và ở `docs/v2/P2-5-PRIVACY.md` §3.
+· Task ghi 2 việc (mã lớp + dashboard); thực tế thêm **3 route "gỡ/xoá/rời"** không có trong đặc tả gốc — thu hồi mã mà không gỡ được máy lạ đã vào thì thu hồi chỉ là nửa lời giải.
+· **Rủi ro còn lại đã ghi rõ trong tài liệu rà soát:** lớp chỉ có MỘT thành viên thì "số liệu tổng hợp" chính là số liệu của em đó. Không chặn được bằng kỹ thuật; muốn chặn phải có ngưỡng ẩn số liệu khi lớp < k em, và đó là quyết định sản phẩm.
+· Không thêm khoá localStorage, không thêm biến môi trường, không thêm phụ thuộc npm. Tên lớp đệm trong `endlessrunner-settings-v2`.
+
+**Lỗi THẬT đã sửa trong task này (cả hai đều có sẵn, đã ghi từ trước):**
+· **`npm run migrate` chạy thẳng vào Neon production** (P2-3 phát hiện, không sửa). Nay có `--dry-run` (in ra 25 câu lệnh, không kết nối) và bắt buộc `--yes-production` khi đích không phải localhost/PGlite. Test chạy script THẬT với `DATABASE_URL` giả và canh cả việc **không hề thử phân giải tên miền** — tức là chưa hề mở kết nối.
+· **`statsStore.statsToCsv` thiếu dòng `sep=,`** (P1-6, do P2-6 phát hiện). Trên Windows tiếng Việt, file thống kê dồn hết vào một cột khi nháy đúp. Đã áp đúng công thức của `questionImport.js`; test P1-6 cập nhật để khoá cả BOM lẫn `sep=,`.
+· Thêm một sửa nhỏ đi kèm: `ORDER BY` của "top 10 câu sai" nay có **tie-break cuối trên `question_id`** — hai câu cùng tỉ lệ sai và cùng số lượt sai thì Postgres được tự do đổi thứ tự giữa hai lần tải. **Lưu ý cho người sau:** việc này KHÔNG giải thích được lần đỏ ngẫu nhiên đã quan sát của test `test/dashboard.test.js` → "top 10 câu sai nhiều nhất xếp đúng thứ tự"; test đó xanh trong mọi lần chạy của P2-5 (gồm 3 lần chạy full CI), nên **nguyên nhân vẫn chưa lần ra**.
+
+**Đã nghiệm thu trực tiếp trên trình duyệt** (server cục bộ, cấu hình truyền tay, `databaseUrl` rỗng, dữ liệu trong thư mục scratchpad — **KHÔNG chạm Neon**): tạo 2 lớp trên trang admin → 3 máy nhập mã (gõ chữ thường, có gạch) → bảng lớp hiện đúng mã dạng `P4JL-EDXD`, hạn dùng, số máy; đổi ô chọn lớp trong "Thống kê lớp học" thấy số nhảy đúng **8 câu/3 máy (toàn trường) → 6 câu/2 máy (6A) → 2 câu/1 máy (6B)**; "Xem máy" liệt kê đúng 2 biệt danh của 6A; **Thu hồi** → mã đó lập tức trả `revoked`, hàng đổi sang "Đã thu hồi" và nút Thu hồi biến mất; CSV tải về bắt đầu bằng `EF BB BF` + `sep=,` + CRLF và chỉ chứa số của lớp đã lọc. Phía học sinh (Vite dev): S11 hiện ô "Mã lớp học (nếu thầy cô có cho)", gõ `p4jledxd` tự thành `P4JL-EDXD`, bấm Vào lớp → "Em đang ở lớp: Lớp 6A — cô Hà" + nút Rời lớp hiện ra; mã sai → "Không tìm thấy mã lớp này. Em xem lại mã thầy cô cho nhé."; Rời lớp → server trả `class: null`. Console sạch cả hai trang.
+
+**Chưa nghiệm thu được ở môi trường này:**
+- [ ] Chạy trên **Neon thật** (mọi test dùng PGlite). P2-5 không dùng câu SQL nào lạ ngoài `now() + ($n::int * INTERVAL '1 day')` và `ON CONFLICT (device_id) DO UPDATE` — đều là Postgres chuẩn, nhưng `sql.batch` của Neon là `transaction()` qua HTTP nên cần một lượt smoke thật trên preview.
+- [ ] `npm run migrate -- --yes-production` trên Neon thật (agent **không** chạy — đúng ràng buộc an toàn của task).
+- [ ] Một lớp thật ~30 máy cùng nhập mã trong một tiết học — chỉ đo được ở phòng máy.
+
+---
+
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
 - [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.
@@ -647,6 +722,8 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 - [ ] Riêng release P1: bật `ANTICHEAT_ENFORCE=1` sau khi xác nhận đa số client đã lên V2 (theo dõi tỉ lệ submit có token).
 - [ ] Riêng release P2-3: chạy `npm run migrate` **TRƯỚC** khi deploy client mới (bảng kinh tế phải có trước khi client đầu tiên gọi di trú), rồi smoke `GET /api/shop/catalog` và `GET /api/players/<deviceId>/profile` trên preview. Không cần biến môi trường mới. Nếu `DATABASE_URL` chưa nối thì mọi route kinh tế trả `disabled: true` và game vẫn chạy bằng ví local — **an toàn nhưng xu không được lưu**, nên đừng phát hành ở trạng thái đó rồi mới nối Neon sau.
 - [ ] Riêng release P2-6: không cần biến môi trường hay migrate nào. Sau deploy, vào admin bấm **"Xuất cả 3 lớp"**, mở file bằng **Excel thật trên Windows tiếng Việt** — phải thấy đủ 12 cột và đủ dấu. Sửa một ô rồi lưu lại bằng **"CSV UTF-8 (Comma delimited)"**, nhập lại ở chế độ mặc định (giữ nguyên) và đối chiếu bảng xem trước trước khi xác nhận.
+- [ ] Riêng release P2-5: chạy `npm run migrate -- --dry-run` để xem trước, rồi `npm run migrate -- --yes-production` **TRƯỚC** khi deploy (bảng `class_codes`/`class_members` và cột `answer_events.class_id` phải có trước khi giáo viên đầu tiên tạo mã). Không cần biến môi trường mới. Sau deploy: vào admin tạo một lớp thử, nhập mã từ máy học sinh, chơi một ván rồi kiểm dashboard lọc đúng lớp đó. **Nói với giáo viên ba điều:** mã lớp là *quyền vào lớp* chứ không phải mật khẩu xem điểm; mã lộ thì bấm **Thu hồi** rồi **Gỡ khỏi lớp** chứ đừng xoá lớp; và **đừng đặt tên lớp bằng tên học sinh**. Chi tiết: [`docs/v2/P2-5-PRIVACY.md`](docs/v2/P2-5-PRIVACY.md) §8.
+- [ ] ⚠ **Từ P2-5, `npm run migrate` không còn chạy thẳng vào production được nữa** — thiếu `--yes-production` là script dừng và thoát khác 0. Nếu có script/CI nào đang gọi `npm run migrate`, phải cập nhật nó (hoặc đặt `MIGRATE_CONFIRM=yes-production` cho môi trường đó).
 - [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
 - [ ] Tag phiên bản (`v2.0.0-p0` / `v2.1.0-p1`...), cập nhật README + `docs/technical.md` (đang lỗi thời — ghi chú docs/v2/A3).
 

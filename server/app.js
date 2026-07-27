@@ -16,6 +16,7 @@ var statsStoreModule = require("./statsStore");
 var economyStoreModule = require("./economyStore");
 var shopCatalog = require("./shopCatalog");
 var questionImport = require("./questionImport");
+var classStoreModule = require("./classStore");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -39,6 +40,8 @@ function createApp(overrides) {
 	var statsStore = statsStoreModule.createStatsStore({ sql: playerSql });
 	// P2-3 · ví / sổ cái xu / quyền sở hữu. Dùng chung SQL client; schema idempotent.
 	var economyStore = economyStoreModule.createEconomyStore({ sql: playerSql });
+	// P2-5 · mã lớp học + thành viên lớp. Dùng chung SQL client; schema idempotent.
+	var classStore = classStoreModule.createClassStore({ sql: playerSql });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -107,6 +110,47 @@ function createApp(overrides) {
 				: "ip:" + (request.ip || "unknown");
 		},
 		message: { error: "Thao tác hơi nhanh, em đợi một chút nhé." }
+	});
+
+	// P2-5 · giới hạn tần suất cho các route lớp học của HỌC SINH.
+	//
+	// ĐẾM THEO `deviceId` — cùng lý do NAT phòng máy đã ghi ở `scoreLimiter`. Ở đây
+	// `deviceId` nằm trong body (nhập mã) hoặc trong đường dẫn (xem/rời lớp).
+	//
+	// 12 lượt/phút/máy: một em gõ nhầm mã vài lần là chuyện thường (mã có 8 ký tự và
+	// được chép từ trên bảng), nhưng 12 lượt/phút không giúp được gì cho việc dò mã.
+	// ⚠ Rate-limit KHÔNG phải tuyến phòng thủ chính chống dò mã — kẻ tấn công đổi
+	// deviceId là có hạn mức mới. Tuyến phòng thủ thật là 2^40 tổ hợp của
+	// `server/classCode.js`; cái này chỉ để không ai làm nghẽn server.
+	var classJoinLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 12,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		keyGenerator: function (request) {
+			var fromParams = request.params != null ? request.params.deviceId : null;
+			var fromBody = request.body != null ? request.body.deviceId : null;
+			var deviceId = typeof fromParams === "string" && fromParams.trim() !== ""
+				? fromParams
+				: (typeof fromBody === "string" ? fromBody : "");
+
+			return deviceId.trim() !== ""
+				? "device:" + deviceId.trim().slice(0, 64)
+				: "ip:" + (request.ip || "unknown");
+		},
+		message: { error: "Em thử mã hơi nhanh, đợi một chút nhé." }
+	});
+
+	// P2-5 · route quản lý lớp của GIÁO VIÊN — đếm theo IP là ĐÚNG ở đây, cùng lý do
+	// đã ghi ở `importLimiter`: sau `requireAdminAuth` chỉ còn một hai giáo viên.
+	var classAdminLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 60,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		message: { error: "Thao tác hơi nhanh, thầy cô đợi một chút nhé." }
 	});
 
 	var loginLimiter = rateLimit({
@@ -433,26 +477,178 @@ function createApp(overrides) {
 		}
 	});
 
-	// --- Dashboard giáo viên (admin, P1-6) ------------------------------------
+	// --- Lớp học (P2-5) --------------------------------------------------------
+	//
+	// 8 route MỚI, không đụng một ký tự nào của 13 route cũ (hợp đồng §7.3.2).
+	//
+	// Ranh giới quan trọng nhất của cả nhóm route này: **mã lớp chỉ mở cửa GHI**.
+	// Biết mã thì gắn được MÁY CỦA MÌNH vào lớp, hết. Mọi đường đọc số liệu lớp đều
+	// nằm sau `requireAdminAuth` và đều kèm chủ sở hữu. Không có route công khai nào
+	// nhận `classId`.
+
+	/**
+	 * Đọc `?classId=` và ĐỔI nó lấy một lớp mà chính giáo viên đang đăng nhập sở
+	 * hữu. Đây là chỗ DUY NHẤT kiểm quyền sở hữu cho dashboard — `statsStore` chỉ
+	 * nhận một con số đã được kiểm.
+	 *
+	 * Lớp của người khác → **404, không phải 403**: 403 là câu xác nhận "lớp đó có
+	 * thật, chỉ là không phải của bạn".
+	 */
+	async function resolveOwnedClassId(request) {
+		var requested = request.query != null && request.query.classId != null ? String(request.query.classId).trim() : "";
+
+		if (requested === "") {
+			return null;
+		}
+
+		var owned = await classStore.getOwnedClass(auth.resolveOwnerId(request, config), requested);
+
+		if (owned == null) {
+			throw createError(404, "Không tìm thấy lớp này.");
+		}
+
+		return owned.id;
+	}
+
+	app.get("/api/admin/classes", auth.requireAdminAuth(config), classAdminLimiter, async function (request, response, next) {
+		try {
+			response.json(await classStore.listClasses(auth.resolveOwnerId(request, config)));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.post("/api/admin/classes", auth.requireAdminAuth(config), classAdminLimiter, async function (request, response, next) {
+		try {
+			response.json(await classStore.createClass(auth.resolveOwnerId(request, config), request.body || {}));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	/** Thu hồi mã: đóng cửa VÀO lớp ngay lập tức, giữ nguyên thành viên và số liệu. */
+	app.post("/api/admin/classes/:id/revoke", auth.requireAdminAuth(config), classAdminLimiter, async function (request, response, next) {
+		try {
+			var result = await classStore.revokeClass(auth.resolveOwnerId(request, config), request.params.id);
+
+			if (result.ok !== true) {
+				throw createError(404, "Không tìm thấy lớp này.");
+			}
+
+			response.json(result);
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	/** Xoá lớp: dữ liệu học tập TRỞ LẠI ẨN DANH (`class_id` về NULL), không bị xoá. */
+	app.delete("/api/admin/classes/:id", auth.requireAdminAuth(config), classAdminLimiter, async function (request, response, next) {
+		try {
+			var result = await classStore.deleteClass(auth.resolveOwnerId(request, config), request.params.id);
+
+			if (result.ok !== true) {
+				throw createError(404, "Không tìm thấy lớp này.");
+			}
+
+			response.json(result);
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.get("/api/admin/classes/:id/members", auth.requireAdminAuth(config), classAdminLimiter, async function (request, response, next) {
+		try {
+			var ownerId = auth.resolveOwnerId(request, config);
+			var owned = await classStore.getOwnedClass(ownerId, request.params.id);
+
+			if (owned == null) {
+				throw createError(404, "Không tìm thấy lớp này.");
+			}
+
+			response.json(await classStore.listMembers(ownerId, request.params.id));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	/** Gỡ một máy khỏi lớp — và gỡ luôn liên kết của dữ liệu máy đó đã ghi cho lớp. */
+	app.delete(
+		"/api/admin/classes/:id/members/:deviceId",
+		auth.requireAdminAuth(config),
+		classAdminLimiter,
+		async function (request, response, next) {
+			try {
+				var result = await classStore.removeMember(
+					auth.resolveOwnerId(request, config),
+					request.params.id,
+					request.params.deviceId
+				);
+
+				if (result.ok !== true) {
+					throw createError(404, "Không tìm thấy máy này trong lớp.");
+				}
+
+				response.json(result);
+			} catch (error) {
+				next(createError(error.statusCode || 400, error.message));
+			}
+		}
+	);
+
+	/**
+	 * Học sinh nhập mã lớp. Mã sai/hết hạn/bị thu hồi → 200 kèm `ok:false` + `reason`
+	 * (client dịch sang câu tiếng Việt), không phải 4xx.
+	 */
+	app.post("/api/classes/join", classJoinLimiter, async function (request, response, next) {
+		try {
+			var body = request.body || {};
+			response.json(await classStore.joinByCode(body.deviceId, body));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.get("/api/players/:deviceId/class", classJoinLimiter, async function (request, response, next) {
+		try {
+			response.json(await classStore.getMembership(request.params.deviceId));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.delete("/api/players/:deviceId/class", classJoinLimiter, async function (request, response, next) {
+		try {
+			response.json(await classStore.leaveClass(request.params.deviceId));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	// --- Dashboard giáo viên (admin, P1-6 + lọc theo lớp P2-5) -----------------
 
 	app.get("/api/admin/stats", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
+			var classId = await resolveOwnedClassId(request);
+
 			response.json(await statsStore.getStats({
 				level: request.query.level,
 				from: request.query.from,
-				to: request.query.to
+				to: request.query.to,
+				classId: classId
 			}));
 		} catch (error) {
-			next(createError(400, error.message));
+			next(createError(error.statusCode || 400, error.message));
 		}
 	});
 
 	app.get("/api/admin/stats.csv", auth.requireAdminAuth(config), async function (request, response, next) {
 		try {
+			var csvClassId = await resolveOwnedClassId(request);
 			var stats = await statsStore.getStats({
 				level: request.query.level,
 				from: request.query.from,
-				to: request.query.to
+				to: request.query.to,
+				classId: csvClassId
 			});
 
 			// charset=utf-8 + BOM trong nội dung: thiếu một trong hai là Excel bản
@@ -461,7 +657,7 @@ function createApp(overrides) {
 			response.setHeader("Content-Disposition", 'attachment; filename="toan-runner-stats.csv"');
 			response.send(statsStoreModule.statsToCsv(stats));
 		} catch (error) {
-			next(createError(400, error.message));
+			next(createError(error.statusCode || 400, error.message));
 		}
 	});
 

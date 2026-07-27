@@ -720,6 +720,25 @@
 	display: none;
 }
 
+/* P2-5 — ô nhập mã lớp ở S11: hàng nút + dòng trạng thái. */
+.field__row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	pointer-events: auto;
+}
+
+.field__row .button[hidden] {
+	display: none;
+}
+
+.field__hint {
+	margin: 0;
+	color: var(--color-text-muted);
+	font-weight: 600;
+	font-size: 15px;
+}
+
 .progress {
 	width: 100%;
 	height: 12px;

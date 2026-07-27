@@ -16,6 +16,14 @@ export interface SettingsV2 {
 	lastLevel: string | null;
 	/** P1-8 — rung nhẹ khi va chạm/sai (chỉ Android; iOS không hỗ trợ). */
 	vibration: boolean;
+	/**
+	 * P2-5 — tên lớp đang tham gia, chỉ để HIỂN THỊ ở màn Cài đặt.
+	 *
+	 * Sự thật nằm ở server (bảng `class_members`); đây là bộ đệm để mở màn Cài đặt
+	 * không phải chờ mạng. Cố ý không thêm khoá localStorage mới cho một chuỗi —
+	 * cùng lý do đã ghi ở P1-5/P2-2. "" = chưa vào lớp nào (hoặc chưa hỏi server).
+	 */
+	classLabel: string;
 }
 
 export interface WalletV2 {
@@ -42,7 +50,8 @@ export const DEFAULT_SETTINGS: SettingsV2 = {
 	qualityPreset: null,
 	lastLevel: null,
 	// Mặc định BẬT: rung là phản hồi hữu ích, và tắt được ngay ở S11.
-	vibration: true
+	vibration: true,
+	classLabel: ""
 };
 
 export const DEFAULT_WALLET: WalletV2 = {
@@ -137,7 +146,8 @@ export function loadSettings(): SettingsV2 {
 		sfxVolume: clampVolume(settings.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
 		qualityPreset: isQualityPreset(settings.qualityPreset) ? settings.qualityPreset : null,
 		lastLevel: typeof settings.lastLevel === "string" ? settings.lastLevel : null,
-		vibration: settings.vibration !== false
+		vibration: settings.vibration !== false,
+		classLabel: typeof settings.classLabel === "string" ? settings.classLabel : ""
 	};
 }
 

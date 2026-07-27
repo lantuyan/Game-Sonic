@@ -216,6 +216,20 @@ export const tuning = {
 		speedBoostFactor: 1.35
 	},
 
+	/** Nhiệm vụ ngày + huy hiệu + chuỗi ngày (P1-8). */
+	missions: {
+		/** 3 nhiệm vụ mỗi ngày (task P1-8). */
+		perDay: 3,
+		/**
+		 * Trần chuỗi ngày = 7. Cố ý KHÔNG cho vô hạn: chuỗi 40 ngày biến việc nghỉ
+		 * một hôm thành mất mát lớn, và đó là áp lực sai với trẻ con.
+		 */
+		streakCapDays: 7,
+		/** Rung nhẹ khi va chạm / trả lời sai (Android; iOS không hỗ trợ). */
+		vibrateHitMs: 35,
+		vibrateWrongMs: 20
+	},
+
 	/** Near-miss (plan §4.4 — P1-1): lướt sát chướng ngại được thưởng. */
 	nearMiss: {
 		enabled: 1,

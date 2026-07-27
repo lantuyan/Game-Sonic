@@ -16,7 +16,9 @@ export type ScreenName =
 	| "settings"
 	| "tutorial"
 	/** S12 — Cửa hàng mở khoá nhân vật (P1-3). */
-	| "shop";
+	| "shop"
+	/** S13 — Hồ sơ học tập: nhiệm vụ, huy hiệu, chuỗi ngày (P1-8). */
+	| "profile";
 
 export interface Screen {
 	readonly name: ScreenName;

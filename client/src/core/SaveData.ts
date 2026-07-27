@@ -14,6 +14,8 @@ export interface SettingsV2 {
 	/** null = để auto-quality tự quyết; chuỗi = người chơi đã chọn tay. */
 	qualityPreset: QualityPresetName | null;
 	lastLevel: string | null;
+	/** P1-8 — rung nhẹ khi va chạm/sai (chỉ Android; iOS không hỗ trợ). */
+	vibration: boolean;
 }
 
 export interface WalletV2 {
@@ -28,7 +30,9 @@ export const DEFAULT_SETTINGS: SettingsV2 = {
 	musicVolume: 0.6,
 	sfxVolume: 0.85,
 	qualityPreset: null,
-	lastLevel: null
+	lastLevel: null,
+	// Mặc định BẬT: rung là phản hồi hữu ích, và tắt được ngay ở S11.
+	vibration: true
 };
 
 export const DEFAULT_WALLET: WalletV2 = {
@@ -121,7 +125,8 @@ export function loadSettings(): SettingsV2 {
 		musicVolume: clampVolume(settings.musicVolume, DEFAULT_SETTINGS.musicVolume),
 		sfxVolume: clampVolume(settings.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
 		qualityPreset: isQualityPreset(settings.qualityPreset) ? settings.qualityPreset : null,
-		lastLevel: typeof settings.lastLevel === "string" ? settings.lastLevel : null
+		lastLevel: typeof settings.lastLevel === "string" ? settings.lastLevel : null,
+		vibration: settings.vibration !== false
 	};
 }
 

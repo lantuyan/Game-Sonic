@@ -12,6 +12,9 @@
 import { createButton, createPanel, countUp, createProgressBar, confirmTwoStep } from "@/ui/components";
 import { CHARACTERS, DEFAULT_CHARACTER_ID, loadSelectedCharacterId, saveSelectedCharacterId } from "@/data/characters";
 import { Unlocks } from "@/systems/Unlocks";
+import { Missions } from "@/systems/Missions";
+import { BADGES, type MissionDefinition } from "@/systems/missionRules";
+import { isVibrationSupported, setVibrationEnabled } from "@/core/haptics";
 import { UNLOCK_RULES, type UnlockState } from "@/systems/unlockRules";
 import { loadWallet, migrateLegacyBestScore, saveWallet, loadSettings, saveSettings } from "@/core/SaveData";
 import { V2_STORAGE_KEYS } from "@/core/storageKeys";
@@ -81,6 +84,8 @@ export interface HomeCallbacks {
 	onLeaderboard(): void;
 	onSettings(): void;
 	onTutorial(): void;
+	/** P1-8 — S13 Hồ sơ học tập. */
+	onProfile(): void;
 }
 
 export class HomeScreen implements Screen {
@@ -108,6 +113,7 @@ export class HomeScreen implements Screen {
 				ariaLabel: "Luyện tập — không tính điểm, chỉ ôn câu hỏi"
 			}),
 			createButton({ label: "Bảng xếp hạng", onClick: callbacks.onLeaderboard }),
+			createButton({ label: "Hồ sơ học tập", onClick: callbacks.onProfile }),
 			createButton({ label: "Cài đặt", onClick: callbacks.onSettings }),
 			createButton({ label: "Hướng dẫn", onClick: callbacks.onTutorial })
 		);
@@ -729,6 +735,24 @@ export class SettingsScreen implements Screen {
 		qualityLabel.appendChild(qualitySelect);
 		body.appendChild(qualityLabel);
 
+		// P1-8 — rung nhẹ. CHỈ dựng công tắc khi máy thật sự rung được: hiện một tuỳ
+		// chọn không bao giờ có tác dụng trên iPhone là nói dối người dùng.
+		if (isVibrationSupported() === true) {
+			const vibrationLabel = document.createElement("label");
+			vibrationLabel.className = "field field--toggle";
+			vibrationLabel.textContent = "Rung khi va chạm";
+
+			const vibrationInput = document.createElement("input");
+			vibrationInput.type = "checkbox";
+			vibrationInput.checked = settings.vibration;
+			vibrationInput.addEventListener("change", () => {
+				setVibrationEnabled(vibrationInput.checked);
+			});
+
+			vibrationLabel.appendChild(vibrationInput);
+			body.appendChild(vibrationLabel);
+		}
+
 		const nicknameLabel = document.createElement("label");
 		nicknameLabel.className = "field";
 		nicknameLabel.textContent = "Biệt danh";
@@ -880,4 +904,187 @@ export function markTutorialSeen(): void {
 
 export function resetTutorial(): void {
 	writeRaw(V2_STORAGE_KEYS.ftue, "");
+}
+
+// --- S13 Hồ sơ học tập (P1-8) -------------------------------------------------
+
+export interface ProfileCallbacks {
+	onBack(): void;
+	/** Hồ sơ kỹ năng theo độ khó — App lấy qua questionBridge. */
+	loadSkill(): Promise<{ accuracy: number | null; targetDifficultyIndex: number; gamesPlayed: number } | null>;
+	/** Số câu đang nợ trong hàng đợi ôn tập. */
+	getReviewCount(): number;
+}
+
+export class ProfileScreen implements Screen {
+	readonly name: ScreenName = "profile";
+	readonly element: HTMLElement;
+
+	private readonly missions = new Missions();
+	private readonly body: HTMLDivElement;
+	private readonly callbacks: ProfileCallbacks;
+
+	constructor(callbacks: ProfileCallbacks) {
+		const { section, body, actions } = createPanel("Hồ sơ học tập", "Em đang tiến bộ thế nào");
+		this.element = section;
+		this.body = body;
+		this.callbacks = callbacks;
+
+		actions.append(createButton({ label: "Quay lại", onClick: callbacks.onBack }));
+	}
+
+	onShow(): void {
+		this.missions.reload();
+		this.render();
+		// Hồ sơ kỹ năng đọc bất đồng bộ — vẽ phần tĩnh trước để màn hình không trống.
+		void this.callbacks.loadSkill().then((skill) => {
+			this.render(skill);
+		});
+	}
+
+	private render(skill?: { accuracy: number | null; targetDifficultyIndex: number; gamesPlayed: number } | null): void {
+		this.body.replaceChildren();
+
+		this.body.appendChild(this.buildStreak());
+		this.body.appendChild(this.buildMissions());
+
+		if (skill !== undefined && skill !== null) {
+			this.body.appendChild(this.buildSkill(skill));
+		}
+
+		this.body.appendChild(this.buildBadges());
+		this.body.appendChild(this.buildReviewDebt());
+	}
+
+	private buildStreak(): HTMLElement {
+		const box = document.createElement("div");
+		box.className = "profile__streak";
+		const days = this.missions.streakDays;
+
+		box.textContent =
+			days <= 0
+				? "Bắt đầu chuỗi ngày chăm chỉ của em hôm nay nhé!"
+				: `Chuỗi ngày chăm chỉ: ${days} ngày 🔥`;
+
+		return box;
+	}
+
+	private buildMissions(): HTMLElement {
+		const wrapper = document.createElement("section");
+		wrapper.className = "profile__section";
+
+		const title = document.createElement("h2");
+		title.className = "profile__title";
+		title.textContent = "Nhiệm vụ hôm nay";
+		wrapper.appendChild(title);
+
+		const daily = this.missions.today();
+
+		for (const mission of daily.missions) {
+			wrapper.appendChild(this.buildMissionRow(mission, daily));
+		}
+
+		return wrapper;
+	}
+
+	private buildMissionRow(mission: MissionDefinition, daily: { entries: Array<{ id: string; progress: number; claimed: boolean }> }): HTMLElement {
+		const entry = daily.entries.find((item) => item.id === mission.id);
+		const progress = entry?.progress ?? 0;
+		const done = entry?.claimed === true;
+
+		const row = document.createElement("div");
+		row.className = "profile__mission";
+		row.dataset.done = done ? "true" : "false";
+
+		const label = document.createElement("span");
+		label.className = "profile__mission-label";
+		label.textContent = `${done ? "✓ " : ""}${mission.label}`;
+
+		const value = document.createElement("span");
+		value.className = "profile__mission-value";
+		value.textContent = done
+			? `+${mission.reward} xu`
+			: `${Math.min(progress, mission.target)}/${mission.target}`;
+
+		const track = document.createElement("span");
+		track.className = "profile__bar-track";
+		const bar = document.createElement("span");
+		bar.className = "profile__bar";
+		bar.style.width = `${Math.round(Math.min(progress / Math.max(mission.target, 1), 1) * 100)}%`;
+		track.appendChild(bar);
+
+		row.append(label, track, value);
+		return row;
+	}
+
+	private buildSkill(skill: { accuracy: number | null; targetDifficultyIndex: number; gamesPlayed: number }): HTMLElement {
+		const wrapper = document.createElement("section");
+		wrapper.className = "profile__section";
+
+		const title = document.createElement("h2");
+		title.className = "profile__title";
+		title.textContent = "Trình độ hiện tại";
+		wrapper.appendChild(title);
+
+		const levels = ["Dễ", "Trung bình", "Khó", "Cực khó"];
+		const index = Math.min(Math.max(Math.round(skill.targetDifficultyIndex), 0), levels.length - 1);
+
+		const line = document.createElement("p");
+		line.className = "profile__line";
+		line.textContent =
+			skill.accuracy === null
+				? `Đang ở mức: ${levels[index]} · ${skill.gamesPlayed} ván đã chơi`
+				: `Đang ở mức: ${levels[index]} · đúng ${Math.round(skill.accuracy * 100)}% · ${skill.gamesPlayed} ván đã chơi`;
+
+		wrapper.appendChild(line);
+		return wrapper;
+	}
+
+	private buildBadges(): HTMLElement {
+		const wrapper = document.createElement("section");
+		wrapper.className = "profile__section";
+
+		const title = document.createElement("h2");
+		title.className = "profile__title";
+		title.textContent = "Huy hiệu";
+		wrapper.appendChild(title);
+
+		const grid = document.createElement("div");
+		grid.className = "profile__badges";
+		const earned = this.missions.earnedBadgeIds;
+
+		for (const badge of BADGES) {
+			const item = document.createElement("div");
+			item.className = "profile__badge";
+			// Huy hiệu CHƯA đạt vẫn hiện (mờ đi): thấy được đích tiếp theo là một
+			// phần của động lực, giấu đi thì chỉ còn là bất ngờ ngẫu nhiên.
+			item.dataset.earned = earned.includes(badge.id) ? "true" : "false";
+			item.title = badge.description;
+
+			const name = document.createElement("strong");
+			name.textContent = badge.label;
+
+			const description = document.createElement("span");
+			description.textContent = badge.description;
+
+			item.append(name, description);
+			grid.appendChild(item);
+		}
+
+		wrapper.appendChild(grid);
+		return wrapper;
+	}
+
+	private buildReviewDebt(): HTMLElement {
+		const box = document.createElement("p");
+		box.className = "profile__line";
+		const count = this.callbacks.getReviewCount();
+
+		box.textContent =
+			count <= 0
+				? "Em không còn câu nào phải ôn lại. Giỏi lắm!"
+				: `Còn ${count} câu chờ ôn lại — chơi Luyện tập để gặp lại chúng.`;
+
+		return box;
+	}
 }

@@ -361,9 +361,19 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 · **Không** dùng PGlite cho kho câu hỏi ở máy dev dù nó có sẵn — làm vậy thì đường chạy của dev khác production và bug chỉ lộ khi deploy. Đúng DoD "không có `DATABASE_URL` → hành vi như hiện tại".
 **Chưa nghiệm thu được ở môi trường này:** chạy thật trên preview có Neon (không có `DATABASE_URL` trong sandbox). Cold-start đã mô phỏng bằng cách dựng lại store trên cùng CSDL — đúng điều xảy ra khi instance serverless bị thu hồi.
 
-### [ ] P1-8 · Nhiệm vụ ngày, huy hiệu, Hồ sơ học tập, rung Android — *2 ngày*
+### [x] P1-8 · Nhiệm vụ ngày, huy hiệu, Hồ sơ học tập, rung Android — *2 ngày*
 3 nhiệm vụ/ngày sinh từ seed ngày (vd "trả lời đúng 10 câu", "chạy 2000m", "3 câu hình học đúng") thưởng coin, local `endlessrunner-missions-v2`; huy hiệu kiến thức (mốc câu đúng theo chủ đề/độ khó) + chuỗi ngày chăm chỉ (trần 7 ngày, không phạt gãy chuỗi kiểu áp lực); S13 Hồ sơ: accuracy theo độ khó (từ skill profile), đồ thị tiến bộ đơn giản, huy hiệu, số câu "đang nợ" trong review queue. Kèm: **rung nhẹ Android** (`navigator.vibrate` feature-detect — iOS không hỗ trợ) khi va chạm/sai, toggle trong S11.
 **DoD:** đổi ngày hệ thống → nhiệm vụ mới; huy hiệu trao đúng mốc; S13 render từ dữ liệu thật; rung chỉ chạy trên Android + tắt được.
+**Đã làm (nhánh `v2/p1-08-missions`):** `systems/missionRules.ts` (luật thuần) + `systems/Missions.ts` (nơi DUY NHẤT ghi `endlessrunner-missions-v2` và cộng xu thưởng) + `core/haptics.ts` + `ProfileScreen` (S13) + công tắc rung trong S11. 20 test mới (`test/missions.test.js`).
+**Quyết định đáng nêu — phần này cố ý TỬ TẾ chứ không "gây nghiện":**
+· Nhiệm vụ tất định theo NGÀY, không theo thiết bị: cả lớp nhận cùng một bộ nên các em nói chuyện được với nhau, và không em nào thấy mình bị giao việc khó hơn bạn.
+· Chuỗi ngày có TRẦN 7 và gãy thì **về 1, không phạt gì thêm**. Chuỗi 40 ngày biến việc nghỉ một hôm (ốm, đi chơi, mất mạng) thành mất mát lớn — đó là áp lực sai với trẻ con.
+· **Huy hiệu đã trao KHÔNG BAO GIỜ lấy lại**, và nghỉ vài hôm không mất số câu đã học. Có test riêng canh đúng điều này.
+· Huy hiệu chưa đạt vẫn hiện (mờ đi): thấy được đích tiếp theo là một phần của động lực.
+· Chuỗi ngày cập nhật TRƯỚC khi chấm huy hiệu, để "Trọn tuần" được trao ngay trong ván chạm mốc chứ không trễ một ngày.
+· Luyện tập KHÔNG tính vào nhiệm vụ (cùng lý do với mở khoá P1-3).
+· Rung: feature-detect `navigator.vibrate`, và công tắc trong S11 **chỉ dựng khi máy thật sự rung được** — hiện một tuỳ chọn vô tác dụng trên iPhone là nói dối người dùng. Rung khi sai (20ms) nhẹ hơn khi va chạm (35ms): báo hiệu, không phải hình phạt.
+**Sửa một lỗi thật phát hiện khi soi S13:** `ReviewQueue` của App là ảnh chụp lúc khởi động, còn RunScene giữ instance riêng ⇒ số câu "đang nợ" luôn cũ sau mỗi ván. Đã thêm `reload()` và gọi trước mỗi lần hiển thị.
 
 ---
 

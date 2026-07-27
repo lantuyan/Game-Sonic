@@ -13,6 +13,7 @@ import {
 	LevelScreen,
 	LeaderboardScreen,
 	PauseScreen,
+	ProfileScreen,
 	SettingsScreen,
 	ShopScreen,
 	SplashScreen,
@@ -25,6 +26,9 @@ import { RunScene } from "@/scenes/RunScene";
 import { MenuScene } from "@/scenes/MenuScene";
 import { loadWallet } from "@/core/SaveData";
 import { Unlocks } from "@/systems/Unlocks";
+import { Missions } from "@/systems/Missions";
+import { emptyRunTotals } from "@/systems/missionRules";
+import { ReviewQueue } from "@/systems/ReviewQueue";
 import { CHARACTERS } from "@/data/characters";
 import * as bridge from "@/integration/questionBridge";
 
@@ -38,6 +42,9 @@ export class App {
 	private readonly uiRoot: HTMLElement;
 	/** Tiến trình mở khoá nhân vật (P1-3). */
 	private readonly unlocks = new Unlocks();
+	/** Nhiệm vụ ngày + huy hiệu + chuỗi ngày (P1-8). */
+	private readonly missions = new Missions();
+	private readonly reviewQueue = new ReviewQueue();
 
 	private level = "lop6";
 	/** P1-5 — ván kế tiếp là Luyện tập (không tim/điểm/BXH). */
@@ -71,6 +78,22 @@ export class App {
 			onTutorial: () => {
 				resetTutorial();
 				this.screens.show("tutorial");
+			},
+			onProfile: () => {
+				this.screens.show("profile");
+			}
+		});
+
+		// S13 — Hồ sơ học tập (P1-8).
+		const profile = new ProfileScreen({
+			onBack: () => {
+				this.screens.show("home");
+			},
+			loadSkill: () => bridge.getSkillSummary(this.level).catch(() => null),
+			getReviewCount: () => {
+				// Đọc lại: RunScene có instance riêng, nên bản của App là ảnh chụp cũ.
+				this.reviewQueue.reload();
+				return this.reviewQueue.pendingCount(this.level);
 			}
 		});
 
@@ -196,7 +219,8 @@ export class App {
 			leaderboard,
 			settings,
 			tutorial,
-			shop
+			shop,
+			profile
 		]) {
 			uiRoot.appendChild(screen.element);
 			this.screens.register(screen);
@@ -226,6 +250,21 @@ export class App {
 			for (const characterId of newlyUnlocked) {
 				const character = CHARACTERS.find((entry) => entry.id === characterId);
 				this.showToast(`Đã mở khoá ${character?.label ?? characterId}! 🎉`);
+			}
+
+			// P1-8 — nhiệm vụ ngày + huy hiệu. Luyện tập KHÔNG tính, cùng lý do như
+			// tiến trình mở khoá: nhiệm vụ phải là thành tích ở chế độ có rủi ro.
+			if (this.practice === false) {
+				const totals = scene?.missionTotals ?? emptyRunTotals();
+				const result = this.missions.recordRun(totals);
+
+				for (const mission of result.completedMissions) {
+					this.showToast(`Hoàn thành: ${mission.label} · +${mission.reward} xu 🎯`);
+				}
+
+				for (const badge of result.newBadges) {
+					this.showToast(`Huy hiệu mới: ${badge.label}! 🏅`);
+				}
 			}
 
 			this.screens.show("gameover", {

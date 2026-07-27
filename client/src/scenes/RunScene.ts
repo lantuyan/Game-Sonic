@@ -30,6 +30,8 @@ import {
 	pickRevivalQuestion
 } from "@/systems/learningRules";
 import { Unlocks } from "@/systems/Unlocks";
+import { emptyRunTotals, type RunTotals } from "@/systems/missionRules";
+import { vibrateHit, vibrateWrong } from "@/core/haptics";
 import { loadWallet } from "@/core/SaveData";
 import { BossVisual } from "@/entities/BossVisual";
 import { QuizGateVisual, GATE_TRIGGER_HALF_DEPTH, gateSpawnZ } from "@/entities/QuizGateVisual";
@@ -103,6 +105,8 @@ export class RunScene implements GameScene {
 	private readonly learning = new LearningStatsRecorder();
 	/** Sự kiện trả lời của ván này — gửi MỘT lần cuối ván cho dashboard (P1-6). */
 	private readonly answerEvents: bridge.RunAnswerEvent[] = [];
+	/** Số liệu cộng dồn cho nhiệm vụ ngày (P1-8). */
+	private readonly totals: RunTotals = emptyRunTotals();
 	private readonly unlocks = new Unlocks();
 	/** Luyện tập: không tim, không điểm, không BXH — chỉ cổng và đề (plan §4.6). */
 	private readonly practiceMode: boolean;
@@ -140,6 +144,11 @@ export class RunScene implements GameScene {
 
 	get isPractice(): boolean {
 		return this.practiceMode;
+	}
+
+	/** Số liệu ván này cho hệ nhiệm vụ ngày (P1-8). App đọc lúc kết thúc ván. */
+	get missionTotals(): RunTotals {
+		return { ...this.totals, distanceM: this.track.distanceM, correctByDifficulty: { ...this.totals.correctByDifficulty } };
 	}
 
 	/** Số câu đúng/tổng của ván — S8 hiển thị. */
@@ -244,6 +253,13 @@ export class RunScene implements GameScene {
 			this.dda.reset();
 			this.learning.reset();
 			this.answerEvents.length = 0;
+			this.totals.correctAnswers = 0;
+			this.totals.coins = 0;
+			this.totals.nearMisses = 0;
+			this.totals.distanceM = 0;
+			for (const key of Object.keys(this.totals.correctByDifficulty)) {
+				delete this.totals.correctByDifficulty[key];
+			}
 			this.quiz = new QuizGateController(this.buildQuizCallbacks(context));
 			// P1-5: nhịp cổng bám accuracy NGAY TRONG VÁN.
 			this.quiz.setAccuracyProvider(() => this.learning.accuracy);
@@ -383,6 +399,9 @@ export class RunScene implements GameScene {
 
 		if (outcome === "correct") {
 			this.audio.play("boss-defeat");
+			this.totals.correctAnswers += 1;
+			this.totals.correctByDifficulty[question.difficulty] =
+				(this.totals.correctByDifficulty[question.difficulty] ?? 0) + 1;
 			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
 			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
@@ -395,6 +414,8 @@ export class RunScene implements GameScene {
 		}
 
 		this.audio.play("answer-wrong");
+		// P1-8 — rung NHẸ khi sai: báo hiệu, không phải hình phạt (Android; iOS bỏ qua).
+		vibrateWrong();
 		this.reviewQueue.recordWrong(question.id, this.level, Date.now());
 		this.wrongThisRun.push({
 			question,
@@ -576,6 +597,9 @@ export class RunScene implements GameScene {
 
 		if (outcome === "correct") {
 			this.audio.play("answer-correct");
+			this.totals.correctAnswers += 1;
+			this.totals.correctByDifficulty[question.difficulty] =
+				(this.totals.correctByDifficulty[question.difficulty] ?? 0) + 1;
 
 			// P1-5: đúng câu hard/expert được tặng Khiên — phần thưởng cho việc dám
 			// làm câu khó, và đúng lúc cần nhất vì câu khó hay rơi vào lúc tốc độ cao.
@@ -594,6 +618,8 @@ export class RunScene implements GameScene {
 
 		// Sai/timeout: KHÔNG mất tim (Q2) — chỉ vỡ streak + vấp + 10s không coin.
 		this.audio.play("answer-wrong");
+		// P1-8 — rung NHẸ khi sai: báo hiệu, không phải hình phạt (Android; iOS bỏ qua).
+		vibrateWrong();
 		this.reviewQueue.recordWrong(question.id, this.level, Date.now());
 		this.wrongThisRun.push({
 			question,
@@ -1056,6 +1082,7 @@ export class RunScene implements GameScene {
 		}
 
 		const points = tuning.nearMiss.points * awarded;
+		this.totals.nearMisses += awarded;
 		this.score.addBonus(points);
 		this.audio.play("near-miss");
 		context.events.emit("nearmiss", { points, total: this.score.total });
@@ -1279,6 +1306,7 @@ export class RunScene implements GameScene {
 		// của chế độ này là ôn đề, không phải sống sót.
 		if (this.practiceMode === true) {
 			this.audio.play("hit");
+			vibrateHit();
 			this.speed.onHit();
 			this.player?.takeHit();
 			return;
@@ -1306,6 +1334,8 @@ export class RunScene implements GameScene {
 		}
 
 		this.audio.play("hit");
+		// P1-8 — rung khi va chạm (Android; iOS không hỗ trợ, tự bỏ qua).
+		vibrateHit();
 		player.takeHit();
 		context.events.emit("player:hit", { livesLeft: this.lives.current });
 		context.events.emit("lives:changed", { lives: this.lives.current });
@@ -1344,6 +1374,7 @@ export class RunScene implements GameScene {
 		}
 
 		if (gained > 0) {
+			this.totals.coins += gained;
 			this.audio.play("coin");
 			context.events.emit("coins:changed", { coins: this.score.snapshot().coins, delta: gained });
 		}

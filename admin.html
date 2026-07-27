@@ -400,6 +400,51 @@
 							</table>
 						</div>
 					</section>
+
+					<!-- P1-4 — Kiểm duyệt bảng xếp hạng. -->
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Kiểm duyệt bảng xếp hạng</h2>
+							<button id="moderation-refresh" class="button-secondary" type="button">Tải lại</button>
+						</div>
+						<p class="level-meta" style="margin:0 0 14px;">
+							Cột <strong>Xác minh</strong> là kết quả tự động của server: ✗ nghĩa là điểm nộp không kèm vé ván chơi
+							hợp lệ, hoặc vượt trần hợp lý. Đó là <em>dấu hiệu để xem lại</em>, không phải kết luận gian lận.
+						</p>
+						<div class="table-wrap">
+							<table class="table-wide">
+								<thead>
+									<tr>
+										<th>Thời điểm</th>
+										<th>Lớp</th>
+										<th>Biệt danh</th>
+										<th>Điểm</th>
+										<th>Đúng</th>
+										<th>Thời lượng</th>
+										<th>Xác minh</th>
+										<th>Hành động</th>
+									</tr>
+								</thead>
+								<tbody id="moderation-table-body"></tbody>
+							</table>
+						</div>
+
+						<div class="toolbar" style="margin-top:18px;">
+							<h3 style="margin:0;font-size:16px;">Biệt danh đã khoá</h3>
+						</div>
+						<div class="form-row" style="margin-bottom:10px;">
+							<div class="field">
+								<label for="block-nickname">Khoá thêm biệt danh</label>
+								<input id="block-nickname" type="text" maxlength="24" placeholder="Biệt danh cần khoá" />
+							</div>
+							<div class="field">
+								<label for="block-reason">Lý do (tuỳ chọn)</label>
+								<input id="block-reason" type="text" maxlength="120" placeholder="vd: từ ngữ không phù hợp" />
+							</div>
+						</div>
+						<button id="block-nickname-button" class="button-warning" type="button">Khoá biệt danh</button>
+						<div id="blocked-list" class="small muted" style="margin-top:12px;"></div>
+					</section>
 				</div>
 			</div>
 		</div>
@@ -1186,6 +1231,8 @@
 				document.getElementById("save-speed-button").addEventListener("click", handleSaveSpeed);
 				document.getElementById("save-quiz-mode-button").addEventListener("click", handleSaveQuizMode);
 				document.getElementById("reset-answered-button").addEventListener("click", handleResetAnswered);
+				document.getElementById("moderation-refresh").addEventListener("click", loadModeration);
+				document.getElementById("block-nickname-button").addEventListener("click", handleBlockNickname);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
 					document.getElementById("answer-" + answerKey).addEventListener("input", function () {
 						renderCorrectAnswerOptions();
@@ -1193,11 +1240,168 @@
 				});
 			}
 
+
+			// --- P1-4 · Kiểm duyệt bảng xếp hạng ------------------------------------
+			//
+			// Gọi thẳng route admin thay vì thêm hàm vào questionBank.js: questionBank
+			// là hợp đồng tích hợp của GAME, không phải nơi chứa công cụ quản trị.
+
+			function adminFetch(url, options) {
+				return fetch(url, Object.assign({
+					credentials: "same-origin",
+					headers: { "Content-Type": "application/json" }
+				}, options || {})).then(function (response) {
+					return response.json().catch(function () {
+						return {};
+					}).then(function (payload) {
+						if (response.ok !== true) {
+							throw new Error(payload.error || "Yêu cầu thất bại (HTTP " + response.status + ").");
+						}
+
+						return payload;
+					});
+				});
+			}
+
+			function formatDuration(durationMs) {
+				if (durationMs == null) {
+					return "—";
+				}
+
+				var totalSeconds = Math.round(Number(durationMs) / 1000);
+				var minutes = Math.floor(totalSeconds / 60);
+				return minutes + "'" + String(totalSeconds % 60).padStart(2, "0");
+			}
+
+			function renderModerationScores(entries) {
+				var tableBody = document.getElementById("moderation-table-body");
+
+				if (entries.length === 0) {
+					tableBody.innerHTML = "<tr><td colspan=\"8\" class=\"empty\">Chưa có điểm nào được nộp.</td></tr>";
+					return;
+				}
+
+				tableBody.innerHTML = entries.map(function (entry) {
+					return "<tr>" +
+						"<td class=\"small\">" + escapeHTML(new Date(entry.createdAt).toLocaleString("vi-VN")) + "</td>" +
+						"<td>" + escapeHTML(entry.level) + "</td>" +
+						"<td>" + escapeHTML(entry.nickname) + "</td>" +
+						"<td>" + entry.score + "</td>" +
+						"<td>" + entry.correctCount + "</td>" +
+						"<td>" + escapeHTML(formatDuration(entry.durationMs)) + "</td>" +
+						"<td>" + (entry.verified === true ? "✓" : "✗") + "</td>" +
+						"<td>" +
+							"<button type=\"button\" class=\"button-secondary\" data-block=\"" + escapeHTML(entry.nickname) + "\">Khoá tên</button> " +
+							"<button type=\"button\" class=\"button-warning\" data-delete-score=\"" + entry.id + "\">Xoá</button>" +
+						"</td>" +
+					"</tr>";
+				}).join("");
+
+				tableBody.querySelectorAll("button[data-delete-score]").forEach(function (button) {
+					button.addEventListener("click", function () {
+						// Xoá điểm là KHÔNG hoàn tác được — hỏi lại trước khi làm.
+						if (window.confirm("Xoá vĩnh viễn bản ghi điểm này?") !== true) {
+							return;
+						}
+
+						adminFetch("/api/admin/scores/" + button.getAttribute("data-delete-score"), { method: "DELETE" })
+							.then(function () {
+								showNotice("Đã xoá bản ghi điểm.", "success");
+								return loadModeration();
+							})
+							.catch(function (error) {
+								showNotice(error.message, "error");
+							});
+					});
+				});
+
+				tableBody.querySelectorAll("button[data-block]").forEach(function (button) {
+					button.addEventListener("click", function () {
+						document.getElementById("block-nickname").value = button.getAttribute("data-block");
+						document.getElementById("block-nickname").focus();
+					});
+				});
+			}
+
+			function renderBlockedNicknames(entries) {
+				var container = document.getElementById("blocked-list");
+
+				if (entries.length === 0) {
+					container.textContent = "Chưa khoá biệt danh nào.";
+					return;
+				}
+
+				container.innerHTML = entries.map(function (entry) {
+					return "<div style=\"margin-bottom:6px;\">" +
+						escapeHTML(entry.nickname) +
+						(entry.reason ? " — " + escapeHTML(entry.reason) : "") +
+						" <button type=\"button\" class=\"button-secondary\" data-unblock=\"" + escapeHTML(entry.nickname) + "\">Bỏ khoá</button>" +
+					"</div>";
+				}).join("");
+
+				container.querySelectorAll("button[data-unblock]").forEach(function (button) {
+					button.addEventListener("click", function () {
+						adminFetch("/api/admin/blocked-nicknames/" + encodeURIComponent(button.getAttribute("data-unblock")), {
+							method: "DELETE"
+						})
+							.then(function () {
+								showNotice("Đã bỏ khoá biệt danh.", "success");
+								return loadModeration();
+							})
+							.catch(function (error) {
+								showNotice(error.message, "error");
+							});
+					});
+				});
+			}
+
+			function loadModeration() {
+				return Promise.all([
+					adminFetch("/api/admin/scores?limit=50"),
+					adminFetch("/api/admin/blocked-nicknames")
+				]).then(function (parts) {
+					renderModerationScores(parts[0].entries || []);
+					renderBlockedNicknames(parts[1].entries || []);
+				}).catch(function (error) {
+					showNotice(error.message, "error");
+				});
+			}
+
+			function handleBlockNickname() {
+				var nickname = document.getElementById("block-nickname").value.trim();
+
+				if (nickname === "") {
+					showNotice("Nhập biệt danh cần khoá.", "error");
+					return;
+				}
+
+				adminFetch("/api/admin/blocked-nicknames", {
+					method: "POST",
+					body: JSON.stringify({
+						nickname: nickname,
+						reason: document.getElementById("block-reason").value.trim() || null
+					})
+				})
+					.then(function (result) {
+						showNotice(
+							"Đã khoá \"" + nickname + "\"" + (result.renamed > 0 ? " và đổi tên " + result.renamed + " bản ghi cũ." : "."),
+							"success"
+						);
+						document.getElementById("block-nickname").value = "";
+						document.getElementById("block-reason").value = "";
+						return loadModeration();
+					})
+					.catch(function (error) {
+						showNotice(error.message, "error");
+					});
+			}
+
 			function initializeAdminPage() {
 				appState.isInitialized = true;
 				bindEvents();
 				resetQuestionForm();
 				loadCurrentLevelData();
+				loadModeration();
 			}
 
 			requireAdminAccess();

@@ -25,6 +25,17 @@ var STATEMENTS = [
 		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
 	")",
 	"CREATE INDEX IF NOT EXISTS idx_scores_level_score ON scores (level, score DESC)",
+	// P1-4: điểm nộp KHÔNG kèm vé hợp lệ, hoặc trượt kiểm chéo tính hợp lý, vẫn được
+	// nhận nhưng đánh dấu verified = false. ADD COLUMN IF NOT EXISTS để chạy được
+	// trên CSDL đã có dữ liệu, không cần migration thủ công.
+	"ALTER TABLE scores ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false",
+	// P1-4: biệt danh bị giáo viên chặn (từ cấm / mạo danh). Chặn theo device để
+	// người chơi đó không đặt lại được cùng biệt danh.
+	"CREATE TABLE IF NOT EXISTS blocked_nicknames (" +
+		"nickname_normalized TEXT PRIMARY KEY," +
+		"reason TEXT," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
 	"CREATE TABLE IF NOT EXISTS skill_profiles (" +
 		"device_id TEXT NOT NULL," +
 		"level TEXT NOT NULL," +

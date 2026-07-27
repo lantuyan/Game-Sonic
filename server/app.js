@@ -1,6 +1,7 @@
 "use strict";
 
 var express = require("express");
+var rateLimit = require("express-rate-limit");
 var cookieParser = require("cookie-parser");
 var path = require("path");
 var QuestionModel = require("../shared/questionModel");
@@ -9,6 +10,8 @@ var configModule = require("./config");
 var dbModule = require("./db");
 var playerStoreModule = require("./playerStore");
 var createSqlClient = require("./sql").createSqlClient;
+var runToken = require("./runToken");
+var scoreCheck = require("./scoreCheck");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -31,6 +34,43 @@ function createApp(overrides) {
 	app.disable("x-powered-by");
 	app.use(express.json({ limit: "1mb" }));
 	app.use(cookieParser());
+
+	// P1-4 · giới hạn tần suất. Hai con số khác nhau vì hai mối lo khác nhau:
+	//   · 10 submit/phút — một ván ngắn nhất cũng 45s, nên 10/phút là rộng rãi cho
+	//     người chơi thật nhưng chặn được vòng lặp bơm điểm;
+	//   · 5 login admin/phút — chặn dò mật khẩu.
+	// `validate: false`: sau proxy của Vercel, express-rate-limit cảnh báo về
+	// X-Forwarded-For; ta chấp nhận đếm theo IP mà proxy báo.
+	var scoreLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 10,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		message: { error: "Em nộp điểm hơi nhanh, đợi một chút nhé." }
+	});
+
+	var loginLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 5,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		message: { error: "Sai quá nhiều lần. Thử lại sau một phút." }
+	});
+
+	/** Điểm cao nhất một câu của lớp — trần kiểm chéo cần con số thật, không đoán. */
+	async function maxPointForLevel(level) {
+		try {
+			QuestionModel.assertLevel(level);
+			var bundle = await dataStore.getLevelBundle(level);
+			var points = Object.values(bundle.pointSettings || {}).map(Number).filter(Number.isFinite);
+			return points.length > 0 ? Math.max.apply(null, points) : 100;
+		} catch (error) {
+			// Lớp lạ / store lỗi: dùng trần rộng rãi thay vì tố oan người chơi.
+			return 100;
+		}
+	}
 
 	// Hợp đồng V1 (plan §7.3.2): shape {status, database} GIỮ NGUYÊN từng ký tự.
 	// P0-14 chỉ THÊM field mới dbKind/dbOk — client cũ bỏ qua field lạ.
@@ -55,7 +95,7 @@ function createApp(overrides) {
 		});
 	});
 
-	app.post("/api/admin/login", async function (request, response, next) {
+	app.post("/api/admin/login", loginLimiter, async function (request, response, next) {
 		try {
 			var password = request.body && typeof request.body.password === "string" ? request.body.password : "";
 
@@ -147,9 +187,46 @@ function createApp(overrides) {
 
 	// --- Player routes (public): leaderboard + adaptive skill profiles ---
 
-	app.post("/api/scores", async function (request, response, next) {
+	// P1-4 · vé một-ván. Client xin vé lúc bắt đầu, nộp lại kèm điểm.
+	app.post("/api/runs/start", scoreLimiter, function (request, response) {
+		response.json(runToken.issueRunToken(config.jwtSecret));
+	});
+
+	app.post("/api/scores", scoreLimiter, async function (request, response, next) {
 		try {
-			response.json(await playerStore.submitScore(request.body || {}));
+			var body = request.body || {};
+			var ticket = runToken.verifyRunToken(body.token, body.runId, config.jwtSecret);
+
+			// Vé SAI (chữ ký hỏng / hết hạn / dùng lại) → 4xx. Đây là trường hợp duy
+			// nhất bị từ chối thẳng: nó chỉ xảy ra khi có ai đó cố tình nghịch.
+			if (ticket.ok === false && ticket.reason !== "missing") {
+				throw createError(400, "Vé ván chơi không hợp lệ (" + ticket.reason + ").");
+			}
+
+			// KHÔNG có vé: client V1 cũ vẫn nộp kiểu này, không được làm gãy nó.
+			// Chỉ khi bật ANTICHEAT_ENFORCE=1 (Checklist release P1) mới từ chối.
+			if (ticket.ok === false && config.anticheatEnforce === true) {
+				throw createError(400, "Thiếu vé ván chơi.");
+			}
+
+			// Kiểm chéo tính hợp lý — vi phạm thì VẪN NHẬN, chỉ hạ verified.
+			var plausibility = scoreCheck.checkPlausibility(body, await maxPointForLevel(body.level));
+
+			if (plausibility.plausible === false) {
+				console.warn(
+					"[anticheat] điểm bất thường (" + plausibility.reason + "): level=" + body.level +
+					" score=" + body.score + " correct=" + body.correctCount + " duration=" + body.durationMs +
+					" trần=" + Math.round(plausibility.ceiling)
+				);
+			}
+
+			var allowed = await playerStore.isNicknameAllowed(body.nickname);
+			var payload = Object.assign({}, body, {
+				verified: ticket.ok === true && plausibility.plausible === true,
+				nickname: allowed.allowed === true ? body.nickname : "Người chơi ẩn danh"
+			});
+
+			response.json(await playerStore.submitScore(payload));
 		} catch (error) {
 			next(error);
 		}
@@ -166,7 +243,21 @@ function createApp(overrides) {
 
 	app.put("/api/players/:deviceId/nickname", async function (request, response, next) {
 		try {
-			response.json(await playerStore.updateNickname(request.params.deviceId, request.body ? request.body.nickname : null));
+			var nickname = request.body ? request.body.nickname : null;
+			var allowed = await playerStore.isNicknameAllowed(nickname);
+
+			// P1-4: từ chối NGAY và nói rõ lý do, thay vì âm thầm đổi tên — học sinh
+			// phải biết vì sao biệt danh không được nhận để tự sửa.
+			if (allowed.allowed === false) {
+				throw createError(
+					400,
+					allowed.reason === "badword"
+						? "Biệt danh có từ không phù hợp, em chọn tên khác nhé."
+						: "Biệt danh này đã bị khoá, em chọn tên khác nhé."
+				);
+			}
+
+			response.json(await playerStore.updateNickname(request.params.deviceId, nickname));
 		} catch (error) {
 			next(error);
 		}
@@ -175,6 +266,49 @@ function createApp(overrides) {
 	app.put("/api/players/:deviceId/skill", async function (request, response, next) {
 		try {
 			response.json(await playerStore.saveSkill(request.params.deviceId, request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	// --- Kiểm duyệt (admin, P1-4) ---------------------------------------------
+
+	app.get("/api/admin/scores", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			response.json(await playerStore.listScores(request.query.level, request.query.limit));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.delete("/api/admin/scores/:id", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			response.json(await playerStore.deleteScore(request.params.id));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.get("/api/admin/blocked-nicknames", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			response.json(await playerStore.listBlockedNicknames());
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.post("/api/admin/blocked-nicknames", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			var body = request.body || {};
+			response.json(await playerStore.blockNickname(body.nickname, body.reason, body.replacement));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	app.delete("/api/admin/blocked-nicknames/:nickname", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			response.json(await playerStore.unblockNickname(request.params.nickname));
 		} catch (error) {
 			next(error);
 		}

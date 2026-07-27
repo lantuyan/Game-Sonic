@@ -589,6 +589,20 @@
 		return isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
 	}
 
+	/**
+	 * P1-4 — xin vé một-ván. Lỗi mạng KHÔNG được làm hỏng ván: trả null, khi đó
+	 * `submitScore` nộp như cũ và server ghi `verified = false`.
+	 */
+	function startRun() {
+		return fetchJson("/api/runs/start", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: "{}"
+		}).catch(function () {
+			return null;
+		});
+	}
+
 	function submitScore(level, stats) {
 		assertLevel(level);
 		var data = stats || {};
@@ -602,6 +616,16 @@
 			timeoutCount: nonNegativeInteger(data.timeoutCount),
 			durationMs: nonNegativeInteger(data.durationMs)
 		};
+
+		// P1-4 — vé ván chơi là TÙY CHỌN và tương thích ngược: bản client cũ không
+		// gửi thì server vẫn nhận điểm, chỉ đánh dấu chưa xác minh.
+		if (typeof data.runId === "string" && data.runId !== "") {
+			payload.runId = data.runId;
+		}
+
+		if (typeof data.token === "string" && data.token !== "") {
+			payload.token = data.token;
+		}
 
 		return fetchJson("/api/scores", {
 			method: "POST",
@@ -833,6 +857,7 @@
 		getNickname: getNickname,
 		setNickname: setNickname,
 		setNicknameLocal: setNicknameLocal,
+		startRun: startRun,
 		submitScore: submitScore,
 		getLeaderboard: getLeaderboard,
 		getSkillProfile: getSkillProfile,

@@ -80,6 +80,8 @@ export class RunScene implements GameScene {
 	private readonly nearMiss = new NearMissTracker();
 	/** Câu đã dùng trong ván (cổng lẫn boss) — boss không hỏi lại câu đã gặp. */
 	private readonly usedQuestionIds = new Set<string>();
+	/** Vé một-ván (P1-4). null = không xin được, điểm sẽ ghi `verified = false`. */
+	private runTicket: bridge.RunTicket | null = null;
 	private biomeIndex = readStartBiomeIndex();
 	/** 0 → camera thường, 1 → camera cắt cảnh boss. Trôi mềm qua `boss.cameraDollySec`. */
 	private bossCameraBlend = 0;
@@ -208,6 +210,10 @@ export class RunScene implements GameScene {
 			this.quiz.start(queue, { avgAnswerMs, levelQuizMode: this.levelQuizMode });
 			this.session.start(performance.now());
 			this.usedQuestionIds.clear();
+			// Vé xin SONG SONG, không chặn: mất mạng thì ván vẫn phải bắt đầu đúng giờ.
+			void bridge.startRun().then((ticket) => {
+				this.runTicket = ticket;
+			});
 			this.startBoss(context, await bridge.getTargetDifficultyIndex(this.level));
 
 			// Toast tốc độ khi vào ván — hợp đồng plan §7.3.4.
@@ -988,7 +994,10 @@ export class RunScene implements GameScene {
 
 		try {
 			await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
-			const result = await bridge.submitScore(this.level, this.session.toScoreStats(snapshot.total, nowMs));
+			const result = await bridge.submitScore(this.level, {
+				...this.session.toScoreStats(snapshot.total, nowMs),
+				...(this.runTicket !== null ? { runId: this.runTicket.runId, token: this.runTicket.token } : {})
+			});
 			context.events.emit("game:over", {
 				score: snapshot.total,
 				coins: snapshot.coins,

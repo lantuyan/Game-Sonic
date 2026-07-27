@@ -48,11 +48,23 @@ export interface SubmitScoreStats {
 	wrongCount: number;
 	timeoutCount: number;
 	durationMs: number;
+	/** P1-4 — vé một-ván, TÙY CHỌN (thiếu vẫn nộp được, chỉ là verified = false). */
+	runId?: string;
+	token?: string;
+}
+
+/** Vé một-ván do `POST /api/runs/start` cấp (P1-4). */
+export interface RunTicket {
+	runId: string;
+	token: string;
+	expiresAt: number;
 }
 
 export interface SubmitScoreResult {
 	rank?: number;
 	best?: number;
+	/** P1-4 — server đã xác minh vé + kiểm chéo điểm hay chưa. */
+	verified?: boolean;
 	[key: string]: unknown;
 }
 
@@ -76,6 +88,8 @@ export interface QuestionBankApi {
 	markQuestionResult(level: string, questionId: string, status: AnswerStatus): unknown;
 	updateSkillProfileAfterGame(level: string, session: SessionStats): SkillProfile;
 	submitScore(level: string, stats: SubmitScoreStats): Promise<SubmitScoreResult | null>;
+	/** P1-4 — vé một-ván. Tùy chọn: bản questionBank cũ chưa có hàm này. */
+	startRun?(): Promise<RunTicket | null>;
 	getLeaderboard(level: string): Promise<LeaderboardEntry[] | { entries?: LeaderboardEntry[] } | null>;
 	getNickname(): string | null;
 	setNickname(nickname: string): Promise<unknown> | unknown;

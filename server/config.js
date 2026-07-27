@@ -32,6 +32,15 @@ function resolveConfig(overrides) {
 		port: resolveNumber(values.port != null ? values.port : process.env.PORT, 3000),
 		jwtSecret: values.jwtSecret != null ? values.jwtSecret : String(process.env.JWT_SECRET || ""),
 		adminPasswordHash: values.adminPasswordHash != null ? values.adminPasswordHash : String(process.env.ADMIN_PASSWORD_HASH || ""),
+		/**
+		 * P1-4 — bật thì TỪ CHỐI hẳn điểm nộp không kèm vé ván chơi.
+		 * Mặc định TẮT: client V1 cũ chưa biết gửi vé, bật sớm là khoá cửa với chính
+		 * người chơi cũ. Bật ở bước "Checklist release P1" sau khi V2 đã phủ hết máy.
+		 */
+		anticheatEnforce:
+			values.anticheatEnforce != null
+				? values.anticheatEnforce === true
+				: String(process.env.ANTICHEAT_ENFORCE || "") === "1",
 		nodeEnv: values.nodeEnv || process.env.NODE_ENV || "development",
 		cookieName: "admin_token",
 		jwtExpiresIn: "8h"

@@ -308,15 +308,20 @@ Mage/Rogue/Engineer qua pipeline; S12 Shop: giá coin (cân trong tuning: ~300/5
 **Khác thiết kế gợi ý:** task ghi "Mage/Rogue/Engineer" nhưng bộ CC0 đã thẩm định (KayKit Adventurers) KHÔNG có Engineer → dùng **Barbarian ("Chiến binh")**. Kéo nguyên một pack mới cho đúng một model là tốn ngân sách và thêm một mục license.
 **Ngân sách:** 3 nhân vật (~850KB) bị loại khỏi precache lúc cài — SW giữ lại từ lần chọn đầu tiên. Initial load 3.6MB precache / 5.36MB build.
 
-### [ ] P1-4 · Anti-cheat leaderboard + moderation (backend + client) — *3 ngày*
+### [x] P1-4 · Anti-cheat leaderboard + moderation (backend + client) — *3 ngày*
 **Được phép sửa `questionBank.js` trong phạm vi:** `submitScore(level, stats)` nhận thêm `stats.runId`/`stats.token` TÙY CHỌN (backward-compatible — thiếu vẫn chạy như cũ); cập nhật contract-test tương ứng. Ngoài phạm vi đó, quy tắc vàng #4 vẫn áp dụng.
 **Việc cần làm:**
-- [ ] `POST /api/runs/start` → `{runId, token}` (HMAC ký `JWT_SECRET`, TTL 30 phút); client V2 gọi lúc bắt đầu ván (qua bridge), gửi kèm khi `submitScore`.
-- [ ] `POST /api/scores`: thêm cột `scores.verified` (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false`); submit không token → **vẫn nhận** (không gãy client V1) nhưng `verified=false`; token sai/replay/hết hạn → 4xx. Enforce (từ chối hẳn submit không token) điều khiển bằng env `ANTICHEAT_ENFORCE=1` — bật ở Checklist release P1, không tự bật trong task.
-- [ ] Kiểm chéo hợp lý (thống nhất với plan §7.4): `score ≤ durationMs/1000 × MAX_SPEED_MPS + correctCount × maxPoint(level) × 2` (dung sai 10%; `MAX_SPEED_MPS` = tốc độ trần từ tuning, hằng chia sẻ qua config) và `durationMs ≥ 45s`. Vi phạm → nhận nhưng `verified=false` + log.
-- [ ] `express-rate-limit`: 10 submit/phút, 5 login admin/phút.
-- [ ] Admin API + UI: xóa điểm, đổi/chặn nickname; filter từ cấm tiếng Việt khi đặt biệt danh (`server/badwords-vi.js`, cập nhật được).
+- [x] `POST /api/runs/start` → `{runId, token}` (HMAC ký `JWT_SECRET`, TTL 30 phút); client V2 gọi lúc bắt đầu ván (qua bridge), gửi kèm khi `submitScore`.
+- [x] `POST /api/scores`: thêm cột `scores.verified` (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false`); submit không token → **vẫn nhận** (không gãy client V1) nhưng `verified=false`; token sai/replay/hết hạn → 4xx. Enforce (từ chối hẳn submit không token) điều khiển bằng env `ANTICHEAT_ENFORCE=1` — bật ở Checklist release P1, không tự bật trong task.
+- [x] Kiểm chéo hợp lý (thống nhất với plan §7.4): `score ≤ durationMs/1000 × MAX_SPEED_MPS + correctCount × maxPoint(level) × 2` (dung sai 10%; `MAX_SPEED_MPS` = tốc độ trần từ tuning, hằng chia sẻ qua config) và `durationMs ≥ 45s`. Vi phạm → nhận nhưng `verified=false` + log.
+- [x] `express-rate-limit`: 10 submit/phút, 5 login admin/phút.
+- [x] Admin API + UI: xóa điểm, đổi/chặn nickname; filter từ cấm tiếng Việt khi đặt biệt danh (`server/badwords-vi.js`, cập nhật được).
 **DoD:** (a) token sai/replay/quá rate-limit → 4xx (test); (b) submit không token → nhận + `verified=false`; (c) bật `ANTICHEAT_ENFORCE=1` → submit không token bị từ chối; (d) ván hợp lệ điểm cao (chạy 6 phút, streak ×2) KHÔNG bị chặn oan (test với công thức điểm thật plan §4.4); (e) luồng V1 submit cũ không gãy; (f) admin xóa được 1 điểm trên UI.
+**Đã làm (nhánh `v2/p1-04-anticheat`):** `server/runToken.js` (vé HMAC tự chứng thực), `server/scoreCheck.js` (kiểm chéo), `server/badwords-vi.js`, cột `scores.verified` + bảng `blocked_nicknames`, 5 route admin kiểm duyệt, panel Kiểm duyệt trong `admin.html`. 23 test mới (`test/anticheat.test.js`) phủ đủ (a)–(f).
+**Quyết định đáng nêu:**
+· Vé KHÔNG lưu vào CSDL — chuỗi `runId.expiresAt.hmac` tự chứng thực, vì server chạy serverless và một bảng vé nghĩa là thêm một vòng ghi/đọc DB cho MỖI ván. Đổi lại, chống replay phải nhớ trong RAM tiến trình, nên **vé dùng lại ở instance serverless khác có thể lọt** — đã ghi rõ trong file; tuyến chính vẫn là kiểm chéo điểm.
+· Bộ lọc từ cấm ưu tiên KHÔNG CHẶN OAN tên thật: chuỗi ngắn/đa nghĩa (`dm`, `cc`, `vl`, `cac`, `lon`, `diem`) chỉ chặn khi là TOÀN BỘ biệt danh. Chính bộ test bắt được hai lỗi thật của bản đầu: "Trần Diễm My" và "Lê Điểm 10" bị chặn oan.
+· `ANTICHEAT_ENFORCE` mặc định TẮT và đã ghi vào `.env.example` — bật là việc của Checklist release P1, không phải của task này.
 
 ### [ ] P1-5 · Học tập nâng cao — *3.5 ngày*
 Câu hỏi hồi sinh (hết tim → 1 câu easy 10s; đúng → sống lại + 3s bất tử; lần 2 trong ngày = 100 coin); chế độ Luyện tập từ S2 (không tim/điểm/BXH, chỉ cổng, chậm, ưu tiên review queue); micro-DDA (2 sai liên tiếp → hạ 1 bậc lượt bốc kế; 3 đúng → nâng); tần suất cổng theo accuracy (25↔40s); định tuyến modal cho avgAnswerMs >12s với câu medium+; power-up twist: đúng câu hard/expert → tặng Khiên; power-up Tăng tốc.

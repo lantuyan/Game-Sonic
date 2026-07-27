@@ -14,6 +14,7 @@ import type {
 	LevelBundle,
 	QuestionBankApi,
 	SessionStats,
+	RunTicket,
 	SkillProfile,
 	SubmitScoreResult,
 	SubmitScoreStats
@@ -154,6 +155,25 @@ export async function submitScore(level: string, stats: SubmitScoreStats): Promi
 	return api.submitScore(level, stats);
 }
 
+/**
+ * Xin vé một-ván (P1-4). Trả null khi bản `questionBank.js` đang phục vụ chưa có
+ * `startRun` (bản cũ còn nằm trong cache của Service Worker) hoặc khi mất mạng —
+ * ván vẫn chơi bình thường, chỉ là điểm sẽ được ghi `verified = false`.
+ */
+export async function startRun(): Promise<RunTicket | null> {
+	const api = await loadQuestionBank();
+
+	if (typeof api.startRun !== "function") {
+		return null;
+	}
+
+	try {
+		return await api.startRun();
+	} catch {
+		return null;
+	}
+}
+
 export async function getLeaderboard(level: string): Promise<LeaderboardEntry[]> {
 	const api = await loadQuestionBank();
 	const result = await api.getLeaderboard(level);
@@ -228,4 +248,4 @@ export function resetBridgeForTests(): void {
 	loadPromise = null;
 }
 
-export type { LegacyQuestion, LevelBundle, SessionStats, SubmitScoreStats, SkillProfile, AnswerStatus };
+export type { LegacyQuestion, LevelBundle, SessionStats, SubmitScoreStats, SkillProfile, AnswerStatus, RunTicket };

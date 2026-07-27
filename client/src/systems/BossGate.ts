@@ -82,7 +82,7 @@ export class BossGateController {
 		return this.phase !== "idle";
 	}
 
-	/** Modal boss đang mở → RunScene đóng băng thế giới (timeScale = 0). */
+	/** Modal boss đang mở → RunScene đóng băng thế giới (phanh `worldSpeedFactor`, KHÔNG phải timeScale). */
 	get isFrozen(): boolean {
 		return this.phase === "question";
 	}

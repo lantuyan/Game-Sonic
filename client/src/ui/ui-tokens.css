@@ -361,6 +361,17 @@
 	display: none;
 }
 
+/* P2-2 — bậc CỰC SÁT và trạng thái đang có chuỗi đọc được bằng MÀU, vì dòng chữ
+   chỉ sống 0.8 giây và không ai kịp đọc hết chữ giữa lúc đang né. */
+.hud__nearmiss[data-tier="perfect"] {
+	background: rgba(255, 107, 214, 0.95);
+	color: #ffffff;
+}
+
+.hud__nearmiss[data-chain="true"] {
+	box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+
 .hud__nearmiss.is-pop {
 	animation: hud-float-up 800ms var(--ease-out) forwards;
 }
@@ -938,6 +949,87 @@
 	font-weight: 700;
 	color: var(--color-text-muted);
 	text-align: right;
+}
+
+/* --- S12 · tab Ngoại hình (P2-2) --- */
+
+.shop__tabs {
+	display: flex;
+	gap: var(--space-2);
+	margin-bottom: var(--space-3);
+}
+
+.shop__tabs > button {
+	flex: 1;
+}
+
+.shop__tabs > button[aria-pressed="true"] {
+	outline: 3px solid var(--color-cta);
+	outline-offset: 2px;
+}
+
+.shop__group-title {
+	margin: var(--space-3) 0 var(--space-2);
+	font-family: var(--font-display);
+	font-size: 16px;
+	color: var(--color-text);
+}
+
+/* Ô màu: cách duy nhất để biết "Vệt băng" trông thế nào trước khi trả tiền. */
+.shop__swatch {
+	flex: 0 0 auto;
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	border: 2px solid rgba(255, 255, 255, 0.65);
+}
+
+.shop__row[data-equipped="true"] {
+	outline: 3px solid var(--color-cta);
+	outline-offset: -3px;
+	opacity: 1;
+}
+
+/* --- S13 · dải chuỗi ngày (P2-2) --- */
+
+.profile__streak-days {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-2);
+	margin: var(--space-2) 0 var(--space-1);
+}
+
+.profile__streak-day {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.14);
+	color: var(--color-text-muted);
+	font-weight: 800;
+	font-size: 14px;
+}
+
+.profile__streak-day[data-done="true"] {
+	background: var(--color-coin);
+	color: var(--color-navy);
+}
+
+/*
+ * Ngày có mốc thưởng viền cam — nhìn một cái là biết đích tiếp theo ở đâu.
+ * Cam chứ không phải vàng: ngày ĐÃ QUA cũng tô vàng, nên viền vàng sẽ tan vào nền
+ * và mốc chỉ nhìn thấy được ở những ngày chưa tới — đúng nửa cần thấy nhất thì mất.
+ */
+.profile__streak-day[data-milestone="true"] {
+	box-shadow: 0 0 0 2px var(--color-cta);
+}
+
+.profile__streak-next {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--color-text-muted);
 }
 
 /* --- S8 Game over --- */

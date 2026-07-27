@@ -265,6 +265,14 @@ export class App {
 				for (const badge of result.newBadges) {
 					this.showToast(`Huy hiệu mới: ${badge.label}! 🏅`);
 				}
+
+				// P2-2 — mốc chuỗi ngày. Xu đã được `Missions` cộng vào ví rồi; ở đây
+				// chỉ NÓI ra, không trao thêm lần nữa.
+				if (result.streakMilestone !== null) {
+					this.showToast(
+						`${result.streakMilestone.label} · +${result.streakCoins} xu 🔥 (chuỗi ${result.streakDays} ngày)`
+					);
+				}
 			}
 
 			this.screens.show("gameover", {

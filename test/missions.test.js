@@ -412,3 +412,118 @@ test("S13 đọc dữ liệu THẬT: nhiệm vụ, huy hiệu, chuỗi ngày, s�
 	assert.ok(/getReviewCount\(\)/.test(source), "phải hiện số câu đang nợ trong hàng đợi ôn tập");
 	assert.ok(/loadSkill\(\)/.test(source), "phải lấy accuracy theo độ khó từ hồ sơ kỹ năng");
 });
+
+// --- P2-2 · mốc thưởng theo chuỗi ngày ----------------------------------------
+//
+// Thứ nguy hiểm nhất ở đây là VÒNG LẶP CÀY XU: nếu mốc trả lại mỗi ván, hoặc trả
+// lại mỗi ngày sau khi đã chạm trần 7, thì điểm danh trở thành mỏ xu vô hạn và
+// mọi cái giá trong Cửa hàng mất nghĩa.
+
+test("mốc chuỗi ngày nằm trong trần 7 và tăng dần", async function () {
+	var mods = await loadModules();
+	var cap = mods.tuningModule.tuning.missions.streakCapDays;
+	var previousDay = 0;
+	var previousCoins = 0;
+
+	mods.rules.STREAK_MILESTONES.forEach(function (milestone) {
+		assert.ok(milestone.day > previousDay, "mốc phải xếp tăng dần theo ngày");
+		assert.ok(milestone.coins > previousCoins, "mốc sau phải đáng hơn mốc trước");
+		assert.ok(milestone.day >= 2, "ngày đầu tiên chưa phải là 'chuỗi'");
+		assert.ok(milestone.day <= cap, "mốc vượt trần " + cap + " là không bao giờ chạm tới");
+		assert.equal(typeof milestone.label, "string");
+		previousDay = milestone.day;
+		previousCoins = milestone.coins;
+	});
+});
+
+test("streakRewardCoins chỉ trả khi chuỗi THỰC SỰ tăng qua mốc", async function () {
+	var mods = await loadModules();
+	var day2 = mods.rules.streakMilestoneAt(2);
+
+	assert.equal(mods.rules.streakRewardCoins(1, 2), day2.coins);
+	assert.equal(mods.rules.streakRewardCoins(2, 2), 0, "cùng ngày chơi thêm ván nữa không được trả lại");
+	assert.equal(mods.rules.streakRewardCoins(3, 4), 0, "ngày không có mốc thì không có gì");
+	assert.equal(mods.rules.streakRewardCoins(7, 7), 0, "chạm trần rồi thì không có vòng lặp cày xu");
+	assert.equal(mods.rules.streakRewardCoins(5, 1), 0, "gãy chuỗi: không thưởng, và cũng KHÔNG phạt");
+});
+
+test("chơi 7 ngày liên tiếp: xu vào ví đúng bằng tổng các mốc, mỗi mốc một lần", async function () {
+	var mods = await loadModules();
+	reset(mods, 0);
+
+	var missions = new mods.Missions.Missions();
+	var totalStreakCoins = 0;
+	var milestonesSeen = [];
+
+	for (var day = 1; day <= 9; day += 1) {
+		var date = new Date(2026, 6, day, 10, 0, 0);
+		// Hai ván mỗi ngày: ván thứ hai TUYỆT ĐỐI không được trả thưởng mốc lần nữa.
+		var first = missions.recordRun(totals({ correctAnswers: 1 }), date);
+		var second = missions.recordRun(totals({ correctAnswers: 1 }), date);
+
+		assert.equal(second.streakCoins, 0, "ván thứ hai trong ngày " + day + " lại được thưởng mốc");
+		totalStreakCoins += first.streakCoins;
+
+		if (first.streakMilestone !== null) {
+			milestonesSeen.push(first.streakMilestone.day);
+		}
+	}
+
+	var expected = mods.rules.STREAK_MILESTONES.reduce(function (sum, milestone) {
+		return sum + milestone.coins;
+	}, 0);
+
+	assert.equal(totalStreakCoins, expected, "tổng thưởng chuỗi sai");
+	assert.deepEqual(
+		milestonesSeen,
+		mods.rules.STREAK_MILESTONES.map(function (milestone) {
+			return milestone.day;
+		}),
+		"mỗi mốc phải rơi đúng một lần, đúng thứ tự"
+	);
+	// Ngày 8 và 9 đã chạm trần: không thêm đồng nào từ chuỗi.
+	assert.equal(missions.streakDays, mods.tuningModule.tuning.missions.streakCapDays);
+});
+
+test("xu thưởng chuỗi ĐI VÀO VÍ và nằm trong coinsAwarded (một đường đi duy nhất)", async function () {
+	var mods = await loadModules();
+	reset(mods, 0);
+
+	var missions = new mods.Missions.Missions();
+	missions.recordRun(totals({ correctAnswers: 1 }), DAY1);
+
+	var before = mods.SaveData.loadWallet().coins;
+	var result = missions.recordRun(totals({ correctAnswers: 1 }), DAY2);
+	var after = mods.SaveData.loadWallet().coins;
+
+	assert.ok(result.streakCoins > 0, "ngày thứ 2 phải chạm mốc");
+	assert.equal(after - before, result.coinsAwarded, "ví phải khớp CHÍNH XÁC tổng đã báo");
+	assert.ok(result.coinsAwarded >= result.streakCoins, "thưởng chuỗi phải nằm trong tổng, không phải luồng thứ hai");
+});
+
+test("nextMilestone nói đúng đích tiếp theo, và im lặng khi đã lấy hết", async function () {
+	var mods = await loadModules();
+	reset(mods, 0);
+
+	var missions = new mods.Missions.Missions();
+	assert.equal(missions.nextMilestone.day, 2, "chưa chơi ngày nào thì đích đầu tiên là ngày 2");
+
+	for (var day = 1; day <= 7; day += 1) {
+		missions.recordRun(totals({ correctAnswers: 1 }), new Date(2026, 6, day, 10, 0, 0));
+	}
+
+	assert.equal(missions.nextMilestone, null, "hết mốc thì không được bịa ra mốc mới");
+});
+
+test("S13 hiện dải chuỗi ngày và mốc kế tiếp, không chỉ một con số", function () {
+	var fs = require("fs");
+	var path = require("path");
+	var source = fs.readFileSync(
+		path.join(path.resolve(__dirname, ".."), "client", "src", "ui", "screens", "MenuScreens.ts"),
+		"utf8"
+	);
+
+	assert.ok(/STREAK_MILESTONES/.test(source), "S13 phải vẽ được mốc thưởng");
+	assert.ok(/profile__streak-days/.test(source), "phải có dải 7 ngày, không chỉ một dòng chữ");
+	assert.ok(/this\.missions\.nextMilestone/.test(source), "phải nói rõ còn mấy ngày nữa tới mốc");
+});

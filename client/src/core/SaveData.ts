@@ -165,6 +165,18 @@ export interface UnlocksV2 {
 	signature: string;
 	/** P1-5 — số lần hồi sinh đã dùng trong ngày. */
 	revival: RevivalUsage;
+	/**
+	 * P2-2 — ngoại hình (skin/trail) đã mua.
+	 *
+	 * Ký RIÊNG bằng `cosmeticSignature` chứ không nhét chung vào `signature`: chữ
+	 * ký cũ đã nằm trên máy người chơi từ P1-3, gộp vào là mọi bản lưu hiện có
+	 * thành "sai chữ ký" và cả lớp mất sạch nhân vật đã mua trong một lần cập nhật.
+	 */
+	cosmetics: string[];
+	cosmeticSignature: string;
+	/** Id đang trang bị. Chuẩn hoá lúc đọc ở `systems/cosmeticRules.resolveEquipped`. */
+	equippedSkin: string;
+	equippedTrail: string;
 }
 
 export const DEFAULT_UNLOCKS: UnlocksV2 = {
@@ -173,7 +185,11 @@ export const DEFAULT_UNLOCKS: UnlocksV2 = {
 	correctAnswers: 0,
 	bestLeaderboardRank: null,
 	signature: "",
-	revival: { date: "", count: 0 }
+	revival: { date: "", count: 0 },
+	cosmetics: [],
+	cosmeticSignature: "",
+	equippedSkin: "",
+	equippedTrail: ""
 };
 
 /**
@@ -192,6 +208,14 @@ export function loadUnlocks(verify: (ids: readonly string[], signature: string) 
 	const signature = typeof stored.signature === "string" ? stored.signature : "";
 	const trusted = unlocked.length === 0 || verify(unlocked, signature);
 
+	// Ngoại hình đi qua ĐÚNG cùng một cửa: sửa tay danh sách thì mất ngoại hình đã
+	// mua, nhưng KHÔNG kéo theo mất nhân vật (và ngược lại) — hai chữ ký độc lập.
+	const cosmetics = Array.isArray(stored.cosmetics)
+		? stored.cosmetics.filter((id): id is string => typeof id === "string")
+		: [];
+	const cosmeticSignature = typeof stored.cosmeticSignature === "string" ? stored.cosmeticSignature : "";
+	const cosmeticsTrusted = cosmetics.length === 0 || verify(cosmetics, cosmeticSignature);
+
 	return {
 		unlocked: trusted ? unlocked : [],
 		gamesPlayed: Math.max(toFiniteNumber(stored.gamesPlayed, 0), 0),
@@ -201,7 +225,11 @@ export function loadUnlocks(verify: (ids: readonly string[], signature: string) 
 				? stored.bestLeaderboardRank
 				: null,
 		signature: trusted ? signature : "",
-		revival: normalizeRevival(stored.revival)
+		revival: normalizeRevival(stored.revival),
+		cosmetics: cosmeticsTrusted ? cosmetics : [],
+		cosmeticSignature: cosmeticsTrusted ? cosmeticSignature : "",
+		equippedSkin: typeof stored.equippedSkin === "string" ? stored.equippedSkin : "",
+		equippedTrail: typeof stored.equippedTrail === "string" ? stored.equippedTrail : ""
 	};
 }
 

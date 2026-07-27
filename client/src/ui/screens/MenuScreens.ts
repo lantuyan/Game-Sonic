@@ -13,11 +13,18 @@ import { createButton, createPanel, countUp, createProgressBar, confirmTwoStep }
 import { CHARACTERS, DEFAULT_CHARACTER_ID, loadSelectedCharacterId, saveSelectedCharacterId } from "@/data/characters";
 import { Unlocks } from "@/systems/Unlocks";
 import { Missions } from "@/systems/Missions";
-import { BADGES, type MissionDefinition } from "@/systems/missionRules";
+import { BADGES, STREAK_MILESTONES, type MissionDefinition } from "@/systems/missionRules";
+import {
+	cosmeticsForSlot,
+	evaluateCosmetic,
+	type CosmeticDefinition,
+	type CosmeticState
+} from "@/systems/cosmeticRules";
 import { isVibrationSupported, setVibrationEnabled } from "@/core/haptics";
 import { UNLOCK_RULES, type UnlockState } from "@/systems/unlockRules";
 import { loadWallet, migrateLegacyBestScore, saveWallet, loadSettings, saveSettings } from "@/core/SaveData";
 import { V2_STORAGE_KEYS } from "@/core/storageKeys";
+import { tuning } from "@/tuning";
 import { readRaw, writeRaw } from "@/core/SaveData";
 import type { Screen, ScreenName } from "@/ui/Screens";
 import type { LeaderboardEntry } from "@/integration/questionBank.d";
@@ -29,6 +36,11 @@ export const LEVELS = [
 ];
 
 export const NICKNAME_MAX_LENGTH = 24;
+
+/** 0xRRGGBB → chuỗi CSS. Dùng cho ô màu xem trước ngoại hình (P2-2). */
+function hexColor(value: number): string {
+	return `#${(value & 0xffffff).toString(16).padStart(6, "0")}`;
+}
 
 // --- S1 Splash ---------------------------------------------------------------
 
@@ -93,6 +105,8 @@ export class HomeScreen implements Screen {
 	readonly element: HTMLElement;
 
 	private readonly statsElement: HTMLParagraphElement;
+	/** P2-2 — chuỗi ngày hiện ngay trang chủ, không bắt vào tận S13 mới thấy. */
+	private readonly missions = new Missions();
 
 	constructor(callbacks: HomeCallbacks) {
 		const { section, body, actions } = createPanel("Toán Runner", "Chạy càng xa, toán càng giỏi!");
@@ -121,7 +135,10 @@ export class HomeScreen implements Screen {
 
 	onShow(): void {
 		const wallet = migrateLegacyBestScore(loadWallet());
-		this.statsElement.textContent = `Điểm cao nhất: ${wallet.bestScore} · Xu: ${wallet.coins}`;
+		this.missions.reload();
+		const days = this.missions.streakDays;
+		const streakText = days > 0 ? ` · Chuỗi ${days} ngày 🔥` : "";
+		this.statsElement.textContent = `Điểm cao nhất: ${wallet.bestScore} · Xu: ${wallet.coins}${streakText}`;
 	}
 }
 
@@ -364,11 +381,34 @@ export class ShopScreen implements Screen {
 	private readonly list: HTMLDivElement;
 	private readonly coinsLabel: HTMLParagraphElement;
 	private readonly callbacks: ShopCallbacks;
+	/** P2-2 — hai gian hàng trong một màn: bạn chạy và ngoại hình. */
+	private readonly tabButtons: HTMLButtonElement[] = [];
+	private tab: "characters" | "cosmetics" = "characters";
 
 	constructor(callbacks: ShopCallbacks) {
 		const { section, body, actions } = createPanel("Cửa hàng", "Mở khoá bạn chạy mới");
 		this.element = section;
 		this.callbacks = callbacks;
+
+		const tabs = document.createElement("div");
+		tabs.className = "shop__tabs";
+		tabs.setAttribute("role", "tablist");
+
+		for (const entry of [
+			{ id: "characters" as const, label: "Nhân vật" },
+			{ id: "cosmetics" as const, label: "Ngoại hình" }
+		]) {
+			const button = createButton({
+				label: entry.label,
+				onClick: () => {
+					this.tab = entry.id;
+					this.render();
+				}
+			});
+			button.dataset.tab = entry.id;
+			this.tabButtons.push(button);
+			tabs.appendChild(button);
+		}
 
 		this.coinsLabel = document.createElement("p");
 		this.coinsLabel.className = "shop__coins";
@@ -376,7 +416,7 @@ export class ShopScreen implements Screen {
 		this.list = document.createElement("div");
 		this.list.className = "shop__list";
 
-		body.append(this.coinsLabel, this.list);
+		body.append(tabs, this.coinsLabel, this.list);
 		actions.append(createButton({ label: "Quay lại", onClick: callbacks.onBack }));
 	}
 
@@ -390,6 +430,19 @@ export class ShopScreen implements Screen {
 		this.coinsLabel.textContent = `Xu của em: ${progress.coins}`;
 		this.list.replaceChildren();
 
+		for (const button of this.tabButtons) {
+			button.setAttribute("aria-pressed", button.dataset.tab === this.tab ? "true" : "false");
+		}
+
+		if (this.tab === "cosmetics") {
+			this.renderCosmetics(progress.coins);
+			return;
+		}
+
+		this.renderCharacters();
+	}
+
+	private renderCharacters(): void {
 		for (const rule of UNLOCK_RULES) {
 			const character = CHARACTERS.find((entry) => entry.id === rule.characterId);
 
@@ -425,6 +478,98 @@ export class ShopScreen implements Screen {
 			row.appendChild(this.createActionButton(rule, character.label, state));
 			this.list.appendChild(row);
 		}
+	}
+
+	/**
+	 * Gian ngoại hình (P2-2). Khác gian nhân vật ở một điểm quan trọng: món đã mua
+	 * vẫn còn việc để làm — TRANG BỊ. Vì vậy nút của hàng đã sở hữu không phải dấu
+	 * ✓ chết, mà là "Mặc" / "Đang mặc".
+	 */
+	private renderCosmetics(coins: number): void {
+		for (const slot of ["skin", "trail"] as const) {
+			const title = document.createElement("h2");
+			title.className = "shop__group-title";
+			title.textContent = slot === "skin" ? "Bộ đồ" : "Vệt chạy";
+			this.list.appendChild(title);
+
+			const equippedId = this.unlocks.equipped(slot);
+
+			for (const item of cosmeticsForSlot(slot)) {
+				const state = evaluateCosmetic(item.id, this.unlocks.ownedCosmeticIds, coins);
+				const owned = state.status === "free" || state.status === "owned";
+				const equipped = equippedId === item.id;
+
+				const row = document.createElement("div");
+				row.className = "shop__row";
+				row.dataset.cosmetic = item.id;
+				row.dataset.state = state.status;
+				row.dataset.equipped = equipped ? "true" : "false";
+
+				const swatch = document.createElement("span");
+				swatch.className = "shop__swatch";
+				swatch.style.background =
+					item.color === item.tailColor
+						? hexColor(item.color)
+						: `linear-gradient(135deg, ${hexColor(item.color)}, ${hexColor(item.tailColor)})`;
+
+				const info = document.createElement("div");
+				info.className = "shop__info";
+
+				const name = document.createElement("span");
+				name.className = "shop__name";
+				name.textContent = item.label;
+
+				const detail = document.createElement("span");
+				detail.className = "shop__detail";
+				detail.textContent = owned ? item.description : `${item.price} xu · ${item.description}`;
+
+				info.append(name, detail);
+				row.append(swatch, info, this.createCosmeticAction(item, state, equipped));
+				this.list.appendChild(row);
+			}
+		}
+	}
+
+	private createCosmeticAction(
+		item: CosmeticDefinition,
+		state: CosmeticState,
+		equipped: boolean
+	): HTMLElement {
+		if (equipped === true) {
+			const badge = document.createElement("span");
+			badge.className = "shop__done";
+			badge.textContent = "Đang mặc";
+			return badge;
+		}
+
+		if (state.status === "free" || state.status === "owned") {
+			return createButton({
+				label: "Mặc",
+				onClick: () => {
+					this.unlocks.equip(item.id);
+					this.render();
+				},
+				ariaLabel: `Mặc ${item.label}`
+			});
+		}
+
+		if (state.status === "locked") {
+			const missing = document.createElement("span");
+			missing.className = "shop__missing";
+			missing.textContent = `còn thiếu ${state.missingCoins} xu`;
+			return missing;
+		}
+
+		return createButton({
+			label: `MUA ${item.price}`,
+			variant: "cta",
+			onClick: () => {
+				// Mua xong `Unlocks` mặc luôn — vẽ lại là thấy ngay "Đang mặc".
+				this.unlocks.purchaseCosmetic(item.id);
+				this.render();
+			},
+			ariaLabel: `Mua ${item.label} giá ${item.price} xu`
+		});
 	}
 
 	private createActionButton(
@@ -956,15 +1101,49 @@ export class ProfileScreen implements Screen {
 		this.body.appendChild(this.buildReviewDebt());
 	}
 
+	/**
+	 * P2-2 — chuỗi ngày không còn là một dòng chữ mà là một DẢI 7 ngày.
+	 *
+	 * Lý do: mốc thưởng chỉ có tác dụng khi người chơi nhìn thấy nó đang tới gần.
+	 * Một con số "3 ngày" không nói được "còn 2 hôm nữa là có 90 xu"; bảy chấm với
+	 * ngày có thưởng được viền sáng thì nói được, và không cần đọc chữ.
+	 */
 	private buildStreak(): HTMLElement {
 		const box = document.createElement("div");
 		box.className = "profile__streak";
 		const days = this.missions.streakDays;
 
-		box.textContent =
+		const headline = document.createElement("div");
+		headline.textContent =
 			days <= 0
 				? "Bắt đầu chuỗi ngày chăm chỉ của em hôm nay nhé!"
 				: `Chuỗi ngày chăm chỉ: ${days} ngày 🔥`;
+		box.appendChild(headline);
+
+		const strip = document.createElement("div");
+		strip.className = "profile__streak-days";
+
+		for (let day = 1; day <= tuning.missions.streakCapDays; day += 1) {
+			const dot = document.createElement("span");
+			dot.className = "profile__streak-day";
+			dot.dataset.done = day <= days ? "true" : "false";
+			const milestone = STREAK_MILESTONES.find((entry) => entry.day === day);
+			dot.dataset.milestone = milestone === undefined ? "false" : "true";
+			dot.textContent = String(day);
+			dot.title = milestone === undefined ? `Ngày ${day}` : `Ngày ${day} — thưởng ${milestone.coins} xu`;
+			strip.appendChild(dot);
+		}
+
+		box.appendChild(strip);
+
+		const next = document.createElement("p");
+		next.className = "profile__streak-next";
+		const milestone = this.missions.nextMilestone;
+		next.textContent =
+			milestone === null
+				? "Em đã nhận đủ mọi mốc thưởng của tuần này. Giỏi quá!"
+				: `Còn ${milestone.day - days} ngày nữa: +${milestone.coins} xu (${milestone.label}).`;
+		box.appendChild(next);
 
 		return box;
 	}

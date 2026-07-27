@@ -6,6 +6,7 @@
 
 var QuestionModel = require("../shared/questionModel");
 var applySchema = require("./schema").applySchema;
+var badwords = require("./badwords-vi");
 
 var MAX_SCORE = 10000000;
 var MAX_COUNT = 1000000;
@@ -105,6 +106,30 @@ function createDisabledPlayerStore() {
 		},
 		saveSkill: function () {
 			return Promise.resolve({ disabled: true });
+		},
+		// P1-4 — kiểm duyệt cũng phải "tắt êm" như phần còn lại khi chưa có CSDL.
+		deleteScore: function () {
+			return Promise.resolve({ deleted: 0, disabled: true });
+		},
+		listScores: function () {
+			return Promise.resolve({ entries: [], disabled: true });
+		},
+		blockNickname: function (nickname) {
+			return Promise.resolve({ nickname: nickname, renamed: 0, disabled: true });
+		},
+		unblockNickname: function (nickname) {
+			return Promise.resolve({ nickname: nickname, blocked: false, disabled: true });
+		},
+		listBlockedNicknames: function () {
+			return Promise.resolve({ entries: [], disabled: true });
+		},
+		isNicknameAllowed: function (nickname) {
+			// Không có CSDL thì vẫn lọc từ cấm được — nó thuần văn bản.
+			return Promise.resolve(
+				badwords.containsBadWord(nickname) === true
+					? { allowed: false, reason: "badword" }
+					: { allowed: true, reason: null }
+			);
 		}
 	};
 }
@@ -138,6 +163,8 @@ function createPlayerStore(options) {
 		var wrongCount = boundedInteger(data.wrongCount, "wrongCount", MAX_COUNT);
 		var timeoutCount = boundedInteger(data.timeoutCount, "timeoutCount", MAX_COUNT);
 		var durationMs = boundedInteger(data.durationMs, "durationMs", MAX_DURATION_MS);
+		// P1-4: `verified` do server/app.js quyết (vé + kiểm chéo), store chỉ ghi lại.
+		var verified = data.verified === true;
 
 		return ready().then(function () {
 			return sql.batch([
@@ -149,9 +176,9 @@ function createPlayerStore(options) {
 				},
 				{
 					text:
-						"INSERT INTO scores (device_id, level, nickname, score, correct_count, wrong_count, timeout_count, duration_ms) " +
-						"VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-					params: [deviceId, level, nickname, score, correctCount, wrongCount, timeoutCount, durationMs]
+						"INSERT INTO scores (device_id, level, nickname, score, correct_count, wrong_count, timeout_count, duration_ms, verified) " +
+						"VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+					params: [deviceId, level, nickname, score, correctCount, wrongCount, timeoutCount, durationMs, verified]
 				}
 			]);
 		}).then(function () {
@@ -170,7 +197,8 @@ function createPlayerStore(options) {
 			return {
 				rank: row.my_rank != null ? Number(row.my_rank) : null,
 				best: row.my_best != null ? Number(row.my_best) : score,
-				score: score
+				score: score,
+				verified: verified
 			};
 		});
 	}
@@ -277,11 +305,153 @@ function createPlayerStore(options) {
 		});
 	}
 
+	// --- Kiểm duyệt (P1-4) ---------------------------------------------------
+
+	/** Xoá MỘT bản ghi điểm. Trả về số dòng đã xoá để admin biết có trúng không. */
+	function deleteScore(scoreId) {
+		var id = Number(scoreId);
+
+		if (isFinite(id) === false || id <= 0) {
+			throw badRequest("A valid score id is required.");
+		}
+
+		return run("DELETE FROM scores WHERE id = $1", [Math.floor(id)]).then(function (result) {
+			return { deleted: result.rowCount != null ? Number(result.rowCount) : 0, id: Math.floor(id) };
+		});
+	}
+
+	/**
+	 * Danh sách điểm gần đây cho màn kiểm duyệt. Kèm `verified` để giáo viên nhìn
+	 * ra ngay bản ghi nào server đã nghi ngờ.
+	 */
+	function listScores(level, limit) {
+		var safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+		var params = [safeLimit];
+		var where = "";
+
+		if (level != null && String(level).trim() !== "") {
+			requireLevel(level);
+			where = "WHERE level = $2 ";
+			params.push(level);
+		}
+
+		return run(
+			"SELECT id, device_id, level, nickname, score, correct_count, duration_ms, verified, created_at " +
+			"FROM scores " + where + "ORDER BY created_at DESC LIMIT $1",
+			params
+		).then(function (result) {
+			return {
+				entries: result.rows.map(function (row) {
+					return {
+						id: Number(row.id),
+						deviceId: row.device_id,
+						level: row.level,
+						nickname: row.nickname,
+						score: Number(row.score),
+						correctCount: Number(row.correct_count),
+						durationMs: row.duration_ms != null ? Number(row.duration_ms) : null,
+						verified: row.verified === true,
+						createdAt: row.created_at
+					};
+				})
+			};
+		});
+	}
+
+	/**
+	 * Chặn một biệt danh. Đổi mọi bản ghi đang mang biệt danh đó sang tên thay thế
+	 * NGAY — nếu chỉ chặn cho tương lai thì cái tên xấu vẫn nằm trên bảng xếp hạng.
+	 */
+	function blockNickname(nickname, reason, replacement) {
+		var normalized = badwords.removeDiacritics(normalizeNickname(nickname));
+		var newName = replacement != null && String(replacement).trim() !== ""
+			? normalizeNickname(replacement)
+			: "Người chơi ẩn danh";
+
+		return ready().then(function () {
+			return sql.batch([
+				{
+					text:
+						"INSERT INTO blocked_nicknames (nickname_normalized, reason) VALUES ($1,$2) " +
+						"ON CONFLICT (nickname_normalized) DO UPDATE SET reason = EXCLUDED.reason",
+					params: [normalized, reason != null ? String(reason) : null]
+				}
+			]);
+		}).then(function () {
+			// So sánh ĐÃ BỎ DẤU ở phía JS: Postgres không có sẵn hàm bỏ dấu tiếng Việt
+			// nếu chưa cài extension `unaccent`, và ta không muốn phụ thuộc vào nó.
+			return run("SELECT DISTINCT nickname FROM scores", []);
+		}).then(function (result) {
+			var matching = result.rows
+				.map(function (row) { return row.nickname; })
+				.filter(function (name) { return badwords.removeDiacritics(name) === normalized; });
+
+			if (matching.length === 0) {
+				return { nickname: normalized, renamed: 0 };
+			}
+
+			return sql.batch(
+				matching.flatMap(function (name) {
+					return [
+						{ text: "UPDATE scores SET nickname = $2 WHERE nickname = $1", params: [name, newName] },
+						{ text: "UPDATE players SET nickname = $2 WHERE nickname = $1", params: [name, newName] }
+					];
+				})
+			).then(function () {
+				return { nickname: normalized, renamed: matching.length, replacement: newName };
+			});
+		});
+	}
+
+	function unblockNickname(nickname) {
+		var normalized = badwords.removeDiacritics(normalizeNickname(nickname));
+
+		return run("DELETE FROM blocked_nicknames WHERE nickname_normalized = $1", [normalized]).then(function () {
+			return { nickname: normalized, blocked: false };
+		});
+	}
+
+	function listBlockedNicknames() {
+		return run("SELECT nickname_normalized, reason, created_at FROM blocked_nicknames ORDER BY created_at DESC", [])
+			.then(function (result) {
+				return {
+					entries: result.rows.map(function (row) {
+						return {
+							nickname: row.nickname_normalized,
+							reason: row.reason,
+							createdAt: row.created_at
+						};
+					})
+				};
+			});
+	}
+
+	/** Biệt danh này có bị chặn (hoặc chứa từ cấm) không. */
+	function isNicknameAllowed(nickname) {
+		var normalized = badwords.removeDiacritics(String(nickname == null ? "" : nickname));
+
+		if (badwords.containsBadWord(nickname) === true) {
+			return Promise.resolve({ allowed: false, reason: "badword" });
+		}
+
+		return run("SELECT 1 FROM blocked_nicknames WHERE nickname_normalized = $1", [normalized]).then(function (result) {
+			return result.rows.length > 0
+				? { allowed: false, reason: "blocked" }
+				: { allowed: true, reason: null };
+		});
+	}
+
 	return {
 		submitScore: submitScore,
 		getLeaderboard: getLeaderboard,
 		updateNickname: updateNickname,
-		saveSkill: saveSkill
+		saveSkill: saveSkill,
+		deleteScore: deleteScore,
+		listScores: listScores,
+		blockNickname: blockNickname,
+		unblockNickname: unblockNickname,
+		listBlockedNicknames: listBlockedNicknames,
+		isNicknameAllowed: isNicknameAllowed
 	};
 }
 

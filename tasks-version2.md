@@ -910,6 +910,49 @@ Cách tính "ván điển hình" (mọi giả định nằm trong `TYPICAL_RUN` 
 
 ---
 
+### [x] P2-9 · Test backend đỏ ngẫu nhiên (flaky) — *nhánh `v2/p2-09-flaky-tests`, 0.5 ngày*
+
+**Triệu chứng:** `npm test` đỏ ngẫu nhiên ở file BẤT KỲ (`dashboard`, `anticheat`, `class-codes`, `season`, `server`…), với các mã trạng thái **404 / 405 / 406**. Chạy riêng từng file thì gần như luôn xanh. Đo thật trước khi sửa: **30 lượt full suite → 4 lượt đỏ (13,3%)**.
+
+**NGUYÊN NHÂN GỐC (đã chứng minh, không phải suy đoán) — cổng phù du bị tiến trình khác chiếm trên loopback.**
+
+supertest dựng MỘT `http.Server` mới cho MỖI request rồi gọi `app.listen(0)`. `listen(0)` không kèm địa chỉ nghĩa là bind vào **địa chỉ đại diện** (`::` / `0.0.0.0`) ở một cổng phù du do nhân chọn trong dải **49152–65535** (macOS). Ngay sau đó supertest kết nối tới `http://127.0.0.1:<cổng>`.
+
+Trên máy lập trình viên, dải đó KHÔNG trống: MCP server, language server, công cụ dev… nằm sẵn ở đấy và bind vào ĐÚNG `127.0.0.1`. Trên macOS/BSD (libuv luôn bật `SO_REUSEADDR`), bind `0.0.0.0:P` **vẫn thành công** khi đã có ai giữ `127.0.0.1:P` — nhân chọn cổng phù du cho địa chỉ đại diện mà **không loại trừ** các cổng đã bị chiếm riêng trên loopback. Và khi có kết nối tới `127.0.0.1:P` thì socket **cụ thể hơn** thắng: request của test đi thẳng sang tiến trình lạ, `server/app.js` không hề thấy nó.
+
+Bằng chứng thu được bằng cách nạp thêm một mô-đun dò (`--require`) vào supertest rồi chạy lặp cho tới lượt đỏ:
+
+```
+[PROBE] method=POST url=http://127.0.0.1:58466/api/runs/summary got=406
+[PROBE] socket={"remoteAddress":"127.0.0.1","remotePort":58466}
+[PROBE] body="{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable:
+         Client must accept both application/json and text/event-stream\"},\"id\":null}"
+```
+
+Đó là phản hồi của một **MCP server** (JSON-RPC), không phải của Express. `lsof` xác nhận `node 127.0.0.1:58466` là một tiến trình khác đang chạy sẵn. Thí nghiệm tối giản tái hiện 100%: bind `127.0.0.1:P` ở server A, bind `0.0.0.0:P` ở server B **thành công**, kết nối tới `127.0.0.1:P` → **A trả lời**.
+
+Điều này giải thích trọn vẹn cả ba triệu chứng từng được báo: 406 (MCP server), 405 (một dịch vụ chỉ nhận GET/HEAD), 404 và cả **mất dữ liệu âm thầm** (một `POST /api/runs/summary` được tiến trình lạ trả 2xx ⇒ ván không bao giờ vào CSDL ⇒ "top 10 câu sai" xếp sai thứ tự, "5 ván test" đếm thiếu). Càng song song càng dễ đỏ vì `node --test` chạy ~9 file cùng lúc và **mỗi request là một lần `listen(0)`** — một lượt `npm test` bắn hàng nghìn lần bind.
+
+**Giả thuyết đã bị LOẠI bằng bằng chứng (đừng điều tra lại):**
+· **KHÔNG phải tranh chấp `pgDataDir`.** Mỗi file test có `mkdtempSync` riêng và mỗi file là một tiến trình riêng — không có hai tiến trình nào dùng chung thư mục dữ liệu PGlite.
+· **KHÔNG phải thiếu tie-break `ORDER BY`**, **KHÔNG phải rate-limit**, **KHÔNG phải ghi bất đồng bộ** — đã loại từ trước, và nay có lời giải thích thay thế bao trùm cả ba lần đỏ.
+
+**Cách sửa:** `test-helpers/loopbackRequest.js` — thay nguyên chỗ cho `require("supertest")`. Bind **TƯỜNG MINH vào `127.0.0.1`**, lúc đó nhân chỉ chọn cổng còn trống trên chính loopback nên không thể trùng dịch vụ lạ nữa (đây là bảo đảm của nhân, không phải xác suất). Mỗi app dùng lại **một** server thay vì một server mỗi request ⇒ số lần bind giảm từ hàng nghìn xuống hàng chục.
+
+**Đánh đổi:** `listen(0, "127.0.0.1")` đi qua `dns.lookup` nên địa chỉ chỉ có sau một `nextTick`, trong khi supertest đọc `app.address().port` ngay lập tức. Vì vậy mỗi app phải `await request.ready(app)` **một lần** trước request đầu tiên; gọi sớm thì ném lỗi kèm hướng dẫn. Đó là lý do vài hàm dựng app trong test đổi sang `async`. **KHÔNG chọn phương án "chạy tuần tự"**: nó chỉ giảm xác suất chứ không xoá được lỗi — vẫn ngần ấy lần bind, chỉ trải ra lâu hơn — mà lại làm CI chậm nhiều lần.
+
+**Sửa kèm — rác thư mục tạm (đây chính là thứ đã làm đầy ổ đĩa 25 GB):** mỗi file test gọi `fs.mkdtempSync(os.tmpdir(), …)` và **không ai xoá**. Mỗi cluster PGlite ~39 MB ⇒ **~470 MB mỗi lượt `npm test`, nằm lại vĩnh viễn**. Đo lúc bắt đầu task: **666 thư mục còn sót, 25 GB**. `test-helpers/pgTempDir.js` gom mọi thư mục về một gốc `$TMPDIR/toan-runner-test`, xoá ở `process.on("exit")` (chạy cả khi test THẤT BẠI) và — phòng khi bị `SIGKILL` nên handler không kịp chạy — **gắn PID vào tên thư mục** để lần chạy sau xoá ngay mọi thư mục có chủ đã chết (kiểm bằng `process.kill(pid, 0)`), không phải chờ hết thời hạn nào. Trần dung lượng nay là *(số file test backend) × (một cluster)* trong lúc chạy và **0 sau khi chạy xong** — đo được: `0 KB` ngay sau mỗi lượt trong 30 lượt liên tiếp.
+
+**Canh gác chống tái phát:** 2 test mới trong `test/server.test.js` đọc thẳng thư mục `test/` và đỏ ngay nếu có file nào quay lại nạp supertest trực tiếp hoặc gọi `mkdtempSync(path.join(os.tmpdir(), …))`.
+
+**Nghiệm thu:** `npm run ci` **496/496**. **30 lượt full suite liên tiếp sau khi sửa → 0 lượt đỏ** (trước: 30 lượt → 4 đỏ). Thời gian một lượt ~30s trước, ~31s sau (chênh trong nhiễu). **KHÔNG chạm `server/`** — toàn bộ thay đổi nằm trong `test/` và `test-helpers/`.
+
+**Lỗi THẬT phát hiện được trong task này:**
+· **(nặng — đã làm hỏng cả một buổi làm việc)** Rác thư mục tạm nói ở trên: 25 GB, 666 thư mục. Chú thích trong các file test đã cảnh báo đúng cơ chế ("mỗi `mkdtempSync` là một cluster PGlite vài chục MB") nhưng **chỉ chống nhân bản trong CÙNG một file**, không ai dọn phần còn lại — nên rác vẫn cộng dồn qua từng lượt chạy.
+· **(cần biết khi đọc log)** Trước khi sửa, một request bị lạc sang tiến trình khác **không để lại một dòng log nào** ở phía server — vì server không hề nhận request. Ai gặp lại kiểu lỗi "mã trạng thái không tồn tại trong `server/app.js`" thì hãy nghi ngay cổng, đừng nghi CSDL.
+
+---
+
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
 - [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.

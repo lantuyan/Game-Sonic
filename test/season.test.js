@@ -10,12 +10,11 @@
 
 var test = require("node:test");
 var assert = require("node:assert/strict");
-var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var createSqlClient = require("../server/sql").createSqlClient;
 var configModule = require("../server/config");
 var season = require("../server/season");
@@ -26,7 +25,7 @@ var season = require("../server/season");
 // chục MB nằm lại trong thư mục tạm; chạy `npm test` vài lượt trong một buổi là đầy
 // ổ đĩa thật — đã xảy ra. `server/sql.js` cache client theo `pgDataDir`, nên dùng
 // chung đường dẫn là dùng chung đúng một instance.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "season-"));
+var sharedTempDir = pgTempDir.createTempDir("season-");
 var sharedPgDataDir = path.join(sharedTempDir, "pgdata");
 
 process.on("unhandledRejection", function (error) {
@@ -47,7 +46,9 @@ process.on("unhandledRejection", function (error) {
  * `databaseUrl: ""` TƯỜNG MINH — không đọc `DATABASE_URL`, không đọc `.env`, tuyệt
  * đối không chạm CSDL production.
  */
-function createSeasonApp(seasonStart) {
+// `async` vì server HTTP loopback phải nghe xong trước request đầu tiên — lý do
+// đầy đủ nằm ở đầu `test-helpers/loopbackRequest.js`.
+async function createSeasonApp(seasonStart) {
 	var config = {
 		rootDir: path.resolve(__dirname, ".."),
 		staticDir: path.resolve(__dirname, ".."),
@@ -61,7 +62,11 @@ function createSeasonApp(seasonStart) {
 		leaderboardSeason2Start: seasonStart == null ? "" : seasonStart
 	};
 
-	return { config: config, runtime: createApp(config) };
+	var runtime = createApp(config);
+
+	await request.ready(runtime.app);
+
+	return { config: config, runtime: runtime };
 }
 
 /** Client SQL dùng chung (đã được cache theo `pgDataDir`) để lùi ngày bản ghi. */
@@ -175,7 +180,7 @@ test("nhãn mùa hiển thị ngày theo giờ Việt Nam", function () {
 // --- 2. Luồng HTTP thật -------------------------------------------------------
 
 test("chưa cấu hình mốc: endpoint #3 giữ nguyên hợp đồng, chỉ có bảng 'Tất cả'", async function () {
-	var context = createSeasonApp(null);
+	var context = await createSeasonApp(null);
 
 	try {
 		await submitScore(context.runtime.app, "season-dev-legacy", "Bạn Cũ", 1234);
@@ -199,7 +204,7 @@ test("chưa cấu hình mốc: endpoint #3 giữ nguyên hợp đồng, chỉ c�
 });
 
 test("mở Mùa 2: điểm Mùa 1 KHÔNG mất, chỉ nằm ở tab khác", async function () {
-	var setup = createSeasonApp(null);
+	var setup = await createSeasonApp(null);
 	var sql = sharedSql();
 
 	try {
@@ -216,7 +221,7 @@ test("mở Mùa 2: điểm Mùa 1 KHÔNG mất, chỉ nằm ở tab khác", asyn
 	}
 
 	// Ngày phát hành V2 được chốt: mốc nằm GIỮA dữ liệu cũ và dữ liệu mới.
-	var context = createSeasonApp("2026-06-01");
+	var context = await createSeasonApp("2026-06-01");
 
 	try {
 		await submitScore(context.runtime.app, "season-dev-new-1", "Mùa Hai A", 38000);
@@ -268,14 +273,14 @@ test("mở Mùa 2: điểm Mùa 1 KHÔNG mất, chỉ nằm ở tab khác", asyn
 
 test("ngày ranh giới đến từ CẤU HÌNH: đổi ngày là đổi cách chia, không sửa mã", async function () {
 	// Cùng một CSDL, cùng những bản ghi — chỉ khác một chuỗi cấu hình.
-	var early = createSeasonApp("2020-01-01");
+	var early = await createSeasonApp("2020-01-01");
 
 	try {
 		var everything = await request(early.runtime.app)
 			.get("/api/levels/lop6/leaderboard?season=2")
 			.expect(200);
 
-		var late = createSeasonApp("2099-01-01");
+		var late = await createSeasonApp("2099-01-01");
 
 		try {
 			var nothingYet = await request(late.runtime.app)
@@ -304,7 +309,7 @@ test("ngày ranh giới đến từ CẤU HÌNH: đổi ngày là đổi cách c
 });
 
 test("tham số season gõ sai không làm trắng bảng — rơi về mùa đang chạy", async function () {
-	var context = createSeasonApp("2026-06-01");
+	var context = await createSeasonApp("2026-06-01");
 
 	try {
 		var response = await request(context.runtime.app)
@@ -495,7 +500,7 @@ test("chỉ một mùa thì màn hình KHÔNG bày ra khái niệm mùa", async 
 });
 
 test("hạng trả về sau khi nộp điểm được tính TRONG mùa đang chạy", async function () {
-	var context = createSeasonApp("2026-06-01");
+	var context = await createSeasonApp("2026-06-01");
 
 	try {
 		// Ở Mùa 1 có bản ghi 4.200 điểm. Một ván Mùa 2 được 100 điểm mà bị đem so

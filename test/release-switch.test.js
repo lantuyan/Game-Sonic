@@ -8,9 +8,9 @@ var assert = require("node:assert/strict");
 var fs = require("fs");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var os = require("os");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 
 // ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
 //
@@ -19,7 +19,7 @@ var createApp = require("../server/app").createApp;
 // tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
 // `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
 // chung đúng một instance.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "release-switch-"));
+var sharedTempDir = pgTempDir.createTempDir("release-switch-");
 
 var rootDir = path.resolve(__dirname, "..");
 
@@ -86,6 +86,8 @@ test("bookmark cũ EndlessRunner.htm được 301 về /", async function () {
 		nodeEnv: "test"
 	});
 
+	await request.ready(runtime.app);
+
 	try {
 		var response = await request(runtime.app).get("/EndlessRunner.htm");
 
@@ -106,6 +108,8 @@ test("admin vẫn vào được sau khi bật công tắc", async function () {
 		adminPasswordHash: bcrypt.hashSync("admin123", 10),
 		nodeEnv: "test"
 	});
+
+	await request.ready(runtime.app);
 
 	try {
 		// API admin còn nguyên (trang admin.html do static phục vụ).

@@ -16,12 +16,12 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
 var jwt = require("jsonwebtoken");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var classCode = require("../server/classCode");
 var classStoreModule = require("../server/classStore");
 var loadClientModule = require("../test-helpers/clientModule").loadClientModule;
@@ -32,7 +32,7 @@ var applySchema = require("../server/schema").applySchema;
 
 // MỘT PGlite duy nhất cho cả file — mỗi test một `mkdtempSync` từng làm đầy ổ đĩa
 // thật 25 GB (ghi ở P1-6). Dọn bảng trước mỗi test thay vì dựng CSDL mới.
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "class-codes-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("class-codes-");
 var JWT_SECRET = "test-secret-key-p2-5";
 var sharedConfig = {
 	rootDir: rootDir,
@@ -47,6 +47,12 @@ var sharedConfig = {
 };
 
 var sharedRuntime = createApp(sharedConfig);
+
+// Server HTTP loopback của app dùng chung phải NGHE XONG trước request đầu tiên —
+// `test-helpers/loopbackRequest.js` giải thích vì sao phải bind vào đúng 127.0.0.1.
+test.before(async function () {
+	await request.ready(sharedRuntime.app);
+});
 var sharedSql = createSqlClient(sharedConfig);
 var sharedStore = classStoreModule.createClassStore({ sql: sharedSql });
 

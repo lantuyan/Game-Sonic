@@ -11,11 +11,11 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var statsStoreModule = require("../server/statsStore");
 
 var rootDir = path.resolve(__dirname, "..");
@@ -28,7 +28,7 @@ var applySchema = require("../server/schema").applySchema;
 // mở nhiều instance song song trong cùng tiến trình cho ra `ErrnoError 51` ngay
 // (server/sql.js đã ghi chú đúng cái bẫy này). Thay vào đó dùng chung một CSDL và
 // DỌN BẢNG trước mỗi test — vẫn độc lập, mà không đụng vào chỗ WASM dễ vỡ.
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "dashboard-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("dashboard-");
 var sharedConfig = {
 	rootDir: rootDir,
 	staticDir: rootDir,
@@ -40,6 +40,12 @@ var sharedConfig = {
 };
 
 var sharedRuntime = createApp(sharedConfig);
+
+// Server HTTP loopback của app dùng chung phải NGHE XONG trước request đầu tiên —
+// `test-helpers/loopbackRequest.js` giải thích vì sao phải bind vào đúng 127.0.0.1.
+test.before(async function () {
+	await request.ready(sharedRuntime.app);
+});
 var sharedSql = createSqlClient(sharedConfig);
 
 /** Dọn sạch dữ liệu thống kê; schema giữ nguyên. */

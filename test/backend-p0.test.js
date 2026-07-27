@@ -5,12 +5,11 @@
 
 var test = require("node:test");
 var assert = require("node:assert/strict");
-var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 
 // ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
 //
@@ -19,7 +18,7 @@ var createApp = require("../server/app").createApp;
 // tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
 // `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
 // chung đúng một instance.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-p0-"));
+var sharedTempDir = pgTempDir.createTempDir("game-sonic-running-p0-");
 var QuestionModel = require("../shared/questionModel");
 
 process.on("unhandledRejection", function (error) {
@@ -33,7 +32,9 @@ process.on("unhandledRejection", function (error) {
 	throw error;
 });
 
-function createTestContext() {
+// `async` vì server HTTP loopback phải nghe xong trước request đầu tiên — lý do
+// đầy đủ nằm ở đầu `test-helpers/loopbackRequest.js`.
+async function createTestContext() {
 	var tempDir = sharedTempDir;
 	var config = {
 		rootDir: path.resolve(__dirname, ".."),
@@ -45,6 +46,8 @@ function createTestContext() {
 		nodeEnv: "test"
 	};
 	var runtime = createApp(config);
+
+	await request.ready(runtime.app);
 
 	return {
 		config: config,
@@ -151,7 +154,7 @@ test("normalize: quizMode mặc định gate, chỉ nhận gate|modal", function
 // --- server: round-trip explanation ---
 
 test("explanation đi trọn vòng PUT admin → GET bundle và sống sót restart", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var agent = await loginAgent(context);
@@ -182,6 +185,7 @@ test("explanation đi trọn vòng PUT admin → GET bundle và sống sót rest
 
 		await context.runtime.close();
 		context.runtime = createApp(context.config);
+		await request.ready(context.runtime.app);
 
 		var persisted = await request(context.runtime.app)
 			.get("/api/levels/lop6/question-bank")
@@ -194,7 +198,7 @@ test("explanation đi trọn vòng PUT admin → GET bundle và sống sót rest
 });
 
 test("PUT questions từ chối explanation quá dài", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var agent = await loginAgent(context);
@@ -217,7 +221,7 @@ test("PUT questions từ chối explanation quá dài", async function () {
 // --- server: quizMode per-level ---
 
 test("quizMode mặc định gate ở cả 3 lớp và đổi ở lop6 KHÔNG lây sang lop7/lop8", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var agent = await loginAgent(context);
@@ -251,6 +255,7 @@ test("quizMode mặc định gate ở cả 3 lớp và đổi ở lop6 KHÔNG l�
 
 		await context.runtime.close();
 		context.runtime = createApp(context.config);
+		await request.ready(context.runtime.app);
 
 		var persisted = await request(context.runtime.app)
 			.get("/api/levels/lop6/question-bank")
@@ -262,7 +267,7 @@ test("quizMode mặc định gate ở cả 3 lớp và đổi ở lop6 KHÔNG l�
 });
 
 test("quiz-mode route cần đăng nhập admin và từ chối giá trị lạ", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		await request(context.runtime.app)
@@ -289,7 +294,7 @@ test("quiz-mode route cần đăng nhập admin và từ chối giá trị lạ"
 // --- server: /api/health additive ---
 
 test("health giữ nguyên shape cũ và thêm dbKind/dbOk", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var response = await request(context.runtime.app).get("/api/health").expect(200);
@@ -333,6 +338,8 @@ test("health vẫn trả shape cũ khi không có SQL client (dbKind none, dbOk 
 			databaseUrl: ""
 		});
 		delete process.env.VERCEL;
+
+		await request.ready(noDbRuntime.app);
 
 		var response = await request(noDbRuntime.app).get("/api/health").expect(200);
 

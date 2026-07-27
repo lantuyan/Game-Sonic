@@ -30,6 +30,33 @@ export function setupServiceWorker(uiRoot: HTMLElement): void {
 	});
 }
 
+/**
+ * Bơm asset biome ②/③ vào cache SAU VÁN ĐẦU (P1-2).
+ *
+ * Hai biome này cố ý nằm ngoài precache lúc cài (xem `globIgnores` trong
+ * vite.config.mts) để lần tải đầu nhẹ. Gọi hàm này khi ván đầu tiên kết thúc:
+ * lúc đó người chơi đang xem màn kết quả, băng thông rảnh, và từ ván sau là
+ * chơi offline được trọn cả 3 chặng.
+ *
+ * Không có SW (dev, trình duyệt cũ, http) → không làm gì, không lỗi.
+ */
+export function warmBiomeCache(urls: readonly string[]): void {
+	if ("serviceWorker" in navigator === false || urls.length === 0) {
+		return;
+	}
+
+	navigator.serviceWorker.ready
+		.then((registration) => {
+			registration.active?.postMessage({
+				type: "WARM_BIOME_CACHE",
+				urls: urls.map((url) => new URL(url, document.baseURI).pathname)
+			});
+		})
+		.catch((error: unknown) => {
+			console.warn("[pwa] không bơm trước được asset biome:", error);
+		});
+}
+
 function showUpdatePrompt(uiRoot: HTMLElement, onReload: () => void): void {
 	const bar = document.createElement("div");
 	bar.className = "update-prompt";

@@ -16,7 +16,7 @@ import {
 	type Scene
 } from "three";
 import type { QualitySettings } from "@/core/Quality";
-import type { BiomePalette } from "@/fx/Sky";
+import type { BiomePalette } from "@/fx/biomes";
 
 const SHADOW_HALF_EXTENT = 7;
 

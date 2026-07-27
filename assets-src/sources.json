@@ -76,6 +76,30 @@
 			"target": "kenney/nature-kit"
 		},
 		{
+			"id": "kenney-pirate-kit",
+			"title": "Kenney — Pirate Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/pirate-kit",
+			"kind": "kenney-zip",
+			"slug": "pirate-kit",
+			"target": "kenney/pirate-kit",
+			"note": "P1-2 biome ② Bãi biển: thùng/tháp/cọc/cây cọ."
+		},
+		{
+			"id": "kenney-holiday-kit",
+			"title": "Kenney — Holiday Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/holiday-kit",
+			"kind": "kenney-zip",
+			"slug": "holiday-kit",
+			"target": "kenney/holiday-kit",
+			"note": "P1-2 biome ③ Núi tuyết: cây thông, người tuyết, hộp quà."
+		},
+		{
 			"id": "kenney-platformer-kit",
 			"title": "Kenney — Platformer Kit",
 			"author": "Kenney",
@@ -174,6 +198,30 @@
 			"kind": "file",
 			"url": "https://opengameart.org/sites/default/files/A%20Brand%20New%20Wisdom.ogg",
 			"target": "audio/bgm-biome1.ogg"
+		},
+		{
+			"id": "oga-short-loops-beach",
+			"title": "Short Loops Background Music Pack — \"Just Saying Tho\"",
+			"author": "Tim Mortimer (OpenGameArt)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://opengameart.org/content/short-loops-background-music-pack",
+			"kind": "file",
+			"url": "https://opengameart.org/sites/default/files/Just%20Saying%20Tho.ogg",
+			"target": "audio/bgm-biome2.ogg",
+			"note": "P1-2 biome ② — cùng pack CC0 với 2 track đã dùng, không phải thẩm định license mới."
+		},
+		{
+			"id": "oga-short-loops-snow",
+			"title": "Short Loops Background Music Pack — \"Winter Dust\"",
+			"author": "Tim Mortimer (OpenGameArt)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://opengameart.org/content/short-loops-background-music-pack",
+			"kind": "file",
+			"url": "https://opengameart.org/sites/default/files/Winter%20Dust_0.ogg",
+			"target": "audio/bgm-biome3.ogg",
+			"note": "P1-2 biome ③ — tên track đúng chất núi tuyết, cùng pack CC0."
 		},
 		{
 			"id": "font-baloo2",

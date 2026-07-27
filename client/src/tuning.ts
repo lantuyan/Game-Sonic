@@ -190,8 +190,12 @@ export const tuning = {
 		/** Khoảng hở < 0.4 unit (plan §4.4). */
 		thresholdUnits: 0.4,
 		points: 10,
-		/** Nửa bề rộng chướng ngại — dùng để đo khoảng hở ngang. */
-		obstacleHalfWidth: 0.85,
+		/**
+		 * Nửa bề rộng chướng ngại — dùng để đo khoảng hở ngang.
+		 * Bằng `spawn.lowWidth / 2`, tức bề rộng LỚN NHẤT trong 3 loại: đo rộng hơn
+		 * thực tế một chút thì near-miss khó ăn hơn, thà thiếu còn hơn thưởng oan.
+		 */
+		obstacleHalfWidth: 0.7,
 		/** Mép trên rào thấp (nhảy qua) và mép dưới rào cao (trượt lọt). */
 		lowTopY: 0.9,
 		highGapY: 1.05
@@ -243,7 +247,27 @@ export const tuning = {
 		patternGapMin: 26,
 		patternGapMax: 40,
 		coinSpacing: 2.2,
-		coinArcHeight: 1.9
+		coinArcHeight: 1.9,
+		/**
+		 * Kích thước CHUẨN HÓA của 3 loại chướng ngại (P1-2).
+		 *
+		 * Vì sao cần: mỗi kit Kenney có đơn vị riêng — rào của Platformer Kit cao
+		 * 0.40 unit, rào Pirate Kit cao 2.20, dây đèn Holiday Kit chỉ 0.32. Nếu dựng
+		 * nguyên xi thì biome ② có "rào thấp" cao hơn đầu người còn biome ③ có "thanh
+		 * chắn" bé như que tăm. Spawn ép mọi mẫu về đúng bộ số dưới đây, nên đổi biome
+		 * chỉ đổi HÌNH chứ không đổi luật chơi.
+		 *
+		 * Chỉ ảnh hưởng phần nhìn: va chạm là theo LÀN (systems/Collision.ts), không
+		 * đọc kích thước mesh.
+		 */
+		lowWidth: 1.4,
+		lowHeight: 0.55,
+		/** Thanh chắn trên cao: rộng gần bằng làn để đọc ra "chui xuống dưới". */
+		highWidth: 1.4,
+		highHeight: 0.5,
+		/** Khối chặn: ngang ngực người chơi (1.75) để đọc ra "không nhảy qua được". */
+		fullWidth: 1.2,
+		fullHeight: 1.35
 	},
 
 	input: {

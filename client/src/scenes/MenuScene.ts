@@ -4,7 +4,8 @@
 // spawn, không bóng đổ động, chỉ 1 nhân vật + sàn + trời gradient.
 
 import { CircleGeometry, Mesh, MeshStandardMaterial, Object3D, Scene } from "three";
-import { Sky, BIOME_CITY_PARK } from "@/fx/Sky";
+import { Sky } from "@/fx/Sky";
+import { BIOME_CITY_PARK } from "@/fx/biomes";
 import { WorldLighting } from "@/fx/WorldLighting";
 import { AssetManager } from "@/core/AssetManager";
 import { CharacterAnimator } from "@/core/CharacterAnimator";

@@ -4,9 +4,10 @@
 // Chế độ `?autorun` chạy không cần người chơi — dùng để đo hiệu năng 2.000m (DoD P0-4).
 
 import { Object3D, Scene } from "three";
-import { Track } from "@/systems/Track";
-import { Sky, BIOME_CITY_PARK } from "@/fx/Sky";
-import { biomeAt, nextBiomeIndex } from "@/fx/biomes";
+import { Track, type TrackDecorSource } from "@/systems/Track";
+import { Sky } from "@/fx/Sky";
+import { BIOMES, BIOME_CITY_PARK, biomeAt, biomeAssetUrls, nextBiomeIndex } from "@/fx/biomes";
+import { warmBiomeCache } from "@/core/pwa";
 import { WorldLighting } from "@/fx/WorldLighting";
 import { syncCurvedWorldUniforms } from "@/fx/CurvedWorld";
 import { AssetManager } from "@/core/AssetManager";
@@ -79,7 +80,7 @@ export class RunScene implements GameScene {
 	private readonly nearMiss = new NearMissTracker();
 	/** Câu đã dùng trong ván (cổng lẫn boss) — boss không hỏi lại câu đã gặp. */
 	private readonly usedQuestionIds = new Set<string>();
-	private biomeIndex = 0;
+	private biomeIndex = readStartBiomeIndex();
 	/** 0 → camera thường, 1 → camera cắt cảnh boss. Trôi mềm qua `boss.cameraDollySec`. */
 	private bossCameraBlend = 0;
 	private bossApproach = 0;
@@ -144,8 +145,13 @@ export class RunScene implements GameScene {
 			this.lighting?.applyQuality(settings);
 		});
 
+		// Bình thường luôn là biome ①; chỉ khác khi mở bằng `?biome=1|2` để soi.
+		const startBiome = biomeAt(this.biomeIndex);
+		this.sky.setPalette(this.scene, startBiome.palette);
+		this.track.setPalette(startBiome.palette);
+
 		this.audio.preloadSfx(RUN_SFX);
-		this.audio.playBgm("bgm-biome1");
+		this.audio.playBgm(startBiome.bgm);
 
 		this.score.reset();
 		this.lives.reset();
@@ -257,6 +263,8 @@ export class RunScene implements GameScene {
 				this.audio.setDucked(true);
 				this.bossApproach = 0;
 				this.bossVisual?.appear();
+				// Cắt cảnh là cửa sổ tải: nạp trước biome kế tiếp ngay lúc này.
+				this.preloadNextBiome();
 				// Dọn sạch đường trong vùng cắt cảnh: người chơi đang xem, không lái được.
 				this.spawn?.clearRange(-tuning.boss.spawnDistance - 20, tuning.world.recycleZ);
 				this.hideGates();
@@ -276,11 +284,13 @@ export class RunScene implements GameScene {
 				this.applyBossOutcome(context, question, outcome, selected);
 			},
 			onStageAdvance: (victory: boolean): void => {
-				this.advanceBiome(context);
-
-				if (victory === true) {
-					this.spawn?.coinRain(tuning.boss.coinRainCount);
-				}
+				void this.advanceBiome(context).then(() => {
+					// Mưa coin SAU khi Spawn mới dựng xong, nếu không coin rơi vào pool
+					// vừa bị vứt đi và người chơi không nhặt được gì.
+					if (victory === true) {
+						this.spawn?.coinRain(tuning.boss.coinRainCount);
+					}
+				});
 			},
 			onCountdown: (secondsLeft: number): void => {
 				this.audio.play("countdown");
@@ -349,8 +359,27 @@ export class RunScene implements GameScene {
 		}
 	}
 
-	/** Chuyển chặng: đổi bảng màu trời/đất + BGM (P1-2 thêm props theo biome). */
-	private advanceBiome(context: GameContext): void {
+	/**
+	 * Nạp trước MỌI GLB của biome kế tiếp (P1-2).
+	 *
+	 * Gọi lúc boss vừa xuất hiện: cắt cảnh dài `boss.introSec` (2.6s) rồi còn cả
+	 * thời gian trả lời — thừa sức tải xong vài trăm KB. Đến lúc `advanceBiome`
+	 * thật sự chạy thì `AssetManager` đã có cache, nên bước đổi chặng chỉ còn là
+	 * dựng InstancedMesh (DoD: <100ms).
+	 *
+	 * Lỗi mạng KHÔNG được làm hỏng ván: nuốt lỗi ở đây, `advanceBiome` sẽ tự tải lại
+	 * (chậm hơn) hoặc giữ nguyên biome cũ.
+	 */
+	private preloadNextBiome(): void {
+		const urls = biomeAssetUrls(nextBiomeIndex(this.biomeIndex));
+
+		void Promise.all(urls.map((url) => this.assets.loadModel(url))).catch((error: unknown) => {
+			console.warn("[RunScene] không nạp trước được biome kế tiếp:", error);
+		});
+	}
+
+	/** Chuyển chặng: đổi bảng màu trời/đất, props chướng ngại, trang trí và BGM. */
+	private async advanceBiome(context: GameContext): Promise<void> {
 		this.biomeIndex = nextBiomeIndex(this.biomeIndex);
 
 		const biome = biomeAt(this.biomeIndex);
@@ -358,6 +387,22 @@ export class RunScene implements GameScene {
 		this.track.setPalette(biome.palette);
 		this.audio.playBgm(biome.bgm);
 		context.events.emit("biome:changed", { index: this.biomeIndex, label: biome.label });
+
+		try {
+			// Dựng lại Spawn với bộ "da" mới. Pool/luật pattern y hệt — chỉ đổi mesh mẫu.
+			const templates = await this.loadObstacleTemplates(this.biomeIndex);
+			const previous = this.spawn;
+			const spawn = new Spawn(patternData.patterns as Pattern[], templates);
+			spawn.attachTo(this.scene);
+			this.spawn = spawn;
+			previous?.dispose();
+			previous?.group.removeFromParent();
+
+			await this.loadDecor();
+		} catch (error) {
+			// Giữ nguyên props cũ còn hơn để người chơi chạy trên đường trống.
+			console.warn("[RunScene] không đổi được props biome, giữ bộ cũ:", error);
+		}
 	}
 
 	private buildQuizCallbacks(context: GameContext) {
@@ -623,22 +668,25 @@ export class RunScene implements GameScene {
 	}
 
 	private async loadSpawn(): Promise<void> {
+		this.spawn = new Spawn(patternData.patterns as Pattern[], await this.loadObstacleTemplates(this.biomeIndex));
+		this.spawn.attachTo(this.scene);
+	}
+
+	private async loadObstacleTemplates(biomeIndex: number): Promise<ObstacleTemplates> {
+		const biome = biomeAt(biomeIndex);
 		const [low, high, full, coin] = await Promise.all([
-			this.assets.loadModel("models/props/obstacle-low-fence.glb"),
-			this.assets.loadModel("models/props/obstacle-high-sign.glb"),
-			this.assets.loadModel("models/props/obstacle-full-crate.glb"),
+			this.assets.loadModel(biome.obstacles.low),
+			this.assets.loadModel(biome.obstacles.high),
+			this.assets.loadModel(biome.obstacles.full),
 			this.assets.loadModel("models/props/coin.glb")
 		]);
 
-		const templates: ObstacleTemplates = {
-			low: firstMesh(low.scene, "obstacle-low-fence"),
-			high: firstMesh(high.scene, "obstacle-high-sign"),
-			full: firstMesh(full.scene, "obstacle-full-crate"),
+		return {
+			low: firstMesh(low.scene, biome.obstacles.low),
+			high: firstMesh(high.scene, biome.obstacles.high),
+			full: firstMesh(full.scene, biome.obstacles.full),
 			coin: firstMesh(coin.scene, "coin")
 		};
-
-		this.spawn = new Spawn(patternData.patterns as Pattern[], templates);
-		this.spawn.attachTo(this.scene);
 	}
 
 	/** Dev-only: phím Q/E đổi nhân vật ngay trong ván để soi animation (DoD P0-5). */
@@ -696,6 +744,8 @@ export class RunScene implements GameScene {
 			}))
 		);
 
+		const layers: TrackDecorSource[] = [];
+
 		for (const entry of loaded) {
 			// Kenney prop = 1 mesh duy nhất; lấy mesh đầu tiên tìm được làm mẫu instancing.
 			let template: Mesh | null = null;
@@ -711,11 +761,15 @@ export class RunScene implements GameScene {
 				continue;
 			}
 
-			this.track.addDecorLayer({
-				name: entry.source.name,
-				template,
-				capacity: entry.source.capacity
-			});
+			layers.push({ name: entry.source.name, template, capacity: entry.source.capacity });
+		}
+
+		// Chỉ gỡ lớp cũ SAU khi mọi GLB mới đã nạp xong: nếu tải lỗi giữa chừng thì
+		// người chơi vẫn còn cảnh cũ chứ không chạy trên đường trống hoác.
+		this.track.clearDecorLayers();
+
+		for (const layer of layers) {
+			this.track.addDecorLayer(layer);
 		}
 
 		this.track.populateInitialDecor();
@@ -927,6 +981,10 @@ export class RunScene implements GameScene {
 	private async finishGame(context: GameContext): Promise<void> {
 		const nowMs = performance.now();
 		const snapshot = this.score.snapshot();
+
+		// Ván đã xong, băng thông rảnh: bơm biome chưa có vào cache để ván sau chơi
+		// offline được trọn 3 chặng (P1-2).
+		warmBiomeCache(BIOMES.flatMap((_biome, index) => biomeAssetUrls(index)));
 
 		try {
 			await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
@@ -1155,6 +1213,21 @@ export class RunScene implements GameScene {
 		this.context?.quality.onChange(null);
 		this.context = null;
 	}
+}
+
+/**
+ * `?biome=1|2` — vào thẳng biome ② hoặc ③ để soi mà không phải chạy 2.5 phút
+ * chờ boss (P1-2). Không có tham số → luôn bắt đầu từ biome ①.
+ */
+function readStartBiomeIndex(): number {
+	if (typeof window === "undefined") {
+		return 0;
+	}
+
+	const raw = new URLSearchParams(window.location.search).get("biome");
+	const index = raw === null ? 0 : Number.parseInt(raw, 10);
+
+	return Number.isFinite(index) === true && index >= 0 && index < BIOMES.length ? index : 0;
 }
 
 /** Tiến tối đa `step` về phía `delta` (ease tuyến tính có trần tốc độ). */

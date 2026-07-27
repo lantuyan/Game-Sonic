@@ -6,6 +6,34 @@
 // from scripts/migrate-neon.js.
 
 var STATEMENTS = [
+	// P1-7 · ngân hàng câu hỏi trên Postgres (schema theo plan.md §2.1 + `explanation`
+	// của P0-14 + `quiz_mode` của P0-14).
+	//
+	// `position` giữ THỨ TỰ câu như file JSON gốc: hợp đồng §7.3.1 nói game pop từ
+	// cuối mảng, nên thứ tự trả về không được phụ thuộc vào cách Postgres sắp xếp.
+	"CREATE TABLE IF NOT EXISTS questions (" +
+		"level TEXT NOT NULL," +
+		"id TEXT NOT NULL," +
+		"difficulty TEXT NOT NULL," +
+		"question TEXT NOT NULL," +
+		"answers JSONB NOT NULL," +
+		"correct_answer TEXT NOT NULL," +
+		"point INTEGER NOT NULL," +
+		"time INTEGER NOT NULL," +
+		"explanation TEXT," +
+		"position INTEGER NOT NULL DEFAULT 0," +
+		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
+		"PRIMARY KEY (level, id)" +
+	")",
+	"CREATE INDEX IF NOT EXISTS idx_questions_level_position ON questions (level, position)",
+	"CREATE TABLE IF NOT EXISTS level_settings (" +
+		"level TEXT PRIMARY KEY," +
+		"point_settings JSONB NOT NULL DEFAULT '{}'::jsonb," +
+		"time_settings JSONB NOT NULL DEFAULT '{}'::jsonb," +
+		"game_speed REAL NOT NULL DEFAULT 1," +
+		"quiz_mode TEXT NOT NULL DEFAULT 'gate'," +
+		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
 	"CREATE TABLE IF NOT EXISTS players (" +
 		"device_id TEXT PRIMARY KEY," +
 		"nickname TEXT NOT NULL," +

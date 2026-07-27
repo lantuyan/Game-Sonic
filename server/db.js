@@ -9,8 +9,34 @@
 var fs = require("fs");
 var path = require("path");
 var QuestionModel = require("../shared/questionModel");
+var createQuestionStore = require("./questionStore").createQuestionStore;
 
-function createDatabase(config) {
+/**
+ * Chọn kho câu hỏi (P1-7).
+ *
+ * CÓ `DATABASE_URL` (Neon) → kho Postgres: giáo viên sửa đề một lần là còn mãi,
+ * không mất khi instance serverless bị thu hồi hay khi deploy lại.
+ *
+ * KHÔNG có → giữ nguyên kho JSON như trước. Đây là điều kiện DoD của P1-7
+ * ("không có DATABASE_URL → hành vi như hiện tại"), và cũng là điều đúng đắn: dev
+ * offline và CI không cần Postgres chỉ để chạy được game.
+ *
+ * Cố ý KHÔNG dùng PGlite cho kho câu hỏi dù nó có sẵn ở máy dev — làm vậy thì
+ * đường chạy của dev khác hẳn đường chạy của production, và bug chỉ lộ ra khi
+ * deploy.
+ */
+function createDatabase(config, sqlClient) {
+	var sql = sqlClient != null ? sqlClient : (config != null ? config.sqlClient : null);
+	var databaseUrl = config != null && config.databaseUrl != null ? String(config.databaseUrl) : "";
+
+	if (sql != null && databaseUrl.trim() !== "") {
+		return createQuestionStore({ sql: sql, rootDir: config.rootDir });
+	}
+
+	return createJsonDatabase(config);
+}
+
+function createJsonDatabase(config) {
 	var statePath = path.join(config.runtimeDir, "question-bank.json");
 	var store = loadStore(config.rootDir, statePath);
 

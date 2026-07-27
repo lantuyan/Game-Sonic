@@ -215,7 +215,12 @@ test("map id nhân vật cũ sang V2 đúng hợp đồng plan §7.3.3", async f
 	assert.equal(characters.resolveCharacterId(""), "knight");
 	assert.equal(characters.resolveCharacterId("khong-ton-tai"), "knight");
 
-	assert.equal(characters.CHARACTERS.length, 4);
+	// 4 nhân vật P0 + 3 nhân vật mở khoá của P1-3.
+	assert.equal(characters.CHARACTERS.length, 7);
+
+	// `legacyId` rỗng của nhân vật P1-3 KHÔNG được khớp bừa với chuỗi rỗng.
+	assert.equal(characters.resolveCharacterId("mage"), "mage");
+	assert.equal(characters.resolveCharacterId(""), "knight");
 });
 
 test("input buffer: consumeIf giữ lệnh lại khi bị từ chối, không làm mới hạn", async function () {

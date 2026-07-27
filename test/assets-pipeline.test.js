@@ -114,10 +114,20 @@ test("mỗi GLB nhân vật nằm trong ngân sách 500KB", function () {
 	});
 });
 
-test("4 nhân vật map đủ 4 id cũ và có tối thiểu clip idle + run", function () {
+test("nhân vật map đủ 4 id cũ và có tối thiểu clip idle + run", function () {
 	var manifest = readManifest();
 
-	assert.equal(manifest.characters.length, 4, "P0 chốt đúng 4 nhân vật (plan §3 Q5)");
+	// 4 nhân vật P0 (plan §3 Q5) + 3 nhân vật mở khoá của P1-3.
+	assert.equal(manifest.characters.length, 7, "4 nhân vật P0 + 3 nhân vật mở khoá P1-3");
+
+	// 4 nhân vật P0 phải luôn ở đầu bảng và KHÔNG bị khoá — hợp đồng §7.3.3 nói
+	// người chơi cũ mở lên phải thấy đúng nhân vật của mình.
+	assert.deepEqual(
+		manifest.characters.slice(0, 2).map(function (character) {
+			return character.id;
+		}),
+		["knight", "robot"]
+	);
 
 	var legacyIds = manifest.characters.map(function (character) {
 		return character.legacyId;

@@ -68,6 +68,60 @@ const CHARACTERS = [
 			hit: "No"
 		}
 	},
+	// --- P1-3 · nhân vật mở khoá ---
+	//
+	// Cùng bộ KayKit Adventurers với Knight của P0 nên có đủ 6 clip chuẩn, không phải
+	// fallback clip nào. `legacyId` để rỗng: V1 chưa từng có 3 nhân vật này nên không
+	// có giá trị cũ nào cần map.
+	//
+	// ⚠ Khác task một chỗ: task ghi "Mage/Rogue/Engineer", nhưng bộ CC0 đã thẩm định
+	// ở docs/v2/B1 KHÔNG có Engineer. Dùng Barbarian ("Chiến binh") thay vì kéo về
+	// nguyên một pack mới cho đúng một model — tốn thêm ngân sách và một mục license.
+	{
+		id: "mage",
+		legacyId: "",
+		label: "Pháp sư",
+		source: path.join(downloadsDir, "characters", "Mage.glb"),
+		credit: "KayKit — Adventurers (CC0)",
+		clips: {
+			idle: "Idle",
+			run: "Running_A",
+			jump: "Jump_Full_Long",
+			slide: "Dodge_Forward",
+			death: "Death_A",
+			hit: "Hit_A"
+		}
+	},
+	{
+		id: "rogue",
+		legacyId: "",
+		label: "Trinh sát",
+		source: path.join(downloadsDir, "characters", "Rogue.glb"),
+		credit: "KayKit — Adventurers (CC0)",
+		clips: {
+			idle: "Idle",
+			run: "Running_A",
+			jump: "Jump_Full_Long",
+			slide: "Dodge_Forward",
+			death: "Death_A",
+			hit: "Hit_A"
+		}
+	},
+	{
+		id: "barbarian",
+		legacyId: "",
+		label: "Chiến binh",
+		source: path.join(downloadsDir, "characters", "Barbarian.glb"),
+		credit: "KayKit — Adventurers (CC0)",
+		clips: {
+			idle: "Idle",
+			run: "Running_A",
+			jump: "Jump_Full_Long",
+			slide: "Dodge_Forward",
+			death: "Death_A",
+			hit: "Hit_A"
+		}
+	},
 	{
 		id: "fox",
 		legacyId: "horse",

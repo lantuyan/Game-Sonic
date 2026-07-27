@@ -14,7 +14,9 @@ export type ScreenName =
 	| "review"
 	| "leaderboard"
 	| "settings"
-	| "tutorial";
+	| "tutorial"
+	/** S12 — Cửa hàng mở khoá nhân vật (P1-3). */
+	| "shop";
 
 export interface Screen {
 	readonly name: ScreenName;

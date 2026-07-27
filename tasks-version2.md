@@ -300,9 +300,13 @@ Kenney Pirate Kit / Holiday Kit qua pipeline P0-3 (+LICENSE cập nhật); mỗi
 **Ngoài kế hoạch một chút:** biome ② dùng lại `obstacle-high-sign` của biome ① — Pirate Kit không có vật nào đọc ra "thanh chắn trên cao" ở tốc độ 15 unit/s.
 **Chưa nghiệm thu được ở môi trường này:** đo thời gian chuyển chặng thật (<100ms) và cảm giác chướng ngại ở tốc độ chơi — rAF bị treo ~1 fps trong sandbox. Máy thật: `/?debug&biome=1` (bãi biển) và `/?debug&biome=2` (núi tuyết) vào thẳng biome để soi.
 
-### [ ] P1-3 · Shop + unlock + 3 nhân vật mới — *3 ngày*
+### [x] P1-3 · Shop + unlock + 3 nhân vật mới — *3 ngày*
 Mage/Rogue/Engineer qua pipeline; S12 Shop: giá coin (cân trong tuning: ~300/500/800 coin) **hoặc** mốc thành tích (vd "10 ván", "50 câu đúng", "1 lần top 10") — mỗi nhân vật 2 đường; trạng thái khóa ở S4; lưu `endlessrunner-unlocks-v2` (local — Q6); toast unlock.
 **DoD:** unlock cả 2 đường hoạt động; không mua được bằng cách sửa URL/console dễ dàng (obfuscate nhẹ, chấp nhận local-trust theo Q6).
+**Đã làm (nhánh `v2/p1-03-shop`):** `systems/unlockRules.ts` (luật thuần) + `systems/Unlocks.ts` (nơi DUY NHẤT ghi `endlessrunner-unlocks-v2` và trừ xu) + `ShopScreen` (S12) + trạng thái khoá trên S4. Giá 300/500/800 xu; mốc thành tích: 50 câu đúng · 10 ván · một lần top 10. Thành tích xét TRƯỚC xu nên đã xứng đáng thì bấm MUA cũng không mất xu. 18 test mới (`test/unlocks.test.js`).
+**Chống sửa tay:** danh sách mở khoá được ký bằng FNV-1a (`signUnlocks`); chữ ký sai → bỏ hết nhân vật nhưng GIỮ số ván/số câu đúng (công sức học thật, không phạt lây). Không giả vờ đây là bảo mật — Q6 đã chốt local-trust, và thứ thật sự quan trọng (BXH) do P1-4 canh ở server.
+**Khác thiết kế gợi ý:** task ghi "Mage/Rogue/Engineer" nhưng bộ CC0 đã thẩm định (KayKit Adventurers) KHÔNG có Engineer → dùng **Barbarian ("Chiến binh")**. Kéo nguyên một pack mới cho đúng một model là tốn ngân sách và thêm một mục license.
+**Ngân sách:** 3 nhân vật (~850KB) bị loại khỏi precache lúc cài — SW giữ lại từ lần chọn đầu tiên. Initial load 3.6MB precache / 5.36MB build.
 
 ### [ ] P1-4 · Anti-cheat leaderboard + moderation (backend + client) — *3 ngày*
 **Được phép sửa `questionBank.js` trong phạm vi:** `submitScore(level, stats)` nhận thêm `stats.runId`/`stats.token` TÙY CHỌN (backward-compatible — thiếu vẫn chạy như cũ); cập nhật contract-test tương ứng. Ngoài phạm vi đó, quy tắc vàng #4 vẫn áp dụng.

@@ -129,6 +129,57 @@ export function saveSettings(settings: SettingsV2): void {
 	writeJson(V2_STORAGE_KEYS.settings, settings);
 }
 
+/** Nhân vật đã mở khoá + tiến trình chấm mốc thành tích (P1-3). */
+export interface UnlocksV2 {
+	unlocked: string[];
+	gamesPlayed: number;
+	correctAnswers: number;
+	/** Hạng tốt nhất từng đạt trên BXH; null = chưa từng lên bảng. */
+	bestLeaderboardRank: number | null;
+	/** Chữ ký của `unlocked` — xem `systems/unlockRules.signUnlocks`. */
+	signature: string;
+}
+
+export const DEFAULT_UNLOCKS: UnlocksV2 = {
+	unlocked: [],
+	gamesPlayed: 0,
+	correctAnswers: 0,
+	bestLeaderboardRank: null,
+	signature: ""
+};
+
+/**
+ * Đọc tiến trình mở khoá.
+ *
+ * `verify` do phía gọi truyền vào (systems/unlockRules) để file này không phải
+ * biết luật mở khoá. Chữ ký sai → coi như CHƯA mở nhân vật nào, nhưng GIỮ NGUYÊN
+ * số ván/số câu đúng: sửa tay danh sách nhân vật thì mất nhân vật, chứ không mất
+ * luôn thành tích học tập của em đó.
+ */
+export function loadUnlocks(verify: (ids: readonly string[], signature: string) => boolean): UnlocksV2 {
+	const stored = readJson<UnlocksV2>(V2_STORAGE_KEYS.unlocks, DEFAULT_UNLOCKS);
+	const unlocked = Array.isArray(stored.unlocked)
+		? stored.unlocked.filter((id): id is string => typeof id === "string")
+		: [];
+	const signature = typeof stored.signature === "string" ? stored.signature : "";
+	const trusted = unlocked.length === 0 || verify(unlocked, signature);
+
+	return {
+		unlocked: trusted ? unlocked : [],
+		gamesPlayed: Math.max(toFiniteNumber(stored.gamesPlayed, 0), 0),
+		correctAnswers: Math.max(toFiniteNumber(stored.correctAnswers, 0), 0),
+		bestLeaderboardRank:
+			typeof stored.bestLeaderboardRank === "number" && Number.isFinite(stored.bestLeaderboardRank)
+				? stored.bestLeaderboardRank
+				: null,
+		signature: trusted ? signature : ""
+	};
+}
+
+export function saveUnlocks(unlocks: UnlocksV2): void {
+	writeJson(V2_STORAGE_KEYS.unlocks, unlocks);
+}
+
 export function loadWallet(): WalletV2 {
 	const wallet = readJson<WalletV2>(V2_STORAGE_KEYS.wallet, DEFAULT_WALLET);
 

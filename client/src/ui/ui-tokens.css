@@ -748,6 +748,76 @@
 	gap: var(--space-3);
 }
 
+/* Nhân vật chưa mở khoá: mờ đi nhưng VẪN bấm được (bấm = mở Cửa hàng). Cố ý
+   không dùng `disabled` — nút disabled thì bàn phím không tab tới được. */
+.character__grid .button[data-locked="true"] {
+	opacity: 0.62;
+	filter: saturate(0.5);
+}
+
+/* --- S12 Cửa hàng (P1-3) --- */
+
+.shop__coins {
+	margin: 0 0 var(--space-3);
+	font-family: var(--font-display);
+	font-weight: 800;
+	color: var(--color-text);
+	text-align: center;
+}
+
+.shop__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.shop__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	padding: var(--space-3);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-dim);
+	/* Hàng cao ≥ vùng chạm tối thiểu để nút bên trong không bị bóp. */
+	min-height: var(--touch-min);
+}
+
+.shop__row[data-state="unlocked"] {
+	opacity: 0.72;
+}
+
+.shop__info {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	text-align: left;
+}
+
+.shop__name {
+	font-family: var(--font-display);
+	font-weight: 800;
+	color: var(--color-text);
+}
+
+.shop__detail {
+	font-size: 14px;
+	color: var(--color-text-muted);
+}
+
+.shop__done {
+	font-size: 22px;
+	font-weight: 800;
+	color: var(--color-correct);
+}
+
+.shop__missing {
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--color-text-muted);
+	text-align: right;
+}
+
 /* --- S8 Game over --- */
 
 .gameover__score {

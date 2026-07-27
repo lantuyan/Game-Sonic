@@ -10,7 +10,9 @@
 //   · chơi được 100% bằng bàn phím.
 
 import { createButton, createPanel, countUp, createProgressBar, confirmTwoStep } from "@/ui/components";
-import { CHARACTERS, loadSelectedCharacterId, saveSelectedCharacterId } from "@/data/characters";
+import { CHARACTERS, DEFAULT_CHARACTER_ID, loadSelectedCharacterId, saveSelectedCharacterId } from "@/data/characters";
+import { Unlocks } from "@/systems/Unlocks";
+import { UNLOCK_RULES, type UnlockState } from "@/systems/unlockRules";
 import { loadWallet, migrateLegacyBestScore, saveWallet, loadSettings, saveSettings } from "@/core/SaveData";
 import { V2_STORAGE_KEYS } from "@/core/storageKeys";
 import { readRaw, writeRaw } from "@/core/SaveData";
@@ -237,6 +239,8 @@ export class LevelScreen implements Screen {
 export interface CharacterCallbacks {
 	onConfirm(characterId: string): void;
 	onBack(): void;
+	/** Mở màn Cửa hàng (S12) — cũng là nơi bấm nhân vật đang khoá dẫn tới. */
+	onOpenShop(): void;
 }
 
 export class CharacterScreen implements Screen {
@@ -244,6 +248,7 @@ export class CharacterScreen implements Screen {
 	readonly element: HTMLElement;
 
 	private readonly buttons: HTMLButtonElement[] = [];
+	private readonly unlocks = new Unlocks();
 	private selectedId: string;
 
 	constructor(callbacks: CharacterCallbacks) {
@@ -259,6 +264,13 @@ export class CharacterScreen implements Screen {
 			const button = createButton({
 				label: character.label,
 				onClick: () => {
+					// Nhân vật khoá thì bấm vào là đi thẳng sang Cửa hàng, không im lặng
+					// từ chối — im lặng làm học sinh tưởng game hỏng.
+					if (this.unlocks.isUnlocked(character.id) === false) {
+						callbacks.onOpenShop();
+						return;
+					}
+
 					this.selectedId = character.id;
 					saveSelectedCharacterId(character.id);
 					this.syncButtons();
@@ -279,6 +291,7 @@ export class CharacterScreen implements Screen {
 					callbacks.onConfirm(this.selectedId);
 				}
 			}),
+			createButton({ label: "Cửa hàng", onClick: callbacks.onOpenShop }),
 			createButton({ label: "Quay lại", onClick: callbacks.onBack })
 		);
 
@@ -287,15 +300,156 @@ export class CharacterScreen implements Screen {
 
 	private syncButtons(): void {
 		for (const button of this.buttons) {
-			const selected = button.dataset.character === this.selectedId;
+			const id = button.dataset.character ?? "";
+			const unlocked = this.unlocks.isUnlocked(id);
+			const selected = id === this.selectedId;
+			const character = CHARACTERS.find((entry) => entry.id === id);
+
 			button.dataset.selected = selected ? "true" : "false";
+			button.dataset.locked = unlocked ? "false" : "true";
 			button.setAttribute("aria-pressed", selected ? "true" : "false");
+			// KHÔNG dùng `disabled`: nút khoá vẫn phải bấm được để mở Cửa hàng, và
+			// `disabled` thì bàn phím không tab tới được (plan §5.1 — chơi 100% bằng phím).
+			button.textContent = unlocked ? (character?.label ?? id) : `🔒 ${character?.label ?? id}`;
+			button.setAttribute(
+				"aria-label",
+				unlocked
+					? `${character?.label ?? id} — ${character?.description ?? ""}`
+					: `${character?.label ?? id} — chưa mở khoá, mở Cửa hàng`
+			);
 		}
 	}
 
 	onShow(): void {
+		this.unlocks.reload();
 		this.selectedId = loadSelectedCharacterId();
+
+		// Dữ liệu cũ/bị sửa có thể trỏ tới nhân vật đang khoá — rơi về mặc định thay
+		// vì để người chơi bấm CHƠI rồi vào ván với nhân vật chưa mở.
+		if (this.unlocks.isUnlocked(this.selectedId) === false) {
+			this.selectedId = DEFAULT_CHARACTER_ID;
+			saveSelectedCharacterId(this.selectedId);
+		}
+
 		this.syncButtons();
+	}
+}
+
+// --- S12 Cửa hàng (P1-3) ------------------------------------------------------
+
+export interface ShopCallbacks {
+	onBack(): void;
+	/** Mở khoá xong — App bắn toast và làm mới màn chọn nhân vật. */
+	onUnlocked(characterId: string, label: string): void;
+}
+
+export class ShopScreen implements Screen {
+	readonly name: ScreenName = "shop";
+	readonly element: HTMLElement;
+
+	private readonly unlocks = new Unlocks();
+	private readonly list: HTMLDivElement;
+	private readonly coinsLabel: HTMLParagraphElement;
+	private readonly callbacks: ShopCallbacks;
+
+	constructor(callbacks: ShopCallbacks) {
+		const { section, body, actions } = createPanel("Cửa hàng", "Mở khoá bạn chạy mới");
+		this.element = section;
+		this.callbacks = callbacks;
+
+		this.coinsLabel = document.createElement("p");
+		this.coinsLabel.className = "shop__coins";
+
+		this.list = document.createElement("div");
+		this.list.className = "shop__list";
+
+		body.append(this.coinsLabel, this.list);
+		actions.append(createButton({ label: "Quay lại", onClick: callbacks.onBack }));
+	}
+
+	onShow(): void {
+		this.unlocks.reload();
+		this.render();
+	}
+
+	private render(): void {
+		const progress = this.unlocks.progress;
+		this.coinsLabel.textContent = `Xu của em: ${progress.coins}`;
+		this.list.replaceChildren();
+
+		for (const rule of UNLOCK_RULES) {
+			const character = CHARACTERS.find((entry) => entry.id === rule.characterId);
+
+			if (character === undefined) {
+				continue;
+			}
+
+			const state = this.unlocks.evaluate(rule.characterId);
+			const row = document.createElement("div");
+			row.className = "shop__row";
+			row.dataset.character = rule.characterId;
+			row.dataset.state = state.status;
+
+			const info = document.createElement("div");
+			info.className = "shop__info";
+
+			const name = document.createElement("span");
+			name.className = "shop__name";
+			name.textContent = character.label;
+
+			const detail = document.createElement("span");
+			detail.className = "shop__detail";
+			// Luôn nói RÕ cả hai đường: học sinh phải thấy mình có lựa chọn.
+			detail.textContent =
+				state.status === "unlocked"
+					? "Đã mở khoá"
+					: state.status === "claimable"
+						? `Đã đạt: ${rule.achievementLabel} — nhận miễn phí!`
+						: `${rule.price} xu · hoặc ${rule.achievementLabel}`;
+
+			info.append(name, detail);
+			row.appendChild(info);
+			row.appendChild(this.createActionButton(rule, character.label, state));
+			this.list.appendChild(row);
+		}
+	}
+
+	private createActionButton(
+		rule: (typeof UNLOCK_RULES)[number],
+		label: string,
+		state: UnlockState
+	): HTMLElement {
+		if (state.status === "unlocked") {
+			const done = document.createElement("span");
+			done.className = "shop__done";
+			done.textContent = "✓";
+			return done;
+		}
+
+		if (state.status === "locked") {
+			const missing = document.createElement("span");
+			missing.className = "shop__missing";
+			missing.textContent = `còn thiếu ${state.missingCoins} xu`;
+			return missing;
+		}
+
+		return createButton({
+			label: state.status === "claimable" ? "NHẬN" : `MUA ${rule.price}`,
+			variant: "cta",
+			onClick: () => {
+				const result = this.unlocks.purchase(rule.characterId);
+
+				if (result.ok === false) {
+					// Ví vừa đổi ở tab khác chẳng hạn — vẽ lại theo trạng thái thật.
+					this.render();
+					return;
+				}
+
+				this.render();
+				this.callbacks.onUnlocked(rule.characterId, label);
+			},
+			ariaLabel: `Mở khoá ${label}`
+		});
 	}
 }
 

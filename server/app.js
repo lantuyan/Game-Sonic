@@ -12,6 +12,7 @@ var playerStoreModule = require("./playerStore");
 var createSqlClient = require("./sql").createSqlClient;
 var runToken = require("./runToken");
 var scoreCheck = require("./scoreCheck");
+var statsStoreModule = require("./statsStore");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -29,6 +30,9 @@ function createApp(overrides) {
 	// (features degrade gracefully). The question bank stays on an in-memory JSON store.
 	var playerSql = createSqlClient(config);
 	var playerStore = playerStoreModule.createPlayerStore({ sql: playerSql });
+	// P1-6 · dashboard giáo viên. Dùng chung SQL client; schema do playerStore áp
+	// (applySchema là idempotent nên không cần điều phối gì thêm).
+	var statsStore = statsStoreModule.createStatsStore({ sql: playerSql });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -41,12 +45,30 @@ function createApp(overrides) {
 	//   · 5 login admin/phút — chặn dò mật khẩu.
 	// `validate: false`: sau proxy của Vercel, express-rate-limit cảnh báo về
 	// X-Forwarded-For; ta chấp nhận đếm theo IP mà proxy báo.
+	// ⚠ ĐẾM THEO `deviceId`, KHÔNG theo IP.
+	//
+	// Cả một phòng máy của trường đi qua MỘT địa chỉ IP sau NAT. Đếm theo IP nghĩa
+	// là 30 em cùng lớp chia nhau 10 lượt nộp mỗi phút — hết tiết học thì quá nửa
+	// lớp bị chặn oan, mà không em nào làm gì sai. Mỗi máy có `deviceId` riêng
+	// (khoá `endlessrunner-device-id-v1`), nên "10 lượt/phút/máy" mới đúng ý định:
+	// chặn vòng lặp bơm điểm, không chặn cả lớp.
+	//
+	// deviceId sửa được ở client — nhưng ai đã sửa deviceId để lách rate-limit thì
+	// vẫn vướng vé ván chơi và kiểm chéo điểm ở `verified`. Rate-limit không phải
+	// tuyến phòng thủ chính, nó chỉ để không ai vô tình (hay cố ý) làm nghẽn server.
 	var scoreLimiter = rateLimit({
 		windowMs: 60 * 1000,
 		max: 10,
 		standardHeaders: true,
 		legacyHeaders: false,
 		validate: false,
+		keyGenerator: function (request) {
+			var deviceId = request.body != null ? request.body.deviceId : null;
+
+			return typeof deviceId === "string" && deviceId.trim() !== ""
+				? "device:" + deviceId.trim().slice(0, 64)
+				: "ip:" + (request.ip || "unknown");
+		},
 		message: { error: "Em nộp điểm hơi nhanh, đợi một chút nhé." }
 	});
 
@@ -268,6 +290,48 @@ function createApp(overrides) {
 			response.json(await playerStore.saveSkill(request.params.deviceId, request.body || {}));
 		} catch (error) {
 			next(error);
+		}
+	});
+
+	// P1-6 · tổng kết cả ván trong MỘT request. 30 em × 10 câu = 300 request đồng
+	// thời chỉ để ghi log là cách nhanh nhất để tự làm sập phòng máy của trường.
+	app.post("/api/runs/summary", scoreLimiter, async function (request, response, next) {
+		try {
+			response.json(await statsStore.recordRunSummary(request.body || {}));
+		} catch (error) {
+			next(error);
+		}
+	});
+
+	// --- Dashboard giáo viên (admin, P1-6) ------------------------------------
+
+	app.get("/api/admin/stats", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			response.json(await statsStore.getStats({
+				level: request.query.level,
+				from: request.query.from,
+				to: request.query.to
+			}));
+		} catch (error) {
+			next(createError(400, error.message));
+		}
+	});
+
+	app.get("/api/admin/stats.csv", auth.requireAdminAuth(config), async function (request, response, next) {
+		try {
+			var stats = await statsStore.getStats({
+				level: request.query.level,
+				from: request.query.from,
+				to: request.query.to
+			});
+
+			// charset=utf-8 + BOM trong nội dung: thiếu một trong hai là Excel bản
+			// Windows đọc thành CP-1252 và dấu tiếng Việt vỡ hết (DoD P1-6).
+			response.setHeader("Content-Type", "text/csv; charset=utf-8");
+			response.setHeader("Content-Disposition", 'attachment; filename="toan-runner-stats.csv"');
+			response.send(statsStoreModule.statsToCsv(stats));
+		} catch (error) {
+			next(createError(400, error.message));
 		}
 	});
 

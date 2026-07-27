@@ -336,9 +336,18 @@ Câu hỏi hồi sinh (hết tim → 1 câu easy 10s; đúng → sống lại + 
 · Hồi sinh cho lại **đúng 1 tim**, không phải đầy máu.
 **Chưa nghiệm thu được ở môi trường này:** cảm giác nhịp cổng thay đổi theo accuracy trong một ván thật (rAF ~1 fps trong sandbox). Luyện tập và HUD của nó đã soi bằng ảnh chụp.
 
-### [ ] P1-6 · Dashboard giáo viên — *4.5 ngày*
+### [x] P1-6 · Dashboard giáo viên — *4.5 ngày*
 Bảng `answer_events(id, device_id, level, question_id, outcome, answer_ms, mode, difficulty, run_id, created_at)` (+index theo level/question_id/created_at); `POST /api/runs/summary` batch 1 request cuối ván (client V2 gửi mảng answers); `GET /api/admin/stats?level=&from=&to=`: ván/ngày, accuracy theo lớp & độ khó, **top 10 câu sai nhiều nhất**, phân bố skill (từ `skill_profiles`); tab S17 trong admin (bảng + biểu đồ thanh thuần CSS/SVG, không lib chart) + nút xuất CSV (UTF-8 BOM cho Excel).
 **DoD:** chơi 5 ván test → dashboard hiện đúng số; CSV mở trong Excel không vỡ dấu tiếng Việt; API admin auth cookie như route admin cũ; PGlite test đủ route mới.
+**Đã làm (nhánh `v2/p1-06-dashboard`):** bảng `answer_events` + 3 index, `server/statsStore.js`, `POST /api/runs/summary` (MỘT request/ván), `GET /api/admin/stats` + `/api/admin/stats.csv`, panel "Thống kê lớp học" trong admin (biểu đồ thanh thuần CSS, không thư viện chart). 13 test mới chạy trên **PGlite thật** (`test/dashboard.test.js`).
+**Quyết định đáng nêu:**
+· Top câu sai lọc `HAVING COUNT(*) >= 3` — một em làm sai một lần không phải là "cả lớp chưa hiểu", mà nếu không lọc thì mấy câu đó luôn chiếm đầu bảng.
+· `to=<ngày>` bao gồm CẢ ngày đó (`< to + 1 day`) — đúng cách giáo viên hiểu "đến ngày 27", và là chỗ off-by-one kinh điển.
+· Thanh dưới 50% đúng chuyển đỏ: giáo viên nhìn một cái là biết phải dạy lại phần nào.
+**Sửa 2 lỗi thật phát hiện khi làm task này:**
+· rate-limit nộp điểm (P1-4) đang đếm **theo IP**, mà cả phòng máy của trường đi qua MỘT IP sau NAT ⇒ 30 em chia nhau 10 lượt/phút, quá nửa lớp bị chặn oan. Đã đổi sang đếm **theo `deviceId`**.
+· mỗi test backend gọi `mkdtempSync` riêng ⇒ mỗi test một cluster PGlite vài chục MB nằm lại trong thư mục tạm; chạy `npm test` nhiều lần là **đầy ổ đĩa thật** (đã xảy ra, 25GB rác). Mọi file test giờ dùng chung MỘT `pgDataDir` cho cả file.
+**Chưa nghiệm thu được ở môi trường này:** mở file CSV bằng Excel thật trên Windows (test đã canh BOM + charset + CRLF + chữ có dấu còn nguyên).
 
 ### [ ] P1-7 · Question bank → Neon — *3 ngày*
 Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `explanation`, `quiz_mode`); store mới thay JSON-store trong `server/db.js` khi có `DATABASE_URL` (giữ nguyên interface + fallback JSON khi không DB — dev offline vẫn chạy); migrate: seed từ `questions/*.json` chỉ khi bảng rỗng (idempotent, thêm vào `scripts/migrate-neon.js`); **API surface không đổi** (contract-test phải xanh nguyên trạng).

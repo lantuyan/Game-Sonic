@@ -101,6 +101,8 @@ export class RunScene implements GameScene {
 	// --- Học tập nâng cao (P1-5) ---
 	private readonly dda = new MicroDda();
 	private readonly learning = new LearningStatsRecorder();
+	/** Sự kiện trả lời của ván này — gửi MỘT lần cuối ván cho dashboard (P1-6). */
+	private readonly answerEvents: bridge.RunAnswerEvent[] = [];
 	private readonly unlocks = new Unlocks();
 	/** Luyện tập: không tim, không điểm, không BXH — chỉ cổng và đề (plan §4.6). */
 	private readonly practiceMode: boolean;
@@ -241,6 +243,7 @@ export class RunScene implements GameScene {
 
 			this.dda.reset();
 			this.learning.reset();
+			this.answerEvents.length = 0;
 			this.quiz = new QuizGateController(this.buildQuizCallbacks(context));
 			// P1-5: nhịp cổng bám accuracy NGAY TRONG VÁN.
 			this.quiz.setAccuracyProvider(() => this.learning.accuracy);
@@ -369,6 +372,14 @@ export class RunScene implements GameScene {
 			selectedAnswer: selected
 		});
 		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode: "modal" });
+		this.learning.record("modal", outcome === "correct", this.boss?.answerElapsedMs ?? 0);
+		this.answerEvents.push({
+			questionId: question.id,
+			outcome,
+			answerMs: this.boss?.answerElapsedMs ?? 0,
+			mode: "modal",
+			difficulty: question.difficulty
+		});
 
 		if (outcome === "correct") {
 			this.audio.play("boss-defeat");
@@ -547,6 +558,13 @@ export class RunScene implements GameScene {
 		// P1-5 — micro-DDA + số liệu cho hồ sơ kỹ năng. Timeout tính như sai: cả hai
 		// đều nghĩa là "em chưa làm được câu này".
 		this.learning.record(mode, outcome === "correct", quiz?.answerElapsedMs ?? 0);
+		this.answerEvents.push({
+			questionId: question.id,
+			outcome,
+			answerMs: quiz?.answerElapsedMs ?? 0,
+			mode,
+			difficulty: question.difficulty
+		});
 
 		if (outcome === "correct") {
 			this.dda.registerCorrect();
@@ -1094,6 +1112,8 @@ export class RunScene implements GameScene {
 			try {
 				await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
 				void bridge.syncLearningStats(this.level, this.learning.snapshot());
+				// Luyện tập VẪN gửi số liệu: giáo viên cần biết em ôn cái gì.
+				void bridge.submitRunSummary(this.level, this.answerEvents, this.runTicket?.runId ?? null);
 			} catch (error) {
 				console.warn("[RunScene] không cập nhật được hồ sơ kỹ năng:", error);
 			}
@@ -1110,6 +1130,7 @@ export class RunScene implements GameScene {
 			await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
 			// P1-5 — gateAnswerMs + modeStats đi kèm hồ sơ kỹ năng (JSONB, không migration).
 			void bridge.syncLearningStats(this.level, this.learning.snapshot());
+			void bridge.submitRunSummary(this.level, this.answerEvents, this.runTicket?.runId ?? null);
 			const result = await bridge.submitScore(this.level, {
 				...this.session.toScoreStats(snapshot.total, nowMs),
 				...(this.runTicket !== null ? { runId: this.runTicket.runId, token: this.runTicket.token } : {})

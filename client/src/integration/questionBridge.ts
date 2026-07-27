@@ -283,6 +283,49 @@ export async function syncLearningStats(level: string, learning: unknown): Promi
 	}
 }
 
+/** Một dòng của bảng `answer_events` (P1-6). */
+export interface RunAnswerEvent {
+	questionId: string;
+	outcome: "correct" | "wrong" | "timeout";
+	answerMs: number;
+	mode: "gate" | "modal";
+	difficulty: string;
+}
+
+/**
+ * Gửi tổng kết cả ván cho dashboard giáo viên (P1-6) — ĐÚNG MỘT request.
+ *
+ * Không chặn luồng kết thúc ván và không báo lỗi cho người chơi: đây là số liệu
+ * cho giáo viên, mất một ván vì rớt mạng thì dashboard chỉ thiếu một dòng, còn
+ * làm học sinh thấy lỗi thì hỏng trải nghiệm không vì lý do gì.
+ */
+export async function submitRunSummary(
+	level: string,
+	answers: readonly RunAnswerEvent[],
+	runId: string | null
+): Promise<void> {
+	if (answers.length === 0) {
+		return;
+	}
+
+	const api = await loadQuestionBank();
+
+	if (typeof api.getDeviceId !== "function") {
+		return;
+	}
+
+	try {
+		await fetch("/api/runs/summary", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			body: JSON.stringify({ deviceId: api.getDeviceId(), level, runId, answers })
+		});
+	} catch {
+		// Không có gì để báo người chơi.
+	}
+}
+
 /** Chỉ dùng trong test — xóa cache để nạp lại từ đầu. */
 export function resetBridgeForTests(): void {
 	loadPromise = null;

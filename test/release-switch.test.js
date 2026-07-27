@@ -12,6 +12,15 @@ var os = require("os");
 var request = require("supertest");
 var createApp = require("../server/app").createApp;
 
+// ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
+//
+// Mỗi `mkdtempSync` riêng nghĩa là một CSDL PGlite mới, mà PGlite là Postgres biên
+// dịch WASM: mỗi instance là một cluster đầy đủ vài chục MB nằm lại trong thư mục
+// tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
+// `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
+// chung đúng một instance.
+var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "release-switch-"));
+
 var rootDir = path.resolve(__dirname, "..");
 
 test("KHÔNG còn overlay bảo trì ở cả 2 file", function () {
@@ -63,7 +72,7 @@ test("danh sách copy legacy KHÔNG còn file V1 đè lên V2", function () {
 });
 
 test("bookmark cũ EndlessRunner.htm được 301 về /", async function () {
-	var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "release-switch-"));
+	var tempDir = sharedTempDir;
 	var runtime = createApp({
 		rootDir: rootDir,
 		staticDir: rootDir,
@@ -84,7 +93,7 @@ test("bookmark cũ EndlessRunner.htm được 301 về /", async function () {
 });
 
 test("admin vẫn vào được sau khi bật công tắc", async function () {
-	var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "release-switch-admin-"));
+	var tempDir = sharedTempDir;
 	var runtime = createApp({
 		rootDir: rootDir,
 		staticDir: rootDir,

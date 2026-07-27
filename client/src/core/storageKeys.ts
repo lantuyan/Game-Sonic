@@ -24,6 +24,7 @@ export const V2_STORAGE_KEYS = Object.freeze({
 	wallet: "endlessrunner-wallet-v2",
 	reviewQueue: "endlessrunner-review-queue-v2",
 	// P1-3: nhân vật đã mở khoá + tiến trình chấm mốc thành tích.
-	unlocks: "endlessrunner-unlocks-v2"
-	// P1-8 sẽ thêm: missions-v2 (tasks-version2.md P0-1).
+	unlocks: "endlessrunner-unlocks-v2",
+	// P1-8: nhiệm vụ ngày + huy hiệu + chuỗi ngày chăm chỉ.
+	missions: "endlessrunner-missions-v2"
 });

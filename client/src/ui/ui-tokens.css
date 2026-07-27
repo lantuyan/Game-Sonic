@@ -768,6 +768,115 @@
 	filter: saturate(0.5);
 }
 
+/* --- S13 Hồ sơ học tập (P1-8) --- */
+
+.profile__streak {
+	padding: var(--space-3);
+	margin-bottom: var(--space-4);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-dim);
+	font-family: var(--font-display);
+	font-weight: 800;
+	text-align: center;
+	color: var(--color-text);
+}
+
+.profile__section {
+	margin-bottom: var(--space-4);
+}
+
+.profile__title {
+	margin: 0 0 var(--space-2);
+	font-family: var(--font-display);
+	font-size: 18px;
+	color: var(--color-text);
+}
+
+.profile__line {
+	margin: 0 0 var(--space-2);
+	color: var(--color-text-muted);
+}
+
+.profile__mission {
+	display: grid;
+	grid-template-columns: 1fr 90px 72px;
+	gap: var(--space-2);
+	align-items: center;
+	padding: var(--space-2) 0;
+	text-align: left;
+}
+
+.profile__mission[data-done="true"] .profile__mission-label {
+	color: var(--color-correct);
+}
+
+.profile__mission-label {
+	color: var(--color-text);
+	font-weight: 700;
+}
+
+.profile__mission-value {
+	text-align: right;
+	font-weight: 700;
+	color: var(--color-text-muted);
+}
+
+.profile__bar-track {
+	display: block;
+	height: 10px;
+	border-radius: var(--radius-pill);
+	background: rgba(27, 42, 74, 0.14);
+	overflow: hidden;
+}
+
+.profile__bar {
+	display: block;
+	height: 100%;
+	border-radius: var(--radius-pill);
+	background: var(--color-primary);
+}
+
+.profile__badges {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: var(--space-2);
+}
+
+.profile__badge {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: var(--space-2);
+	border-radius: var(--radius-sm);
+	background: var(--color-surface-dim);
+	text-align: left;
+	font-size: 13px;
+	color: var(--color-text-muted);
+}
+
+/* Huy hiệu chưa đạt vẫn hiện, chỉ mờ đi — thấy được đích tiếp theo là một phần
+   của động lực; giấu đi thì chỉ còn là bất ngờ ngẫu nhiên. */
+.profile__badge[data-earned="false"] {
+	opacity: 0.45;
+}
+
+.profile__badge[data-earned="true"] strong {
+	color: var(--color-correct);
+}
+
+.field--toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.field--toggle input[type="checkbox"] {
+	width: 26px;
+	height: 26px;
+	flex: 0 0 26px;
+}
+
 /* --- S12 Cửa hàng (P1-3) --- */
 
 .shop__coins {

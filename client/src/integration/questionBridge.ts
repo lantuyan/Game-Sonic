@@ -326,6 +326,29 @@ export async function submitRunSummary(
 	}
 }
 
+/**
+ * Tóm tắt hồ sơ kỹ năng cho màn Hồ sơ học tập (S13 — P1-8).
+ * Thiếu dữ liệu (bản questionBank cũ, hoặc chưa chơi ván nào) → null; S13 khi đó
+ * chỉ bỏ qua khối "Trình độ hiện tại" thay vì hiện số 0 gây hiểu nhầm.
+ */
+export async function getSkillSummary(
+	level: string
+): Promise<{ accuracy: number | null; targetDifficultyIndex: number; gamesPlayed: number } | null> {
+	const api = await loadQuestionBank();
+
+	if (typeof api.getSkillProfile !== "function") {
+		return null;
+	}
+
+	const profile = api.getSkillProfile(level);
+
+	return {
+		accuracy: typeof profile.accuracy === "number" ? profile.accuracy : null,
+		targetDifficultyIndex: Number.isFinite(profile.targetDifficultyIndex) ? profile.targetDifficultyIndex : 0,
+		gamesPlayed: Number.isFinite(profile.gamesPlayed) ? profile.gamesPlayed : 0
+	};
+}
+
 /** Chỉ dùng trong test — xóa cache để nạp lại từ đầu. */
 export function resetBridgeForTests(): void {
 	loadPromise = null;

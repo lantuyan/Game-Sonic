@@ -55,6 +55,22 @@ export class ReviewQueue {
 		return this.entries.filter((entry) => entry.level === level);
 	}
 
+	/**
+	 * Đọc lại từ localStorage.
+	 *
+	 * Cần thiết vì RunScene giữ instance RIÊNG của nó: sau một ván, instance của App
+	 * vẫn là ảnh chụp lúc khởi động, nên S13 sẽ hiện số câu nợ CŨ. Gọi trước mỗi lần
+	 * hiển thị là đủ — dữ liệu nhỏ, đọc lại rẻ.
+	 */
+	reload(): void {
+		this.load();
+	}
+
+	/** Số câu "đang nợ" của một lớp — S13 hiển thị (P1-8). */
+	pendingCount(level: string): number {
+		return this.forLevel(level).length;
+	}
+
 	has(questionId: string): boolean {
 		return this.entries.some((entry) => entry.questionId === questionId);
 	}

@@ -386,7 +386,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 | [x] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) — *đặc tả chi tiết ngay dưới P2-2* |
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
 | [ ] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư |
-| [ ] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | SheetJS hoặc CSV nâng cao |
+| [x] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | CSV nâng cao (0 phụ thuộc mới) — *đặc tả chi tiết ngay dưới P2-3* |
 | [ ] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng |
 
 ### [x] P2-1 · Biome ④ Không gian + chướng ngại di động + pattern tổ hợp khó — *3 ngày*
@@ -564,6 +564,76 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 **Chưa nghiệm thu được ở môi trường này:** hành vi thật trên **Neon** (mọi test chạy trên PGlite) và hành vi khi **hai instance serverless** cùng ghi sổ cho một máy. PGlite và Neon nói cùng phương ngữ Postgres và mọi bất biến ở đây đều do CSDL cưỡng chế (`UNIQUE`, `ON CONFLICT`, điều kiện trong INSERT) chứ không do ứng dụng, nên rủi ro thấp — nhưng `sql.batch` của Neon là `transaction()` qua HTTP, cần một lượt smoke thật trên preview trước khi phát hành.
 
+### [x] P2-6 · Import/export Excel ngân hàng câu hỏi — *2 ngày*
+
+**Mục tiêu:** giáo viên xuất được toàn bộ 1.200 câu ra một file mở thẳng bằng Excel, sửa hàng loạt, rồi nhập ngược lại — mà không có bất kỳ đường nào làm bốc hơi đề đã soạn.
+
+> ⚠ **Nhập file là đường vào nguy hiểm nhất của cả hệ thống.** Một file sai có thể xoá sạch ngân hàng của cả một trường. Nguyên tắc bao trùm: **xem trước rồi mới xác nhận**, **không bao giờ xoá ngầm**, **sai một dòng là từ chối cả file**.
+
+**Việc cần làm:**
+- [x] **Chọn CSV thay vì SheetJS/`xlsx`** — dùng lại đúng công thức đã kiểm chứng của `statsStore.statsToCsv` (P1-6): **BOM UTF-8 + CRLF + `charset=utf-8`**. Thiếu BOM là Excel bản Windows đọc UTF-8 thành CP-1252 và vỡ hết dấu tiếng Việt. **0 phụ thuộc npm mới** (lý do đầy đủ ở đầu `server/questionImport.js` và ở mục "Quyết định" dưới).
+- [x] **12 cột ánh xạ ĐÚNG schema hiện có** (`Lớp · Mã câu hỏi · Loại · Nội dung câu hỏi · Đáp án A–D · Đáp án đúng · Điểm · Thời gian (giây) · Lời giải`). **KHÔNG đổi schema câu hỏi** (Q4 đã chốt). Tra cột **theo tên, không theo vị trí** — thứ tự cột tự do, tên không dấu vẫn nhận.
+- [x] **`GET /api/admin/questions.csv`** (tuỳ chọn `?level=`) — xuất cả 3 lớp hoặc một lớp, sau `requireAdminAuth`.
+- [x] **`POST /api/admin/questions/import/preview`** — đọc, kiểm tra, dựng kế hoạch. **KHÔNG ghi một byte nào.** Trả về số câu thêm/sửa/xoá/giữ nguyên theo từng lớp, danh sách mã sẽ bị xoá, và **danh sách lỗi kèm số dòng**.
+- [x] **`POST /api/admin/questions/import/apply?digest=`** — chỗ DUY NHẤT ghi. Bắt buộc kèm vân tay lấy từ lần xem trước; lệch (ai đó vừa sửa đề ở tab khác) là từ chối.
+- [x] **Hai chế độ, mặc định là chế độ AN TOÀN:** `merge` (mặc định — câu không có trong file được **giữ nguyên**) và `replace` (xoá, nhưng **chỉ trong những lớp có mặt trong file**). Lớp vắng mặt không bao giờ bị đụng tới ở cả hai chế độ.
+- [x] **Validate từng dòng bằng `shared/questionModel.validateQuestion`** (hợp đồng, chỉ ĐỌC), bọc thêm một lớp thông điệp **tiếng Việt** cho các lỗi giáo viên hay gặp. Mỗi lỗi kèm **số dòng trong file** và **số dòng Excel hiển thị** (Excel nuốt dòng chỉ thị `sep=,` nên hai số lệch nhau 1). Chặn ở 50 lỗi để không dội 1.200 dòng vào màn hình.
+- [x] **Ba cái bẫy Excel + tiếng Việt:** (1) BOM; (2) dấu phân cách — xuất kèm chỉ thị `sep=,`, nhập thì **tự dò** `,`/`;`/tab bằng cách chấm điểm tên cột nhận ra được; (3) số thập phân kiểu `10,5`.
+- [x] **Từ chối file lưu sai bảng mã** — phát hiện ký tự thay thế U+FFFD và chỉ thẳng cách sửa ("Lưu dưới dạng → CSV UTF-8"), thay vì nhập vào một ngân hàng đầy ký tự rác.
+- [x] Panel mới trong `admin.html` (giữ nguyên phong cách JS hiện hành, không framework — P2-7 mới chuyển admin sang Vite): 2 nút xuất, ô chọn file, ô chọn cách xử lý câu thiếu, nút **Xem trước** và nút **Xác nhận** (sinh ra ở trạng thái khoá).
+- [x] Rate-limit `importLimiter` **theo IP** — đúng ở đây vì route chỉ dành cho admin đã đăng nhập, khác hẳn `scoreLimiter`/`economyLimiter` phục vụ cả phòng máy sau NAT.
+
+**File đích:** `server/questionImport.js` (mới) · `server/app.js` · `admin.html` · `test/question-import.test.js` (mới)
+
+**Phụ thuộc:** P0-14 (`explanation`, `quizMode`), P1-6 (khuôn CSV cho Excel: BOM + CRLF + charset), P1-7 (kho câu hỏi Postgres + `replaceQuestionsForLevel` nguyên tử).
+
+**Tham chiếu:** plan §7.3 (hợp đồng — mọi thứ mới là BỔ SUNG), §7.4 bảng P2; `server/statsStore.js` (`statsToCsv`); `shared/questionModel.js` (bộ kiểm tra — chỉ đọc).
+
+**Tiêu chí nghiệm thu (DoD):**
+1. **Vòng khứ hồi trên dữ liệu THẬT:** xuất cả 1.200 câu → nhập lại ngay ⇒ **0 thêm, 0 sửa, 0 xoá**, 1.200 giữ nguyên (test khoá).
+2. **Chữ có dấu sống sót** qua xuất → nhập: nội dung, lời giải, đáp án đều khớp từng ký tự; file có BOM, dòng CRLF, header `charset=utf-8`.
+3. **File sai định dạng bị từ chối kèm SỐ DÒNG** — cả số dòng trong file lẫn số dòng Excel; thông điệp bằng tiếng Việt; ngân hàng không đổi một câu nào.
+4. **Nhập KHÔNG xoá ngầm:** câu không có trong file vẫn còn sau khi nhập ở chế độ mặc định. Xoá chỉ xảy ra khi người dùng chọn rõ, và chỉ trong lớp có mặt trong file.
+5. **Sai một dòng là từ chối cả file** — không có trạng thái "nhập được một nửa".
+6. **Xem trước không ghi gì**; xác nhận không có vân tay, hoặc vân tay lệch, đều bị từ chối.
+7. Cả 3 route đòi đăng nhập admin (401 khi không có cookie).
+8. **Không thêm phụ thuộc npm** — test đọc `package.json` canh `xlsx`/`exceljs`/`papaparse`… không xuất hiện.
+9. **`shared/questionModel.js` và `questionBank.js` không bị sửa một byte**; 13 route cũ + shape bundle không đổi (contract-test xanh nguyên).
+10. `npm run ci` xanh toàn bộ.
+
+**Đã làm (nhánh `v2/p2-06-excel`):** module thuần `server/questionImport.js` (bộ đọc CSV theo RFC 4180 có theo dõi số dòng vật lý, dò dấu phân cách, dựng kế hoạch, băm vân tay), 3 route mới trong `server/app.js`, panel "Nhập / xuất ngân hàng câu hỏi (Excel)" trong `admin.html`. **40 test mới** (`test/question-import.test.js`), `npm run ci` **419/419**, ngân sách **6.26 MB / 10 MB** (không đổi — không thêm asset, không thêm code client).
+
+**Quyết định đáng nêu:**
+· **CSV, không phải SheetJS.** Ba lý do độc lập: (a) `statsToCsv` đã giải xong đúng bài "Excel + tiếng Việt" từ P1-6 — phát minh lại bằng thư viện khác là vứt đi một lời giải đã kiểm chứng; (b) gói `xlsx` có lịch sử CVE (prototype pollution, ReDoS) và bản chính chủ **không phát hành trên npm registry công khai** ở một số phiên bản — thêm nó vào một dự án trường học là nhận về một thứ phải theo dõi bảo mật mãi mãi; (c) thứ giáo viên cần là "mở được bằng Excel", và CSV làm được. Đổi lại ta mất định dạng ô (in đậm, màu) — thứ mà một bảng dữ liệu thuần không cần.
+· **Dòng chỉ thị `sep=,` ở đầu file.** Windows tiếng Việt đặt "List separator" là `;`, nên nháy đúp một file phân cách bằng `,` sẽ **dồn toàn bộ 1.200 câu vào một cột** — giáo viên không sửa được gì cả. Đây là cái bẫy tiếng Việt thứ hai, ngang tầm BOM, và không có trong tài liệu. Hệ quả phải trả: Excel **nuốt** dòng đó nên số dòng trên màn hình lệch 1 so với số dòng trong file — nên mọi thông báo lỗi trả **cả hai số** thay vì bắt giáo viên tự trừ.
+· **Nhập thì TỰ DÒ dấu phân cách, không tin file mình xuất ra.** Vòng đời thật là: ta xuất `,` → Excel mở → giáo viên lưu lại → Excel ghi theo dấu phân cách của **máy họ** (`;` trên Windows tiếng Việt) và bỏ luôn dòng `sep=`. Không dò thì đúng thao tác thường gặp nhất lại là thao tác hỏng. Dò bằng cách **chấm điểm số tên cột nhận ra được**, không phải đếm số dấu — đề lớp 8 đầy toạ độ dạng `M(1; 2)` nên đếm dấu sẽ chọn nhầm `;` cho một file phân cách bằng phẩy.
+· **Mặc định là MERGE, và merge KHÔNG BAO GIỜ xoá.** Cách hiểu "file nhập là trạng thái mới của ngân hàng" là cách hiểu tự nhiên với lập trình viên và là một quả mìn với giáo viên: lọc bảng trong Excel rồi lưu lại là đủ để mất 1.100 câu. Xoá phải là một lựa chọn được bấm, và ngay cả khi đó cũng chỉ đụng tới **những lớp có mặt trong file**.
+· **Vân tay (`digest`) băm DANH SÁCH CUỐI CÙNG, không chỉ phần thay đổi.** Nhờ vậy nó bắt được cả trường hợp file không đổi nhưng **ngân hàng** đã đổi giữa lúc xem trước và lúc bấm xác nhận — hai giáo viên mở hai tab là chuyện có thật. Không có lớp này thì "xem trước rồi mới xác nhận" chỉ là một câu khẩu hiệu.
+· **File hỏng trả 200 kèm `ok: false`, không phải 4xx.** Cùng khuôn với `POST /api/players/:id/purchases` của P2-3: "file này có 12 lỗi ở các dòng…" là **câu trả lời** của một công cụ kiểm tra, không phải lỗi giao thức, và client cần đọc được cả danh sách để hiển thị. 4xx dành cho những thứ thật sự sai ở tầng HTTP (thiếu body, sai content-type).
+· **Thân request là `text/csv` thô chứ không phải JSON.** Nhét file vào một field JSON nghĩa là escape từng dấu nháy của 1.200 câu và đâm vào hạn mức 1 MB toàn cục của `express.json` với một thông báo khó hiểu. Nhận thẳng `text/csv` cho phép nới hạn mức **riêng cho route này** (8 MB) mà không đụng hạn mức chung của 13 route cũ. Chọn đúng `text/csv` (không phải `text/plain`) còn là một lớp chắn CSRF: `text/plain` là content-type "đơn giản" theo CORS nên POST được cross-site không cần preflight, `text/csv` thì không — cộng với cookie admin `SameSite=lax` là hai lớp.
+· **Thông điệp lỗi tiếng Việt nằm TRƯỚC `validateQuestion`, không thay nó.** `shared/questionModel.js` vẫn là cửa cuối cùng và là nơi định nghĩa luật; lớp tiếng Việt chỉ tồn tại để giáo viên đọc được. Có test canh rằng thông điệp tiếng Anh của model **không bao giờ lộ ra** với các lỗi thường gặp — nếu một ngày model chặt thêm luật mới, test đó đổ và ta biết phải viết thêm câu tiếng Việt.
+· **`replaceQuestionsForLevel` được dùng lại nguyên trạng cho cả merge lẫn replace** — kế hoạch tính ra danh sách CUỐI CÙNG của từng lớp rồi ghi một lần. Nhờ vậy P2-6 **không sửa một dòng nào** trong `questionStore.js`/`db.js`, chạy đúng như nhau trên cả kho Postgres lẫn kho JSON, và thừa hưởng luôn tính nguyên tử (xoá + chèn lại trong một transaction) đã có từ P1-7.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· **Ghi chú bảng P2 ghi "SheetJS hoặc CSV nâng cao"; ở đây chọn CSV** — lý do đã nêu ở mục quyết định. Hệ quả cần biết: file không mang định dạng ô, và cột "Điểm"/"Thời gian" mở ra là số thường chứ không phải ô có ràng buộc nhập liệu.
+· **Nhập chỉ đụng CÂU HỎI, không đụng cài đặt lớp.** Điểm/thời gian mặc định theo độ khó, `gameSpeed`, `quizMode` vẫn sửa ở các ô cũ của trang admin. Cột "Điểm"/"Thời gian" trong file là giá trị **của từng câu** (đúng schema hiện có), không phải bảng mặc định.
+· **Không có transaction chung GIỮA các lớp.** Từng lớp là một `replaceQuestionsForLevel` nguyên tử; nếu lớp thứ hai lỗi thì lớp thứ nhất đã ghi xong và thông báo nói rõ lớp nào đã xong. Làm nguyên tử xuyên lớp đòi thêm một phương thức mới vào **cả hai** kho — đổi giao diện kho chỉ để phòng một tình huống mà bước xem trước đã lọc gần hết là không đáng.
+· **Không thêm biến môi trường, không thêm bảng, không thêm khoá localStorage nào.**
+· **Câu hỏi bắt đầu bằng dấu `=` sẽ bị Excel hiểu là công thức.** Ngân hàng hiện tại không có câu nào như vậy (đã quét cả 1.200 câu). Cố ý **không** chèn dấu nháy bảo vệ: nó sẽ làm hỏng vòng khứ hồi — thứ đang được DoD 1 khoá lại — để đổi lấy một tình huống chưa từng xảy ra.
+
+**Lỗi THẬT phát hiện khi làm task này:**
+· **(do P2-6, đã sửa trước khi commit)** `setBusyButtons(false)` bật lại **mọi** nút trên trang, nên sau một lần xem trước **thất bại**, nút "Xác nhận nhập" vẫn được mở ra — đúng con đường ghi một kế hoạch không tồn tại. Không lỗi console, chỉ là một nút sáng lên lúc nó phải tối. Đã tách `syncImportApplyButton()` và cho `setBusyButtons` gọi nó, để trạng thái nút bám vào `digest` chứ không vào lượt bấm.
+· **(do P2-6, đã sửa trước khi commit)** Thông báo "Đã nhập xong…" được gọi TRƯỚC `loadCurrentLevelData()`, mà hàm đó mở đầu bằng `hideNotice()` — nên thông báo thành công biến mất ngay trước mắt người dùng, để lại cảm giác "bấm rồi mà chẳng thấy gì". Chỉ phát hiện được bằng cách mở trang ra bấm thật. Đã chuyển vào `.then()` sau khi nạp lại xong.
+· **(có sẵn, KHÔNG sửa — cần chủ dự án biết)** `server/statsStore.statsToCsv` xuất bằng dấu phẩy và **không có** dòng `sep=,`. Trên Windows tiếng Việt, file thống kê của dashboard (P1-6) vì thế dồn hết vào một cột khi nháy đúp — cùng cái bẫy mà P2-6 vừa xử lý. Không sửa trong P2-6 vì nó nằm ngoài phạm vi và đụng vào một DoD đã nghiệm thu của P1-6; **đề xuất thêm `sep=,` vào `statsToCsv` ở một task riêng** (một dòng, và test hiện có của P1-6 cần cập nhật theo).
+
+**Đã nghiệm thu trực tiếp trên trình duyệt** (server cục bộ, cấu hình truyền tay, `databaseUrl` rỗng, dữ liệu trong thư mục tạm — **KHÔNG chạm Neon**): xuất lớp 6 → sửa lời giải câu đầu + gõ thêm một câu mới có dấu → xem trước báo "101 câu · thêm 1 · sửa 1 · xoá 0 · giữ nguyên 99", lớp 7 và 8 "không bị đụng tới" → xác nhận → ngân hàng có 101 câu, câu mới giữ nguyên "Câu mới gõ tay: 7 × 8 = ?", lời giải có đủ dấu. File hỏng (2 dòng sai) → nút xác nhận vẫn khoá, hiện đúng "Dòng 4 trong file (Excel: dòng 3)" và "Dòng 5 (Excel: dòng 4)" kèm lý do tiếng Việt. Chế độ `replace` cho lớp 7 → liệt kê đủ 99 mã sẽ bị xoá trước khi bấm, sau khi ghi thì lớp 7 còn 1 câu còn **lớp 8 vẫn nguyên 1.000 câu**. Console sạch.
+
+**Chưa nghiệm thu được ở môi trường này:**
+- [ ] Mở file xuất bằng **Excel thật trên Windows tiếng Việt** — cả BOM lẫn `sep=,` đều được test khoá ở mức byte, nhưng "nháy đúp và thấy đúng 12 cột có dấu" thì chỉ máy thật trả lời được. Đây là mục treo cùng loại với CSV dashboard của P1-6 (docs/v2/P1-ACCEPTANCE §5).
+- [ ] Vòng "Excel lưu lại thành `;` rồi nhập ngược" trên máy thật — đường dò dấu phân cách đã có test, nhưng file do Excel thật sinh ra mới là bằng chứng cuối.
+- [ ] Chạy trên **Neon thật** (mọi test dùng kho JSON / PGlite cục bộ). Rủi ro thấp: P2-6 không thêm câu SQL nào, chỉ gọi lại `replaceQuestionsForLevel` đã chạy từ P1-7.
+- [ ] Nhập file 1.200 câu qua đường mạng thật (ở đây là localhost) — đo thời gian và xác nhận không chạm giới hạn thời gian của hàm serverless.
+
 ---
 
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
@@ -576,6 +646,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 - [x] Gỡ maintenance overlay (chỉ lần release P0 — thuộc P0-15). — đã gỡ ở CẢ 2 file, có test canh không cho quay lại.
 - [ ] Riêng release P1: bật `ANTICHEAT_ENFORCE=1` sau khi xác nhận đa số client đã lên V2 (theo dõi tỉ lệ submit có token).
 - [ ] Riêng release P2-3: chạy `npm run migrate` **TRƯỚC** khi deploy client mới (bảng kinh tế phải có trước khi client đầu tiên gọi di trú), rồi smoke `GET /api/shop/catalog` và `GET /api/players/<deviceId>/profile` trên preview. Không cần biến môi trường mới. Nếu `DATABASE_URL` chưa nối thì mọi route kinh tế trả `disabled: true` và game vẫn chạy bằng ví local — **an toàn nhưng xu không được lưu**, nên đừng phát hành ở trạng thái đó rồi mới nối Neon sau.
+- [ ] Riêng release P2-6: không cần biến môi trường hay migrate nào. Sau deploy, vào admin bấm **"Xuất cả 3 lớp"**, mở file bằng **Excel thật trên Windows tiếng Việt** — phải thấy đủ 12 cột và đủ dấu. Sửa một ô rồi lưu lại bằng **"CSV UTF-8 (Comma delimited)"**, nhập lại ở chế độ mặc định (giữ nguyên) và đối chiếu bảng xem trước trước khi xác nhận.
 - [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
 - [ ] Tag phiên bản (`v2.0.0-p0` / `v2.1.0-p1`...), cập nhật README + `docs/technical.md` (đang lỗi thời — ghi chú docs/v2/A3).
 

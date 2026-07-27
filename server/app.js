@@ -15,6 +15,7 @@ var scoreCheck = require("./scoreCheck");
 var statsStoreModule = require("./statsStore");
 var economyStoreModule = require("./economyStore");
 var shopCatalog = require("./shopCatalog");
+var questionImport = require("./questionImport");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -116,6 +117,35 @@ function createApp(overrides) {
 		validate: false,
 		message: { error: "Sai quá nhiều lần. Thử lại sau một phút." }
 	});
+
+	// P2-6 · giới hạn tần suất cho nhập/xuất ngân hàng câu hỏi.
+	//
+	// ĐẾM THEO IP — và ở đây IP là ĐÚNG, ngược hẳn với `scoreLimiter`/`economyLimiter`.
+	// Lý do khác nhau chứ không phải tuỳ hứng: hai cái kia phục vụ CẢ MỘT PHÒNG MÁY
+	// đi qua một IP sau NAT, còn route này chỉ dành cho admin đã đăng nhập — một hai
+	// giáo viên, và mỗi lượt nhập đọc/ghi cả 1.200 câu. 20 lượt/phút là rộng rãi cho
+	// người thật (xem trước vài lần rồi xác nhận) mà vẫn chặn được vòng lặp.
+	var importLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 20,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		message: { error: "Thao tác nhập/xuất hơi nhanh, thầy cô đợi một chút nhé." }
+	});
+
+	// Thân request của route nhập là CSV thô, không phải JSON.
+	//
+	// Vì sao không nhét chuỗi CSV vào một field JSON: file 1.200 câu ~300 KB, mà
+	// `express.json` toàn cục giới hạn 1 MB và JSON còn phải escape từng dấu nháy —
+	// một file hơi lớn sẽ chết ở tầng parse với thông báo khó hiểu. Nhận thẳng
+	// `text/csv` cho phép nới hạn mức RIÊNG cho route này mà không đụng hạn mức
+	// chung của 13 route cũ.
+	//
+	// Chỉ nhận đúng `text/csv`: `text/plain` là content-type "đơn giản" theo CORS
+	// nên gửi được cross-site không cần preflight; `text/csv` thì phải preflight.
+	// Cộng với cookie admin `SameSite=lax`, đó là hai lớp chắn CSRF.
+	var csvBody = express.text({ type: "text/csv", limit: "8mb" });
 
 	/** Điểm cao nhất một câu của lớp — trần kiểm chéo cần con số thật, không đoán. */
 	async function maxPointForLevel(level) {
@@ -432,6 +462,93 @@ function createApp(overrides) {
 			response.send(statsStoreModule.statsToCsv(stats));
 		} catch (error) {
 			next(createError(400, error.message));
+		}
+	});
+
+	// --- Nhập / xuất ngân hàng câu hỏi (admin, P2-6) ---------------------------
+	//
+	// 3 route MỚI, không đụng một ký tự nào của 13 route cũ (hợp đồng §7.3.2).
+	// Toàn bộ luật đọc/ghép/kiểm tra nằm ở `server/questionImport.js`; ở đây chỉ có
+	// xác thực, tham số và mã HTTP.
+
+	/**
+	 * Xuất toàn bộ ngân hàng (hoặc một lớp) ra CSV mở được bằng Excel.
+	 *
+	 * `charset=utf-8` ở header + BOM trong nội dung: thiếu MỘT trong hai là Excel
+	 * bản Windows đọc thành CP-1252 và dấu tiếng Việt vỡ hết — đúng bài học đã ghi
+	 * ở `/api/admin/stats.csv` (P1-6).
+	 */
+	app.get("/api/admin/questions.csv", auth.requireAdminAuth(config), importLimiter, async function (request, response, next) {
+		try {
+			var requested = request.query != null && request.query.level != null ? String(request.query.level).trim() : "";
+			var levels = QuestionModel.LEVELS;
+
+			if (requested !== "") {
+				QuestionModel.assertLevel(requested);
+				levels = [requested];
+			}
+
+			var entries = [];
+
+			// Tuần tự chứ không `Promise.all`: kho Postgres dùng CHUNG một kết nối với
+			// mọi store khác, và bắn 3 truy vấn cùng lúc chỉ để tiết kiệm vài chục ms
+			// là đánh đổi sai chỗ.
+			for (var index = 0; index < levels.length; index += 1) {
+				var bundle = await dataStore.getLevelBundle(levels[index]);
+				entries.push({ level: levels[index], questions: bundle.questions || [] });
+			}
+
+			response.setHeader("Content-Type", "text/csv; charset=utf-8");
+			response.setHeader("Content-Disposition", 'attachment; filename="toan-runner-ngan-hang-cau-hoi.csv"');
+			response.send(questionImport.questionsToCsv(entries));
+		} catch (error) {
+			next(createError(400, error.message));
+		}
+	});
+
+	function readCsvBody(request) {
+		var body = request.body;
+
+		if (typeof body !== "string" || body.trim() === "") {
+			throw createError(400, "Chưa có nội dung file CSV (gửi kèm header Content-Type: text/csv).");
+		}
+
+		return body;
+	}
+
+	/**
+	 * XEM TRƯỚC — tuyệt đối KHÔNG ghi gì.
+	 *
+	 * File sai định dạng trả về **200 kèm `ok: false`** chứ không phải 4xx: đây là
+	 * câu trả lời bình thường của một công cụ kiểm tra file, và client cần đọc được
+	 * danh sách lỗi kèm số dòng để hiển thị. Cùng khuôn với `POST /api/players/:id/purchases`
+	 * của P2-3 ("không đủ xu" là câu trả lời, không phải lỗi giao thức).
+	 */
+	app.post("/api/admin/questions/import/preview", auth.requireAdminAuth(config), importLimiter, csvBody, async function (request, response, next) {
+		try {
+			response.json(await questionImport.previewImport(dataStore, readCsvBody(request), {
+				mode: request.query != null ? request.query.mode : null
+			}));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	/**
+	 * XÁC NHẬN — chỗ duy nhất trong P2-6 ghi vào ngân hàng.
+	 *
+	 * Bắt buộc kèm `digest` lấy từ lần xem trước: không có, hoặc lệch (ai đó vừa sửa
+	 * đề ở tab khác), là từ chối. "Xem trước rồi mới xác nhận" chỉ có nghĩa khi thứ
+	 * được ghi đúng bằng thứ đã xem.
+	 */
+	app.post("/api/admin/questions/import/apply", auth.requireAdminAuth(config), importLimiter, csvBody, async function (request, response, next) {
+		try {
+			response.json(await questionImport.applyImport(dataStore, readCsvBody(request), {
+				mode: request.query != null ? request.query.mode : null,
+				digest: request.query != null ? request.query.digest : null
+			}));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
 		}
 	});
 

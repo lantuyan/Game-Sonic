@@ -103,6 +103,38 @@ export interface QuestionBankApi {
 	getSkillProfile?(level: string): SkillProfile;
 	getDeviceId?(): string;
 	DIFFICULTY_ORDER?: string[];
+
+	// --- Bề mặt TRANG QUẢN TRỊ (P2-7) ---------------------------------------
+	//
+	// Tất cả đều đã có sẵn trong `questionBank.js` từ V1 (trang admin legacy dùng
+	// chúng qua `window.QuestionBank`). Khai báo `?` vì chúng KHÔNG thuộc danh sách
+	// vàng 16 member: một bản `questionBank.js` cũ còn nằm trong cache Service
+	// Worker vẫn phải nạp được, và `questionBridge.ts` tự báo lỗi tiếng Việt rõ
+	// ràng thay vì nổ `undefined is not a function`.
+	LEVELS?: string[];
+	QUESTION_ANSWER_KEYS?: string[];
+	GAME_SPEED_STEP?: number;
+	validateQuestion?(raw: unknown, label: string, index: number): LegacyQuestion;
+	getDifficultySummary?(questions: LegacyQuestion[]): Array<{ difficulty: string; count: number }>;
+	saveQuestions?(level: string, questions: LegacyQuestion[]): Promise<unknown> | unknown;
+	getAnsweredEntries?(level: string): AnsweredEntry[];
+	resetAnsweredQuestions?(level: string): unknown;
+	getTimeSettings?(level: string, questions: LegacyQuestion[]): Record<string, number>;
+	getPointSettings?(level: string, questions: LegacyQuestion[]): Record<string, number>;
+	getGameSpeed?(level: string): number;
+	saveGameSpeed?(level: string, value: number): Promise<unknown> | unknown;
+	updateQuestionsTimeByDifficulty?(level: string, settings: Record<string, number>): Promise<unknown> | unknown;
+	updateQuestionsPointByDifficulty?(level: string, settings: Record<string, number>): Promise<unknown> | unknown;
+}
+
+/** Một dòng trong "Danh sách đã trả lời" của trang quản trị (khoá `-v1`, cục bộ). */
+export interface AnsweredEntry {
+	id: string;
+	question: string;
+	difficulty?: string;
+	status?: string;
+	lastShownAt?: string;
+	lastAnsweredAt?: string;
 }
 
 declare global {

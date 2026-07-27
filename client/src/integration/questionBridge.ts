@@ -9,6 +9,7 @@
 
 import type {
 	AnswerStatus,
+	AnsweredEntry,
 	LeaderboardEntry,
 	LegacyQuestion,
 	LevelBundle,
@@ -368,9 +369,122 @@ export async function getSkillSummary(
 	};
 }
 
+// --- Bề mặt TRANG QUẢN TRỊ (P2-7) -----------------------------------------
+//
+// Trang quản trị (`client/src/admin/`) cũng phải đi qua ĐÚNG file này: quy tắc
+// vàng #3 nói `questionBridge.ts` là TẦNG DUY NHẤT chạm `window.QuestionBank`, và
+// "trừ trang admin" là loại ngoại lệ mà một năm sau không ai còn nhớ vì sao có.
+//
+// Mọi hàm dưới đây gọi `requireMember` — bản `questionBank.js` cũ còn trong cache
+// Service Worker sẽ báo lỗi tiếng Việt nêu đích danh hàm thiếu, thay vì để trang
+// chết bằng `undefined is not a function` ở một chỗ nào đó xa hiện trường.
+
+function requireMember<K extends keyof QuestionBankApi>(api: QuestionBankApi, name: K): NonNullable<QuestionBankApi[K]> {
+	const member = api[name];
+
+	if (member === undefined || member === null) {
+		throw new Error(`Bản questionBank.js đang chạy thiếu \`${String(name)}\` — tải lại trang để lấy bản mới.`);
+	}
+
+	return member as NonNullable<QuestionBankApi[K]>;
+}
+
+/** Hằng số trang quản trị cần: danh sách lớp, nhãn lớp, khoá đáp án, bậc độ khó, dải tốc độ. */
+export async function getAdminConstants(): Promise<{
+	levels: readonly string[];
+	levelLabels: Record<string, string>;
+	answerKeys: readonly string[];
+	difficultyOrder: readonly string[];
+	gameSpeed: { min: number; max: number; step: number };
+}> {
+	const api = await loadQuestionBank();
+
+	return {
+		levels: requireMember(api, "LEVELS"),
+		levelLabels: api.LEVEL_LABELS,
+		answerKeys: requireMember(api, "QUESTION_ANSWER_KEYS"),
+		difficultyOrder: requireMember(api, "DIFFICULTY_ORDER"),
+		gameSpeed: {
+			min: api.GAME_SPEED_MIN,
+			max: api.GAME_SPEED_MAX,
+			step: requireMember(api, "GAME_SPEED_STEP")
+		}
+	};
+}
+
+/** Kiểm + chuẩn hoá một câu hỏi từ form. NÉM lỗi tiếng Việt của `questionModel.js`. */
+export async function validateQuestion(raw: unknown): Promise<LegacyQuestion> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "validateQuestion")(raw, "Admin question", 0);
+}
+
+export async function getDifficultySummary(questions: LegacyQuestion[]): Promise<Array<{ difficulty: string }>> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "getDifficultySummary")(questions);
+}
+
+export async function saveQuestions(level: string, questions: LegacyQuestion[]): Promise<void> {
+	const api = await loadQuestionBank();
+	await requireMember(api, "saveQuestions")(level, questions);
+}
+
+export async function getAnsweredEntries(level: string): Promise<AnsweredEntry[]> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "getAnsweredEntries")(level);
+}
+
+export async function resetAnsweredQuestions(level: string): Promise<void> {
+	const api = await loadQuestionBank();
+	requireMember(api, "resetAnsweredQuestions")(level);
+}
+
+export async function filterAvailableQuestions(level: string, questions: LegacyQuestion[]): Promise<LegacyQuestion[]> {
+	const api = await loadQuestionBank();
+	return api.filterAvailableQuestions(level, questions);
+}
+
+export async function getTimeSettings(level: string, questions: LegacyQuestion[]): Promise<Record<string, number>> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "getTimeSettings")(level, questions);
+}
+
+export async function getPointSettings(level: string, questions: LegacyQuestion[]): Promise<Record<string, number>> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "getPointSettings")(level, questions);
+}
+
+export async function getGameSpeed(level: string): Promise<number> {
+	const api = await loadQuestionBank();
+	return requireMember(api, "getGameSpeed")(level);
+}
+
+export async function saveGameSpeed(level: string, value: number): Promise<void> {
+	const api = await loadQuestionBank();
+	await requireMember(api, "saveGameSpeed")(level, value);
+}
+
+export async function updateQuestionsTimeByDifficulty(level: string, settings: Record<string, number>): Promise<void> {
+	const api = await loadQuestionBank();
+	await requireMember(api, "updateQuestionsTimeByDifficulty")(level, settings);
+}
+
+export async function updateQuestionsPointByDifficulty(level: string, settings: Record<string, number>): Promise<void> {
+	const api = await loadQuestionBank();
+	await requireMember(api, "updateQuestionsPointByDifficulty")(level, settings);
+}
+
 /** Chỉ dùng trong test — xóa cache để nạp lại từ đầu. */
 export function resetBridgeForTests(): void {
 	loadPromise = null;
 }
 
-export type { LegacyQuestion, LevelBundle, SessionStats, SubmitScoreStats, SkillProfile, AnswerStatus, RunTicket };
+export type {
+	AnsweredEntry,
+	LegacyQuestion,
+	LevelBundle,
+	SessionStats,
+	SubmitScoreStats,
+	SkillProfile,
+	AnswerStatus,
+	RunTicket
+};

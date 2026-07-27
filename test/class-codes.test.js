@@ -529,7 +529,16 @@ test("schema lớp học KHÔNG có một trường dữ liệu cá nhân nào c
 		"birth", "birthday", "ngay_sinh", "dob",
 		"email", "phone", "address", "parent", "avatar", "photo"
 	];
+	// Chặn đúng KHỐI P2-5, không phải "từ P2-5 tới hết file": P2-7 thêm bảng
+	// `admin_users` ở cuối, và bảng đó là của GIÁO VIÊN chứ không phải của trẻ em —
+	// DoD 6 nói về dữ liệu cá nhân của HỌC SINH. (admin_users cũng cố ý không có
+	// email/điện thoại, nhưng đó là quyết định của P2-7 và có test riêng ở đó.)
 	var classBlock = schema.slice(schema.indexOf("P2-5 · lớp học"));
+	var nextSectionIndex = classBlock.indexOf("P2-7 ·");
+
+	if (nextSectionIndex !== -1) {
+		classBlock = classBlock.slice(0, nextSectionIndex);
+	}
 
 	forbidden.forEach(function (column) {
 		assert.equal(

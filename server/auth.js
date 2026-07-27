@@ -24,11 +24,25 @@ function getCookieOptions(config) {
  */
 var DEFAULT_OWNER_ID = "admin";
 
-function createAdminToken(config, ownerId) {
+/**
+ * P2-7 — quyền của phiên admin.
+ *
+ * `owner` quản lý được tài khoản khác; `teacher` chỉ quản lý chính mình. Claim này
+ * nằm ở `adminRole`, KHÔNG phải `role`: `role: "admin"` đã có từ V1 và đang nằm
+ * trong cookie của mọi phiên đang mở — đổi nghĩa của nó là hoặc đăng xuất tất cả,
+ * hoặc (tệ hơn) hạ quyền im lặng một phiên đang làm việc.
+ */
+var ADMIN_ROLE_OWNER = "owner";
+var ADMIN_ROLE_TEACHER = "teacher";
+
+function createAdminToken(config, ownerId, adminRole) {
+	var owner = typeof ownerId === "string" && ownerId.trim() !== "" ? ownerId.trim() : DEFAULT_OWNER_ID;
+
 	return jwt.sign(
 		{
 			role: "admin",
-			owner: typeof ownerId === "string" && ownerId.trim() !== "" ? ownerId.trim() : DEFAULT_OWNER_ID
+			owner: owner,
+			adminRole: adminRole === ADMIN_ROLE_TEACHER ? ADMIN_ROLE_TEACHER : ADMIN_ROLE_OWNER
 		},
 		config.jwtSecret,
 		{
@@ -85,6 +99,31 @@ function resolveOwnerId(request, config) {
 	return typeof claims.owner === "string" && claims.owner.trim() !== "" ? claims.owner.trim() : DEFAULT_OWNER_ID;
 }
 
+/**
+ * P2-7 — danh tính đầy đủ của phiên admin: `{ username, role }`.
+ *
+ * Token phát TRƯỚC P2-7 không có `adminRole`. Ngã về `owner` cho tài khoản `admin`
+ * và `teacher` cho mọi tên khác: phiên `admin` cũ chính là tài khoản dùng chung có
+ * toàn quyền, nên hạ quyền nó giữa chừng là khoá cửa với người đang làm việc.
+ */
+function resolveAdminIdentity(request, config) {
+	var claims = readAdminClaims(request, config);
+
+	if (claims == null) {
+		return null;
+	}
+
+	var username =
+		typeof claims.owner === "string" && claims.owner.trim() !== "" ? claims.owner.trim() : DEFAULT_OWNER_ID;
+	var adminRole = typeof claims.adminRole === "string" ? claims.adminRole.trim() : "";
+
+	if (adminRole !== ADMIN_ROLE_OWNER && adminRole !== ADMIN_ROLE_TEACHER) {
+		adminRole = username === DEFAULT_OWNER_ID ? ADMIN_ROLE_OWNER : ADMIN_ROLE_TEACHER;
+	}
+
+	return { username: username, role: adminRole };
+}
+
 function requireAdminAuth(config) {
 	return function (request, response, next) {
 		if (isAuthenticated(request, config) !== true) {
@@ -99,7 +138,10 @@ function requireAdminAuth(config) {
 }
 
 module.exports = {
+	ADMIN_ROLE_OWNER: ADMIN_ROLE_OWNER,
+	ADMIN_ROLE_TEACHER: ADMIN_ROLE_TEACHER,
 	DEFAULT_OWNER_ID: DEFAULT_OWNER_ID,
+	resolveAdminIdentity: resolveAdminIdentity,
 	resolveOwnerId: resolveOwnerId,
 	clearAdminCookie: clearAdminCookie,
 	createAdminToken: createAdminToken,

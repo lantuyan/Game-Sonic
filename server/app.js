@@ -3,6 +3,7 @@
 var express = require("express");
 var rateLimit = require("express-rate-limit");
 var cookieParser = require("cookie-parser");
+var fs = require("fs");
 var path = require("path");
 var QuestionModel = require("../shared/questionModel");
 var auth = require("./auth");
@@ -17,6 +18,8 @@ var economyStoreModule = require("./economyStore");
 var shopCatalog = require("./shopCatalog");
 var questionImport = require("./questionImport");
 var classStoreModule = require("./classStore");
+var adminUserStoreModule = require("./adminUserStore");
+var adminUser = require("./adminUser");
 
 function createError(statusCode, message) {
 	var error = new Error(message);
@@ -42,6 +45,10 @@ function createApp(overrides) {
 	var economyStore = economyStoreModule.createEconomyStore({ sql: playerSql });
 	// P2-5 · mã lớp học + thành viên lớp. Dùng chung SQL client; schema idempotent.
 	var classStore = classStoreModule.createClassStore({ sql: playerSql });
+	// P2-7 · tài khoản quản trị. Dùng chung SQL client; schema idempotent. Không có
+	// CSDL thì kho trả `disabled: true` và đăng nhập rơi về `ADMIN_PASSWORD_HASH` —
+	// đúng trạng thái production hôm nay, không phải chế độ suy giảm.
+	var adminUserStore = adminUserStoreModule.createAdminUserStore({ sql: playerSql });
 	var app = express();
 
 	app.disable("x-powered-by");
@@ -153,9 +160,22 @@ function createApp(overrides) {
 		message: { error: "Thao tác hơi nhanh, thầy cô đợi một chút nhé." }
 	});
 
+	// P2-7 · route quản lý TÀI KHOẢN quản trị — đếm theo IP, cùng lý do đã ghi ở
+	// `importLimiter`: sau `requireAdminAuth` chỉ còn một hai giáo viên.
+	var adminUserLimiter = rateLimit({
+		windowMs: 60 * 1000,
+		max: 30,
+		standardHeaders: true,
+		legacyHeaders: false,
+		validate: false,
+		message: { error: "Thao tác hơi nhanh, thầy cô đợi một chút nhé." }
+	});
+
 	var loginLimiter = rateLimit({
 		windowMs: 60 * 1000,
-		max: 5,
+		// Mặc định 5 (server/config.js). Chỉ test mới nới được — không có biến môi
+		// trường nào chạm tới con số này.
+		max: config.loginRateLimitMax,
 		standardHeaders: true,
 		legacyHeaders: false,
 		validate: false,
@@ -227,23 +247,110 @@ function createApp(overrides) {
 		});
 	});
 
+	// --- Đăng nhập quản trị (V1 + nhiều tài khoản của P2-7) --------------------
+	//
+	// ⚠ HAI CHÌA KHOÁ, CÓ CHỦ Ý. Đọc hết đoạn này trước khi "dọn dẹp" nó.
+	//
+	// Trước P2-7 chỉ có MỘT mật khẩu, nằm trong biến môi trường `ADMIN_PASSWORD_HASH`
+	// trên Vercel. Nếu P2-7 chuyển hẳn sang bảng `admin_users` và bỏ đường cũ, thì
+	// ngay giây deploy đầu tiên giáo viên không vào được trang quản trị của chính
+	// mình — đúng loại tai nạn mà plan §10 đã cảnh báo với `ANTICHEAT_ENFORCE`.
+	//
+	// Nên đường vào có hai chìa, thử theo thứ tự:
+	//   1. **bảng `admin_users`** (sau khi đã gieo hạt giống di trú từ hash cũ);
+	//   2. **`ADMIN_PASSWORD_HASH`**, CHỈ cho tài khoản `admin`.
+	//
+	// Chìa thứ hai vẫn sống kể cả khi bảng đã có hàng. Có lý do: chủ dự án đổi biến
+	// môi trường trên Vercel là chuyện sẽ xảy ra, và lúc đó hash trong bảng đã cũ —
+	// bỏ chìa thứ hai nghĩa là đổi biến môi trường xong thì… không vào được nữa.
+	// Cái giá: mật khẩu cũ trong biến môi trường vẫn dùng được cho `admin` cho tới
+	// khi chủ dự án XOÁ biến đó. Trang quản trị nói rõ điều này ở panel "Tài khoản
+	// quản trị", và Checklist release P2-7 ghi việc phải làm.
+	var legacySeedPromise = null;
+
+	function ensureLegacyAccountSeeded() {
+		if (adminUserStore.disabled === true) {
+			return Promise.resolve();
+		}
+
+		if (legacySeedPromise === null) {
+			legacySeedPromise = adminUserStore.seedLegacyAccount(config.adminPasswordHash).catch(function (error) {
+				// CSDL trục trặc KHÔNG được biến thành "không ai đăng nhập được":
+				// chìa thứ hai vẫn còn đó. Ghi log rồi đi tiếp.
+				console.warn("[admin-users] chưa gieo được tài khoản di trú: " + error.message);
+				legacySeedPromise = null;
+			});
+		}
+
+		return legacySeedPromise;
+	}
+
+	async function authenticateAdmin(rawUsername, password) {
+		var username = adminUser.normalizeUsername(rawUsername);
+
+		// Bỏ trống tên đăng nhập = tài khoản cũ. Trang admin V1 (và mọi script cũ)
+		// chỉ gửi `{ password }`, và chúng phải tiếp tục chạy.
+		if (username === "") {
+			username = adminUser.LEGACY_USERNAME;
+		}
+
+		if (adminUserStore.disabled !== true) {
+			await ensureLegacyAccountSeeded();
+
+			var byTable = await adminUserStore.verifyLogin(username, password);
+
+			if (byTable.ok === true) {
+				return byTable.user;
+			}
+		}
+
+		if (username === adminUser.LEGACY_USERNAME) {
+			var byEnv = await auth.verifyAdminPassword(password, config);
+
+			if (byEnv === true) {
+				return {
+					username: adminUser.LEGACY_USERNAME,
+					displayName: "Quản trị viên",
+					role: auth.ADMIN_ROLE_OWNER,
+					fromEnv: true
+				};
+			}
+		}
+
+		return null;
+	}
+
 	app.post("/api/admin/login", loginLimiter, async function (request, response, next) {
 		try {
-			var password = request.body && typeof request.body.password === "string" ? request.body.password : "";
+			var body = request.body || {};
+			var password = typeof body.password === "string" ? body.password : "";
 
 			if (password.trim() === "") {
 				throw createError(400, "Password is required.");
 			}
 
-			var isValidPassword = await auth.verifyAdminPassword(password, config);
+			var user = await authenticateAdmin(body.username, password);
 
-			if (isValidPassword !== true) {
+			// Sai tên VÀ sai mật khẩu trả về CÙNG một câu: nói "không có tài khoản
+			// này" là xác nhận miễn phí cho người dò rằng những tên khác thì có.
+			if (user == null) {
 				throw createError(401, "Mật khẩu admin chưa đúng.");
 			}
 
-			auth.setAdminCookie(response, auth.createAdminToken(config), config);
+			if (adminUserStore.disabled !== true) {
+				await adminUserStore.touchLogin(user.username).catch(function () {
+					// Ghi dấu lần đăng nhập cuối là tiện ích, không phải điều kiện vào cửa.
+				});
+			}
+
+			auth.setAdminCookie(response, auth.createAdminToken(config, user.username, user.role), config);
+			// Hợp đồng V1: shape `{ authenticated: true }` GIỮ NGUYÊN; các field dưới
+			// là BỔ SUNG (client cũ bỏ qua field lạ).
 			response.json({
-				authenticated: true
+				authenticated: true,
+				username: user.username,
+				displayName: user.displayName,
+				role: user.role
 			});
 		} catch (error) {
 			next(error);
@@ -258,10 +365,84 @@ function createApp(overrides) {
 	});
 
 	app.get("/api/admin/session", function (request, response) {
+		var identity = auth.resolveAdminIdentity(request, config);
+
+		// `authenticated` GIỮ NGUYÊN vị trí và kiểu (hợp đồng V1). `username`/`role`
+		// là bổ sung của P2-7 để trang admin biết nên hiện panel tài khoản hay không.
 		response.json({
-			authenticated: auth.isAuthenticated(request, config) === true
+			authenticated: identity != null,
+			username: identity != null ? identity.username : null,
+			role: identity != null ? identity.role : null,
+			multiAccount: adminUserStore.disabled !== true
 		});
 	});
+
+	// --- Tài khoản quản trị (P2-7) ---------------------------------------------
+	//
+	// 4 route MỚI, không đụng một ký tự nào của 13 route cũ (hợp đồng §7.3.2).
+	//
+	// Quy tắc quyền nằm TRỌN trong `server/adminUser.js#canManage` (hàm thuần, có
+	// test liệt kê cả bảng quyền). Ở đây chỉ có xác thực, tham số và mã HTTP.
+
+	function requireIdentity(request) {
+		var identity = auth.resolveAdminIdentity(request, config);
+
+		if (identity == null) {
+			throw createError(401, "Admin authentication required.");
+		}
+
+		return identity;
+	}
+
+	/** Danh sách tài khoản — chỉ `owner` xem được (danh sách tài khoản là bản đồ tấn công). */
+	app.get("/api/admin/users", auth.requireAdminAuth(config), adminUserLimiter, async function (request, response, next) {
+		try {
+			var identity = requireIdentity(request);
+
+			if (identity.role !== auth.ADMIN_ROLE_OWNER) {
+				throw createError(403, "Chỉ tài khoản quản trị chính mới xem được danh sách tài khoản.");
+			}
+
+			await ensureLegacyAccountSeeded();
+			response.json(await adminUserStore.listUsers());
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.post("/api/admin/users", auth.requireAdminAuth(config), adminUserLimiter, async function (request, response, next) {
+		try {
+			await ensureLegacyAccountSeeded();
+			response.json(await adminUserStore.createUser(requireIdentity(request), request.body || {}));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	app.delete("/api/admin/users/:username", auth.requireAdminAuth(config), adminUserLimiter, async function (request, response, next) {
+		try {
+			await ensureLegacyAccountSeeded();
+			response.json(await adminUserStore.deleteUser(requireIdentity(request), request.params.username));
+		} catch (error) {
+			next(createError(error.statusCode || 400, error.message));
+		}
+	});
+
+	/** Đổi mật khẩu. `teacher` chỉ đổi được của CHÍNH MÌNH (`canManage`). */
+	app.post(
+		"/api/admin/users/:username/password",
+		auth.requireAdminAuth(config),
+		adminUserLimiter,
+		async function (request, response, next) {
+			try {
+				var body = request.body || {};
+				await ensureLegacyAccountSeeded();
+				response.json(await adminUserStore.setPassword(requireIdentity(request), request.params.username, body.password));
+			} catch (error) {
+				next(createError(error.statusCode || 400, error.message));
+			}
+		}
+	);
 
 	app.get("/api/levels/:level/question-bank", async function (request, response, next) {
 		try {
@@ -796,6 +977,40 @@ function createApp(overrides) {
 	// đó, không chặn trước thì static sẽ phục vụ V1 thay vì chuyển hướng.
 	app.get(["/EndlessRunner.htm", "/EndlessRunner.html"], function (request, response) {
 		response.redirect(301, "/");
+	});
+
+	// P2-7: trang quản trị nay là ENTRY POINT của Vite (`client/admin.html`), không
+	// còn file `admin.html` ở gốc repo.
+	//
+	// **URL `/admin.html` GIỮ NGUYÊN** — đó là hợp đồng §7.3.5 và cũng là bookmark
+	// giáo viên đang dùng. Trên Vercel, `public/admin.html` do Vite sinh ra được CDN
+	// phục vụ nên không cần gì thêm. Ở máy dev thì `staticDir` là gốc repo, nên file
+	// chỉ tồn tại sau `npm run build:client`; thiếu rào này thì `npm start` rồi mở
+	// /admin.html chỉ ra một trang 404 trắng và không nói vì sao.
+	app.get("/admin.html", function (request, response, next) {
+		if (fs.existsSync(path.join(config.staticDir, "admin.html")) === true) {
+			next();
+			return;
+		}
+
+		var builtAdminPage = path.join(config.rootDir, "public", "admin.html");
+
+		if (fs.existsSync(builtAdminPage) === true) {
+			response.sendFile(builtAdminPage);
+			return;
+		}
+
+		response
+			.status(503)
+			.type("html")
+			.send(
+				"<!doctype html><html lang=\"vi\"><meta charset=\"utf-8\">" +
+				"<body style=\"font:16px system-ui;padding:32px;line-height:1.6\">" +
+				"<h1>Chưa dựng trang quản trị</h1>" +
+				"<p>Trang quản trị nay nằm trong Vite. Chạy <code>npm run build:client</code> rồi tải lại, " +
+				"hoặc chạy <code>npm run dev:client</code> và mở <code>http://localhost:5173/admin.html</code>.</p>" +
+				"</body></html>"
+			);
 	});
 
 	app.use(function (request, response, next) {

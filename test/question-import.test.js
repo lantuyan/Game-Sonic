@@ -795,7 +795,8 @@ test("questionImport không tự viết lại luật — vẫn gọi validateQue
 });
 
 test("trang admin: bắt buộc xem trước rồi mới xác nhận, và mặc định là KHÔNG xoá", function () {
-	var admin = fs.readFileSync(path.join(rootDir, "admin.html"), "utf8");
+	// P2-7: trang quản trị đã vào Vite, nguồn nay là client/admin.html + client/src/admin/*.
+	var admin = require("../test-helpers/adminSource").readAdminSource();
 
 	assert.ok(/id="bank-preview-button"/.test(admin), "phải có nút xem trước");
 	// Nút xác nhận phải sinh ra ở trạng thái KHOÁ — mở nó là việc của một bản xem
@@ -810,7 +811,7 @@ test("trang admin: bắt buộc xem trước rồi mới xác nhận, và mặc 
 
 	assert.ok(modeSelect.indexOf('value="merge"') < modeSelect.indexOf('value="replace"'));
 	assert.ok(/CSV UTF-8/.test(admin), "phải hướng dẫn giáo viên lưu đúng bảng mã");
-	// Không nhúng thư viện Excel nào vào trang legacy (P2-7 mới chuyển admin sang Vite).
+	// Không nhúng thư viện Excel nào vào trang quản trị — kể cả sau khi nó vào Vite (P2-7).
 	assert.equal(/xlsx|sheetjs|papaparse/i.test(admin), false);
 });
 

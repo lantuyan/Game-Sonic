@@ -387,7 +387,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
 | [x] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư — *đặc tả chi tiết ngay dưới P2-6* |
 | [x] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | CSV nâng cao (0 phụ thuộc mới) — *đặc tả chi tiết ngay dưới P2-3* |
-| [ ] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng |
+| [x] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng — *đặc tả chi tiết ngay dưới P2-5* |
 
 ### [x] P2-1 · Biome ④ Không gian + chướng ngại di động + pattern tổ hợp khó — *3 ngày*
 
@@ -711,6 +711,127 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ---
 
+### [x] P2-7 · Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản — *2 ngày*
+
+**Mục tiêu:** đóng lại **trang legacy cuối cùng** của dự án. `admin.html` ở gốc repo là file duy nhất còn sống sót qua P0-15; nó đã tích tụ 4 panel mới (P1-4 kiểm duyệt, P1-6 dashboard, P2-5 lớp học, P2-6 nhập/xuất Excel) trong 2.166 dòng HTML + JS thuần. Cùng lúc đó, cả trường vẫn dùng chung **một** mật khẩu nằm trong biến môi trường `ADMIN_PASSWORD_HASH`.
+
+> ⚠ **Đây là công cụ giáo viên đang dùng thật.** Mất một chức năng trong lúc "hiện đại hoá" là hồi quy nghiêm trọng hơn mọi lợi ích của việc chuyển framework. Vì vậy **checklist chức năng ở dưới là hạng mục nghiệm thu ngang hàng với code**, và có test đọc mã nguồn canh từng `id` + từng endpoint.
+
+**Việc cần làm:**
+- [x] **Trang quản trị thành entry point thứ hai của Vite** (`client/admin.html` + `client/src/admin/*.ts`, TypeScript strict). Markup tĩnh giữ ở HTML, logic chia thành 10 module. **URL `/admin.html` GIỮ NGUYÊN** — đó là hợp đồng §7.3.5 và là bookmark giáo viên đang dùng. `vercel.json` KHÔNG đổi.
+- [x] **Bỏ `admin.html` khỏi danh sách copy của `scripts/vercel-build.js`** (nó đang ĐÈ lên file Vite vừa sinh) và **xoá file legacy ở gốc repo**.
+- [x] **Đưa trang quản trị RA KHỎI precache Service Worker** (`globIgnores`: `admin.html` + `assets/admin-*.js|css`). Trang admin là entry point RIÊNG: không kéo three.js hay asset game, và không nằm trong ngân sách tải đầu của học sinh.
+- [x] **Design token dùng chung**: tách khối `:root` + `@font-face` của `ui-tokens.css` ra `client/src/ui/tokens.css`; game và trang quản trị đọc CÙNG một bảng token. Trang quản trị **không** import phần style màn hình game (hơn 1.000 dòng, trùng tên lớp là chuyện sớm muộn).
+- [x] **Bảng `admin_users`** (`server/schema.js`, `CREATE TABLE IF NOT EXISTS` + unique index): `username` · `password_hash` (bcrypt) · `display_name` · `role` (`owner`/`teacher`) · `created_at`/`updated_at`/`last_login_at`. **KHÔNG có email/điện thoại.**
+- [x] **`username` CHÍNH LÀ `class_codes.owner_id`** — P2-5 đã ghi quyền sở hữu lớp bằng chuỗi `"admin"`, nên tài khoản di trú bắt buộc mang tên `admin`, nếu không toàn bộ lớp đã tạo mất chủ.
+- [x] **Đường di trú hai chìa khoá** (`server/adminUserStore.js` + `server/app.js`): (1) gieo tài khoản `admin` từ chính `ADMIN_PASSWORD_HASH`, idempotent `ON CONFLICT DO NOTHING`; (2) `ADMIN_PASSWORD_HASH` **vẫn là chìa hợp lệ cho riêng tài khoản `admin`** kể cả sau khi bảng đã có hàng.
+- [x] **Luật quyền là hàm thuần** `server/adminUser.js#canManage`, có test liệt kê cả bảng quyền: `owner` làm mọi việc trừ tự xoá mình; `teacher` chỉ đổi mật khẩu của CHÍNH MÌNH.
+- [x] **4 route admin MỚI** (bổ sung, không đụng 13 route cũ): `GET/POST /api/admin/users` · `DELETE /api/admin/users/:username` · `POST /api/admin/users/:username/password`. Rate-limit theo **IP** (khuôn `importLimiter` — sau `requireAdminAuth` chỉ còn một hai giáo viên).
+- [x] `GET /api/admin/session` và `POST /api/admin/login` **giữ nguyên shape V1**, chỉ THÊM `username`/`role`/`multiAccount`.
+- [x] **Panel "Tài khoản quản trị"** trên trang quản trị: tạo/xoá tài khoản, đặt lại mật khẩu người khác (owner), đổi mật khẩu của mình (mọi vai), và **nói thẳng** rằng `ADMIN_PASSWORD_HASH` vẫn còn hiệu lực cho tới khi chủ dự án xoá biến đó.
+
+**Checklist chức năng của `admin.html` legacy — phải còn ĐỦ sau khi chuyển (đối chiếu từng dòng khi đóng task):**
+
+| # | Chức năng | Trạng thái |
+|---|---|---|
+| 1 | Đăng nhập bằng mật khẩu admin (chỉ gõ mật khẩu, không tên) | ✅ giữ nguyên |
+| 2 | Tự mở trang khi phiên còn hiệu lực (`GET /api/admin/session`) | ✅ giữ nguyên |
+| 3 | Báo lỗi đăng nhập + tự bôi đen lại ô mật khẩu | ✅ giữ nguyên |
+| 4 | Link "Về màn hình chính" (ở màn đăng nhập và ở đầu trang) | ✅ giữ nguyên |
+| 5 | Đăng xuất | ✅ giữ nguyên |
+| 6 | Ba nút chọn lớp 6/7/8 + trạng thái đang chọn | ✅ giữ nguyên |
+| 7 | 3 ô KPI: Tổng số câu / Chưa hiện / Đã trả lời | ✅ giữ nguyên |
+| 8 | Ô nhập **điểm** theo từng loại câu (sinh động theo dữ liệu) + "Lưu điểm" (áp cả 3 lớp) | ✅ giữ nguyên |
+| 9 | Ô nhập **thời gian** theo từng loại câu + "Lưu thời gian" (áp cả 3 lớp) | ✅ giữ nguyên |
+| 10 | **Tốc độ game** (min/max/step lấy từ `QuestionBank`) + "Lưu tốc độ" (áp cả 3 lớp) | ✅ giữ nguyên |
+| 11 | **Cách hỏi bài** gate/modal + "Lưu cách hỏi" (RIÊNG từng lớp) | ✅ giữ nguyên — **và sửa được một lỗi thật**, xem mục Lỗi |
+| 12 | Bảng "Danh sách đã trả lời" + dòng tóm tắt + "Reset lớp hiện tại" (có hỏi lại) | ✅ giữ nguyên |
+| 13 | Form câu hỏi đủ 10 trường (mã, loại, đề, lời giải 500 ký tự, 4 đáp án, đáp án đúng, điểm, thời gian, nhãn lớp) | ✅ giữ nguyên |
+| 14 | Đổi loại câu → tự điền điểm/thời gian gợi ý | ✅ giữ nguyên |
+| 15 | Gõ đáp án C/D → ô "Đáp án đúng" tự mở thêm lựa chọn | ✅ giữ nguyên |
+| 16 | Lưu câu mới / cập nhật câu đang sửa, **giữ nguyên vị trí trong mảng** | ✅ giữ nguyên |
+| 17 | Chặn trùng mã câu hỏi | ✅ giữ nguyên |
+| 18 | Chế độ sửa: đổi tiêu đề, đổi nhãn nút, hiện nút "Xoá câu đang sửa", cuộn lên đầu | ✅ giữ nguyên |
+| 19 | "Xoá form" | ✅ giữ nguyên |
+| 20 | Cảnh báo tỉ lệ câu **chưa có lời giải** | ✅ giữ nguyên |
+| 21 | Bảng câu hỏi 10 cột + huy hiệu trạng thái + nút Sửa/Xoá từng dòng | ✅ giữ nguyên |
+| 22 | Chặn xoá câu **cuối cùng** của một lớp | ✅ giữ nguyên |
+| 23 | Xuất CSV: "Xuất lớp hiện tại" / "Xuất cả 3 lớp" | ✅ giữ nguyên |
+| 24 | Nhập CSV: chọn file (ép UTF-8) → **xem trước** → xác nhận; nút xác nhận khoá theo `digest` | ✅ giữ nguyên |
+| 25 | Đổi chế độ giữ/xoá ⇒ vô hiệu bản xem trước cũ | ✅ giữ nguyên |
+| 26 | Bảng lỗi nhập có **2 số dòng** (dòng file / dòng Excel) | ✅ giữ nguyên |
+| 27 | Tạo mã lớp (tên/khối/hạn dùng) | ✅ giữ nguyên |
+| 28 | Bảng lớp: tên, mã, khối, hạn, trạng thái, số máy | ✅ giữ nguyên |
+| 29 | "Xem máy" → danh sách biệt danh + "Gỡ khỏi lớp" (có hỏi lại) | ✅ giữ nguyên |
+| 30 | "Thu hồi" (ẩn khi đã thu hồi) / "Xoá lớp" — cả hai có hỏi lại | ✅ giữ nguyên |
+| 31 | Danh sách lớp nạp ô chọn lớp của dashboard, giữ lựa chọn đang có | ✅ giữ nguyên |
+| 32 | Dashboard: ô lọc lớp + Từ ngày/Đến ngày | ✅ giữ nguyên |
+| 33 | Dashboard: 3 KPI + 3 biểu đồ thanh thuần CSS + bảng Top 10 câu sai | ✅ giữ nguyên |
+| 34 | Dashboard: "Tải lại" và "Xuất CSV" | ✅ giữ nguyên |
+| 35 | Kiểm duyệt: bảng 50 điểm gần nhất, cột Xác minh ✓/✗ | ✅ giữ nguyên |
+| 36 | Kiểm duyệt: "Khoá tên" (điền sẵn ô) / "Xoá" bản ghi điểm (có hỏi lại) | ✅ giữ nguyên |
+| 37 | Khoá biệt danh + lý do; danh sách đã khoá + "Bỏ khoá" | ✅ giữ nguyên |
+| 38 | Thanh thông báo info/success/error | ✅ giữ nguyên — **và sửa được một lỗi thật**, xem mục Lỗi |
+| 39 | Khoá toàn bộ nút khi đang tải, trừ nút "Xác nhận nhập" (theo `digest`) | ✅ giữ nguyên |
+| 40 | Thoát HTML cho mọi dữ liệu người dùng nhập | ✅ giữ nguyên |
+| 41 | Favicon + bố cục co lại ở màn ≤760px | ✅ giữ nguyên |
+| 42 | — | ➕ **MỚI:** panel "Tài khoản quản trị" |
+| 43 | — | ➕ **MỚI:** đổi lớp thì dashboard nạp lại theo lớp đó (legacy để số cũ, im lặng) |
+
+**File đích:** `client/admin.html` · `client/src/admin/{main,dom,api,shell,state,questions,importExport,classes,stats,moderation,users}.ts` · `client/src/admin/admin.css` · `client/src/ui/tokens.css` (mới) · `client/src/ui/ui-tokens.css` · `client/src/integration/questionBridge.ts` · `client/src/integration/questionBank.d.ts` · `client/vite.config.mts` · `scripts/vercel-build.js` · `server/adminUser.js` (mới) · `server/adminUserStore.js` (mới) · `server/schema.js` · `server/auth.js` · `server/config.js` · `server/app.js` · `test/admin-users.test.js` (mới) · `test-helpers/adminSource.js` (mới) · `admin.html` (XOÁ)
+
+**Phụ thuộc:** P0-1 (khung Vite + MPA), P0-9 (design token), P1-4/P1-6/P2-5/P2-6 (4 panel phải giữ nguyên), P2-5 (`owner_id` đã có sẵn trong mọi truy vấn lớp).
+
+**Tham chiếu:** plan §5 (hệ thống màn hình), §7.3 (hợp đồng tích hợp), §7.5 (bố cục build); `docs/v2/A2-client-platform.md` §1.2 (luồng admin V1) và §5 ("giữ đường dẫn `/admin.html`"); `server/questionStore.js` (khuôn `guard()`); `server/classStore.js` (khuôn "tắt êm").
+
+**Tiêu chí nghiệm thu (DoD):**
+1. **Mật khẩu admin hiện tại vẫn đăng nhập được** sau khi bảng `admin_users` xuất hiện — cả khi bảng còn RỖNG, cả khi bảng đã có hàng, và cả khi server **chưa nối CSDL**. Gửi `{password}` không kèm `username` vẫn vào được (đúng như trang legacy và mọi script cũ).
+2. **Gieo hạt giống di trú là idempotent** và KHÔNG ghi đè mật khẩu giáo viên đã tự đổi.
+3. **Tạo / xoá tài khoản** chạy được; tài khoản mới đăng nhập được ngay; không tự xoá được mình; không xoá được `owner` cuối cùng; xoá tài khoản **không** xoá lớp học của tài khoản đó.
+4. **Một tài khoản không thao tác được thay tài khoản khác:** `teacher` bị 403 ở liệt kê/tạo/xoá/đổi mật khẩu người khác (kiểm bằng đăng nhập thật rằng mật khẩu người kia KHÔNG đổi), và không nhìn thấy lớp của giáo viên khác (404, không phải 403).
+5. **Mọi route admin cũ vẫn hoạt động** — 5 route settings, kiểm duyệt, dashboard + CSV, nhập/xuất Excel, lớp học; và chưa đăng nhập thì tất cả đều 401.
+6. **Checklist chức năng ở trên đúng từng dòng**, có test đọc mã nguồn canh đủ **82 `id`** và **14 endpoint**.
+7. **URL `/admin.html` không đổi**, `vercel.json` không đổi, `admin.html` không còn nằm trong danh sách copy của `vercel-build`.
+8. **Trang quản trị không nằm trong precache SW**, không import `three`/scene/entity/fx, và vẫn đi qua `questionBridge` (quy tắc vàng #3 — không file nào ngoài bridge chạm `window.QuestionBank`).
+9. **13 endpoint cũ + 5 khoá localStorage `-v1` + chữ ký `window.QuestionBank` không đổi** — contract-test xanh nguyên.
+10. Ngân sách initial load vẫn ≤10MB; `npm run ci` xanh toàn bộ.
+
+**Đã làm (nhánh `v2/p2-07-admin-vite`):** trang quản trị dựng lại thành entry point Vite (`client/admin.html` + 11 module TS strict + `admin.css` đọc design token dùng chung), xoá `admin.html` legacy ở gốc repo và bỏ nó khỏi `vercel-build`, đưa nó ra khỏi precache SW; bảng `admin_users` + `server/adminUser.js` (luật thuần) + `server/adminUserStore.js` (kho, khuôn `guard()`/"tắt êm") + 4 route admin mới + claim `adminRole` trong token; panel "Tài khoản quản trị". **22 test mới** (`test/admin-users.test.js`), `npm run ci` **476/476**, ngân sách **6.33 MB / 10 MB** (trang quản trị thêm ~66 KB, nằm ngoài precache).
+
+**Quyết định đáng nêu:**
+· **HAI CHÌA KHOÁ, và chìa cũ không bị rút.** `ADMIN_PASSWORD_HASH` vẫn mở được tài khoản `admin` kể cả sau khi bảng có hàng. Lý do: chủ dự án đổi biến môi trường trên Vercel là việc sẽ xảy ra, và nếu bỏ chìa thứ hai thì đúng lúc đó… không ai vào được nữa. Cái giá — mật khẩu cũ còn hiệu lực cho tới khi biến bị xoá — được **in ra ngay trên panel tài khoản** và ghi trong Checklist release, chứ không giấu đi.
+· **`username` = `owner_id` (chuỗi), không phải khoá ngoại số.** Nhờ vậy P2-5 không phải migrate một dòng dữ liệu nào, và xoá tài khoản không kéo theo xoá lớp: tạo lại đúng tên đăng nhập là nhận lại toàn bộ lớp cũ.
+· **Claim mới tên `adminRole`, KHÔNG tái sử dụng `role`.** `role: "admin"` đã có từ V1 và đang nằm trong cookie của mọi phiên đang mở; đổi nghĩa của nó là hoặc đăng xuất tất cả, hoặc (tệ hơn) hạ quyền im lặng một phiên đang làm việc. Token cũ không có `adminRole` → ngã về `owner` cho `admin`.
+· **Ngân hàng câu hỏi vẫn DÙNG CHUNG cho mọi tài khoản; chỉ lớp học mới thuộc sở hữu riêng.** Đề bài là tài sản của trường chứ không của một thầy cô, và P2-6 (nhập/xuất Excel) vốn thao tác trên cả 3 lớp một lần. Chỉ panel *tài khoản* là `owner`-only.
+· **Markup tĩnh ở HTML, không sinh DOM bằng TS.** Trang có 11 panel và rủi ro lớn nhất của task là mất một cái nút; giữ bố cục ở một file đọc được bằng mắt (và có test canh 73 `id`) rẻ hơn nhiều so với "dựng DOM cho đẹp".
+· **`requireElement` NÉM LỖI thay vì `?.`** — thiếu một `id` thì trang chết ngay lúc mở và báo đúng tên id, chứ không mở ra rồi lặng lẽ hụt một tính năng.
+· **Không thêm framework UI.** 11 module TS thuần, bundle 32 KB JS + 10 KB CSS. React cho một trang quản trị nội bộ là 45 KB gzip đổi lấy đúng con số 0 lợi ích.
+· **`config.loginRateLimitMax` chỉ đọc được từ `createApp(overrides)`, KHÔNG từ biến môi trường.** Đây là tuyến chặn dò mật khẩu; một biến môi trường đặt sai trên production là cách âm thầm nhất để tắt nó. Có test canh mặc định vẫn là 5 và canh cả việc mã nguồn không đọc `process.env` ở chỗ đó.
+· **Bảng `admin_users` cố ý không có email/điện thoại.** Trang này không gửi thư và không khôi phục mật khẩu tự động, nên hai trường đó chỉ là thêm dữ liệu để mất.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· `docs/v2/B4-uiux.md` bảng S15 ghi "GIỮ NGUYÊN admin.html — Không đụng". Đúng ở thời điểm P0; P2-7 chính là task đảo lại quyết định đó, và bảng P2 của tài liệu này đã ghi rõ như vậy từ đầu.
+· Task ghi 2 việc (Vite + `admin_users`); thực tế thêm **panel thứ 11** ("Tài khoản quản trị") — có bảng mà không có chỗ quản lý thì tài khoản chỉ tạo được bằng SQL tay.
+· **Xoá `admin.html` ở gốc repo** không có trong đặc tả, nhưng giữ lại là giữ nguyên đúng cái lỗi Service Worker mô tả ở dưới: bước copy của `vercel-build` sẽ đè lên file Vite vừa sinh.
+· Thêm một rào ở `server/app.js` cho `GET /admin.html`: ở máy dev `staticDir` là gốc repo nên file chỉ có sau `npm run build:client`; thiếu rào thì `npm start` rồi mở trang chỉ ra một trang 404 trắng không nói vì sao.
+· Không thêm phụ thuộc npm, không thêm khoá localStorage, không thêm biến môi trường, **không sửa `vercel.json`**.
+
+**Lỗi THẬT phát hiện được trong task này:**
+· **(nặng — Service Worker giữ mãi trang admin cũ)** Từ P0-15 tới trước P2-7, `admin.html` NẰM trong precache của SW với `revision` băm từ **file stub** của Vite (`client/admin.html`, chỉ redirect), trong khi nội dung thật lại do `vercel-build` copy đè lên **sau** khi manifest đã tính xong. Stub không bao giờ đổi ⇒ revision không bao giờ đổi ⇒ **máy nào đã cài PWA thì giữ mãi bản admin của thời P0**: các panel P1-6, P2-5, P2-6 không bao giờ hiện ra cho giáo viên đó. Đã xác minh trên bản build thật: manifest chứa `{"revision":"a1b9d92…","url":"admin.html"}` đúng bằng md5 của stub. Nay `admin.html` ra khỏi manifest ⇒ mục cũ bị xoá khỏi cache lúc SW activate và trang luôn lấy từ mạng.
+· **(vừa — không xem được "Cách hỏi bài" đang áp dụng)** `window.QuestionBank.getLevelBundle` **đánh rơi** field `quizMode`: server trả đủ 5 field, hàm đó chỉ dựng lại 4. Trên trang legacy, giáo viên chọn "Bảng câu hỏi (modal)" → bấm Lưu → server ghi đúng → ô chọn **lập tức nhảy về "Cổng Toán"**. Không có cách nào nhìn thấy cài đặt đang thật sự chạy, và ai cũng tưởng nút Lưu hỏng. Không sửa được ở gốc (`questionBank.js` là hợp đồng, quy tắc vàng #4), nên trang quản trị đọc thẳng `GET /api/levels/:level/question-bank` — chính route nó vẫn dùng để GHI.
+· **(nhẹ — mất thông báo thành công)** Bản legacy gọi `showNotice(...)` **trước** `loadCurrentLevelData()`, mà hàm này mở đầu bằng `hideNotice()`. Hậu quả: bấm "Lưu câu hỏi" / "Lưu điểm" / "Lưu thời gian" / "Lưu tốc độ" / "Xoá câu" / "Reset" xong thì **không có gì xác nhận là đã lưu**. P2-6 đã ghi đúng thứ tự này cho luồng nhập Excel nhưng không áp cho phần còn lại; nay đã áp đủ.
+· **(nhẹ — dashboard lệch lớp)** Đổi lớp ở trang legacy KHÔNG nạp lại thống kê: bấm sang Lớp 7 thì bảng "Thống kê lớp học" vẫn là số của Lớp 6 và không có gì nói ra điều đó.
+
+**Đã nghiệm thu trực tiếp trên trình duyệt** (server cục bộ, cấu hình truyền tay, `databaseUrl` rỗng, PGlite trong thư mục scratchpad, `public/` dựng bằng `scripts/vercel-build.js` thật — **KHÔNG chạm Neon**, **không đọc `.env`**): đăng nhập bằng **mật khẩu cũ, bỏ trống tên đăng nhập** → vào thẳng, huy hiệu hiện `admin · quản trị chính`; đổi lớp 6↔7 thấy đúng `7q001`/`6q001` và dashboard nạp lại theo lớp; sửa lời giải một câu → lưu → **thứ tự câu giữ nguyên**, dòng cảnh báo lời giải nhảy `100% → 99%`, thông báo xanh còn nguyên trên màn hình; lưu tốc độ `1.3` rồi trả về `1.0`; lưu "Cách hỏi bài" = modal → **tải lại trang vẫn thấy modal** (trước khi sửa thì nhảy về gate); tạo lớp `6UWH-MZAJ` → "Xem máy" → **Thu hồi** (hàng đổi sang "Đã thu hồi", nút Thu hồi biến mất); khoá rồi bỏ khoá một biệt danh; bơm 2 máy × 4 câu → dashboard hiện **8 câu / 25% đúng / 2 máy**, biểu đồ độ khó `easy 100%` (xanh) và `medium 0%`/`hard 0%` (đỏ, dưới ngưỡng 50%), Top 10 câu sai hiện `6q002 · 4/4 · 100%`; xuất CSV ngân hàng (`sep=,` + CRLF + `charset=utf-8`) → sửa một ô → chọn file → **Xem trước** ("sửa 1, giữ nguyên 99", "không đụng tới Lớp 7, Lớp 8") → đổi chế độ thì nút xác nhận **tự khoá lại** → xem trước lại → **Xác nhận** → đề đổi thật; xoá một câu rồi thêm lại; chặn trùng mã; tạo tài khoản `co.ha` → **đăng nhập bằng `CO.HA` (viết hoa) vẫn vào đúng tài khoản** → panel tài khoản tự chuyển sang chế độ giáo viên, **danh sách lớp trống** (không thấy lớp của `admin`), ngân hàng câu hỏi vẫn sửa được; đăng xuất → về màn đăng nhập; mật khẩu sai → báo lỗi, trang vẫn khoá. Ở 375px không có tràn ngang. **Console sạch ở cả trang quản trị lẫn trang game** (game vẫn đọc đúng token sau khi tách `tokens.css`).
+
+**Chưa nghiệm thu được ở môi trường này:**
+- [ ] Chạy trên **Neon thật** (mọi test dùng PGlite). `admin_users` không dùng câu SQL nào lạ ngoài `ON CONFLICT (username) DO NOTHING ... RETURNING`, nhưng cần một lượt smoke thật trên preview.
+- [ ] `npm run migrate -- --yes-production` trên Neon thật (agent **không** chạy — đúng ràng buộc an toàn của task).
+- [ ] Kiểm **trên máy đã cài PWA bản cũ** rằng mục `admin.html` trong precache thật sự bị xoá sau một lần tải lại — chỉ đo được trên thiết bị đã có Service Worker cũ.
+- [ ] Nhiều thầy cô dùng thật, mỗi người một tài khoản, trong một học kỳ.
+
+---
+
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
 - [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.
@@ -723,6 +844,8 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 - [ ] Riêng release P2-3: chạy `npm run migrate` **TRƯỚC** khi deploy client mới (bảng kinh tế phải có trước khi client đầu tiên gọi di trú), rồi smoke `GET /api/shop/catalog` và `GET /api/players/<deviceId>/profile` trên preview. Không cần biến môi trường mới. Nếu `DATABASE_URL` chưa nối thì mọi route kinh tế trả `disabled: true` và game vẫn chạy bằng ví local — **an toàn nhưng xu không được lưu**, nên đừng phát hành ở trạng thái đó rồi mới nối Neon sau.
 - [ ] Riêng release P2-6: không cần biến môi trường hay migrate nào. Sau deploy, vào admin bấm **"Xuất cả 3 lớp"**, mở file bằng **Excel thật trên Windows tiếng Việt** — phải thấy đủ 12 cột và đủ dấu. Sửa một ô rồi lưu lại bằng **"CSV UTF-8 (Comma delimited)"**, nhập lại ở chế độ mặc định (giữ nguyên) và đối chiếu bảng xem trước trước khi xác nhận.
 - [ ] Riêng release P2-5: chạy `npm run migrate -- --dry-run` để xem trước, rồi `npm run migrate -- --yes-production` **TRƯỚC** khi deploy (bảng `class_codes`/`class_members` và cột `answer_events.class_id` phải có trước khi giáo viên đầu tiên tạo mã). Không cần biến môi trường mới. Sau deploy: vào admin tạo một lớp thử, nhập mã từ máy học sinh, chơi một ván rồi kiểm dashboard lọc đúng lớp đó. **Nói với giáo viên ba điều:** mã lớp là *quyền vào lớp* chứ không phải mật khẩu xem điểm; mã lộ thì bấm **Thu hồi** rồi **Gỡ khỏi lớp** chứ đừng xoá lớp; và **đừng đặt tên lớp bằng tên học sinh**. Chi tiết: [`docs/v2/P2-5-PRIVACY.md`](docs/v2/P2-5-PRIVACY.md) §8.
+- [ ] Riêng release P2-7: chạy `npm run migrate -- --dry-run` rồi `npm run migrate -- --yes-production` **TRƯỚC** khi deploy (bảng `admin_users` phải có trước lần đăng nhập đầu tiên; thiếu bảng thì vẫn vào được bằng mật khẩu cũ, chỉ là chưa tạo được tài khoản riêng). Không cần biến môi trường mới. Sau deploy: (1) đăng nhập bằng **đúng mật khẩu cũ, bỏ trống ô tên đăng nhập** để xác nhận đường di trú; (2) vào panel **"Tài khoản quản trị"** tạo cho mỗi thầy cô một tài khoản riêng; (3) **rồi mới** xoá biến `ADMIN_PASSWORD_HASH` trên Vercel và deploy lại — chừng nào biến đó còn, mật khẩu cũ vẫn mở được tài khoản `admin`. **Nói với giáo viên hai điều:** lớp học và mã lớp **thuộc về tài khoản đã tạo ra chúng** (tài khoản mới bắt đầu với danh sách lớp trống, đó không phải lỗi), còn ngân hàng câu hỏi thì dùng chung cả trường.
+- [ ] ⚠ **Từ P2-7, bookmark `/admin.html` GIỮ NGUYÊN** nhưng file phía sau nó nay do Vite sinh ra. Máy nào đã cài PWA từ trước sẽ **tự nhận bản mới sau một lần tải lại** — trang admin đã được gỡ khỏi precache của Service Worker (trước P2-7 nó bị đóng băng ở bản thời P0; xem mục Lỗi của P2-7).
 - [ ] ⚠ **Từ P2-5, `npm run migrate` không còn chạy thẳng vào production được nữa** — thiếu `--yes-production` là script dừng và thoát khác 0. Nếu có script/CI nào đang gọi `npm run migrate`, phải cập nhật nó (hoặc đặt `MIGRATE_CONFIRM=yes-production` cho môi trường đó).
 - [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
 - [ ] Tag phiên bản (`v2.0.0-p0` / `v2.1.0-p1`...), cập nhật README + `docs/technical.md` (đang lỗi thời — ghi chú docs/v2/A3).

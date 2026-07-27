@@ -42,6 +42,18 @@ function resolveConfig(overrides) {
 				? values.anticheatEnforce === true
 				: String(process.env.ANTICHEAT_ENFORCE || "") === "1",
 		nodeEnv: values.nodeEnv || process.env.NODE_ENV || "development",
+		/**
+		 * P2-7 — số lần đăng nhập admin cho phép mỗi phút mỗi IP.
+		 *
+		 * CỐ Ý **không đọc biến môi trường**: đây là tuyến chặn dò mật khẩu, và một
+		 * biến môi trường đặt sai trên production là cách âm thầm nhất để tắt nó.
+		 * Chỉ `createApp(overrides)` mới đổi được — tức là chỉ test.
+		 *
+		 * Vì sao cần đổi được: bộ test của P2-7 phải đăng nhập bằng NHIỀU tài khoản
+		 * thật (giáo viên A, giáo viên B, quản trị chính) để kiểm cách ly quyền, mà
+		 * limiter đếm theo IP nên 5 lượt là hết ngay trong một file.
+		 */
+		loginRateLimitMax: resolveNumber(values.loginRateLimitMax, 5),
 		cookieName: "admin_token",
 		jwtExpiresIn: "8h"
 	};

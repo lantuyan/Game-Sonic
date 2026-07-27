@@ -190,7 +190,28 @@ var STATEMENTS = [
 		"class_id BIGINT NOT NULL," +
 		"joined_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
 	")",
-	"CREATE INDEX IF NOT EXISTS idx_class_members_class ON class_members (class_id)"
+	"CREATE INDEX IF NOT EXISTS idx_class_members_class ON class_members (class_id)",
+	// P2-7 · NHIỀU TÀI KHOẢN QUẢN TRỊ — thay cho một `ADMIN_PASSWORD_HASH` dùng chung.
+	//
+	//   · `username` CHÍNH LÀ `class_codes.owner_id`. P2-5 đã ghi quyền sở hữu lớp
+	//     bằng chuỗi `"admin"`, nên tài khoản di trú từ biến môi trường bắt buộc
+	//     mang tên `admin` — đổi tên là toàn bộ lớp đã tạo mất chủ.
+	//   · `password_hash` là bcrypt, cùng định dạng với `ADMIN_PASSWORD_HASH` (nhờ
+	//     vậy hạt giống di trú chỉ là một lần INSERT, không phải bắt ai đặt lại mật khẩu).
+	//   · `role`: `owner` quản lý được tài khoản khác, `teacher` chỉ quản lý chính mình.
+	//   · KHÔNG có email/số điện thoại. Trang này không gửi thư và không khôi phục
+	//     mật khẩu tự động, nên thu thập hai trường đó chỉ là thêm dữ liệu để mất.
+	"CREATE TABLE IF NOT EXISTS admin_users (" +
+		"id BIGSERIAL PRIMARY KEY," +
+		"username TEXT NOT NULL," +
+		"password_hash TEXT NOT NULL," +
+		"display_name TEXT NOT NULL," +
+		"role TEXT NOT NULL DEFAULT 'teacher'," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
+		"updated_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
+		"last_login_at TIMESTAMPTZ" +
+	")",
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users (username)"
 ];
 
 function applySchema(sql) {

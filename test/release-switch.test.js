@@ -65,8 +65,12 @@ test("danh sách copy legacy KHÔNG còn file V1 đè lên V2", function () {
 	assert.equal(/"EndlessRunner\.htm"/.test(list), false);
 	assert.equal(/"EndlessRunner\.js"/.test(list), false);
 
+	// P2-7: `admin.html` nay CŨNG do Vite sinh ra, nên copy đè nó cũng là xoá sổ
+	// trang quản trị V2 — đúng cùng lý do với index.html/worker.js ở trên. (Trước
+	// P2-7 thì ngược lại: dòng copy đó là thứ giữ trang admin legacy sống.)
+	assert.equal(/"admin\.html"/.test(list), false, "copy admin.html sẽ đè mất trang quản trị V2");
+
 	// Nhưng những thứ V2 CẦN thì phải còn.
-	assert.ok(/"admin\.html"/.test(list), "admin legacy vẫn phải phục vụ được");
 	assert.ok(/"questionBank\.js"/.test(list), "questionBank.js là hợp đồng tích hợp, phải còn");
 	assert.ok(buildScript.includes("questionModel.js"), "shared/questionModel.js phải được copy");
 });

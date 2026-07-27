@@ -1,0 +1,665 @@
+/*
+ * P2-7 — Giao diện trang quản trị.
+ *
+ * Nguồn màu/khoảng cách/bo góc/font là `@/ui/tokens.css` (design token dùng chung
+ * với game). File này chỉ làm hai việc:
+ *   1. dịch bảng token sáng của game sang BẢNG TỐI của trang quản trị — giáo viên
+ *      đã dùng trang tối này từ V1, đổi sang nền trắng giữa chừng là bắt người ta
+ *      học lại một thứ không có lợi ích gì;
+ *   2. định nghĩa các lớp bố cục của riêng trang này (`.panel`, `.kpi`, `.chart`…).
+ *
+ * KHÔNG import `ui-tokens.css`: hơn 1.000 dòng còn lại của file đó là style màn hình
+ * game (`#ui-root`, `.hud-*`, `.s-*`), không liên quan gì ở đây và chỉ chờ ngày
+ * trùng tên lớp.
+ */
+
+@import "../ui/tokens.css";
+
+:root {
+	/* Bảng tối của trang quản trị, dẫn xuất từ token dùng chung. */
+	--bg: #081423;
+	--panel: #10243b;
+	--line: rgba(255, 255, 255, 0.12);
+	--text: #f3f7fb;
+	--muted: #9db1c7;
+	--accent: #58c4ff;
+	--accent-strong: var(--color-primary-dark);
+	--danger: var(--color-wrong);
+	--success: var(--color-correct);
+	--warning: var(--color-coin);
+	--shadow: var(--shadow-panel);
+	--radius: var(--radius-md);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+	background: radial-gradient(circle at top left, rgba(88, 196, 255, 0.18), transparent 28%),
+		radial-gradient(circle at top right, rgba(51, 209, 150, 0.12), transparent 22%),
+		linear-gradient(180deg, #07111d 0%, var(--bg) 100%);
+	color: var(--text);
+	font-family: var(--font-body);
+}
+
+a {
+	color: var(--accent);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+button {
+	border: none;
+	border-radius: var(--radius-sm);
+	padding: 11px 14px;
+	cursor: pointer;
+	transition: transform var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+}
+
+button:hover {
+	transform: translateY(-1px);
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.6;
+	transform: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+	outline: 3px solid var(--color-coin);
+	outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+	width: 100%;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.04);
+	color: var(--text);
+	border-radius: var(--radius-sm);
+	padding: 11px 12px;
+	outline: none;
+}
+
+textarea {
+	min-height: 100px;
+	resize: vertical;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-display);
+}
+
+/* --- Màn đăng nhập ------------------------------------------------------- */
+
+.auth-shell {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-5);
+}
+
+.auth-card {
+	width: min(100%, 440px);
+	padding: 28px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-lg);
+	background: linear-gradient(180deg, rgba(17, 41, 67, 0.96), rgba(9, 24, 40, 0.96));
+	box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+	margin: 0 0 10px;
+	font-size: 30px;
+}
+
+.auth-card p {
+	margin: 0 0 18px;
+	color: var(--muted);
+	line-height: 1.55;
+}
+
+.auth-hint {
+	margin: 12px 0 0;
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.auth-actions {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-3);
+	align-items: stretch;
+	margin-top: var(--space-4);
+}
+
+.auth-error {
+	margin-top: 14px;
+	color: #ffd6dc;
+	min-height: 20px;
+}
+
+.button-home {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 13px 18px;
+	border-radius: 14px;
+	text-decoration: none;
+	background: rgba(255, 255, 255, 0.06);
+	color: var(--text);
+	border: 1px solid rgba(88, 196, 255, 0.26);
+	font-size: 16px;
+	font-weight: 700;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+	transition: transform var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+.button-home:hover {
+	transform: translateY(-1px);
+	background: rgba(88, 196, 255, 0.12);
+	border-color: rgba(88, 196, 255, 0.42);
+}
+
+.button-home::before {
+	content: "";
+	width: 10px;
+	height: 10px;
+	flex: 0 0 10px;
+	border-left: 3px solid currentColor;
+	border-bottom: 3px solid currentColor;
+	transform: rotate(45deg);
+	margin-left: 1px;
+}
+
+.auth-actions .button-primary,
+.auth-actions .button-home {
+	width: 100%;
+	min-width: 0;
+	min-height: var(--touch-answer);
+	justify-content: center;
+}
+
+/* --- Khung trang --------------------------------------------------------- */
+
+.page {
+	max-width: 1440px;
+	margin: 0 auto;
+	padding: 28px 20px 40px;
+}
+
+.hero {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: var(--space-4);
+	margin-bottom: 20px;
+	padding: 26px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-lg);
+	background: linear-gradient(180deg, rgba(17, 41, 67, 0.95), rgba(9, 24, 40, 0.95));
+	box-shadow: var(--shadow);
+}
+
+.hero h1 {
+	margin: 0 0 8px;
+	font-size: 34px;
+	letter-spacing: 0.02em;
+}
+
+.hero p {
+	margin: 0;
+	color: var(--muted);
+	max-width: 760px;
+	line-height: 1.55;
+}
+
+.hero-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.identity-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: var(--radius-pill);
+	background: rgba(88, 196, 255, 0.12);
+	border: 1px solid rgba(88, 196, 255, 0.28);
+	font-size: 13px;
+	color: #daf5ff;
+}
+
+.identity-badge:empty {
+	display: none;
+}
+
+.button-primary {
+	background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+	color: #032542;
+	font-weight: 700;
+}
+
+.button-secondary {
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--text);
+	border: 1px solid var(--line);
+}
+
+.button-danger {
+	background: rgba(255, 111, 125, 0.16);
+	color: #ffdbe0;
+	border: 1px solid rgba(255, 111, 125, 0.4);
+}
+
+.button-success {
+	background: rgba(51, 209, 150, 0.16);
+	color: #dffbf0;
+	border: 1px solid rgba(51, 209, 150, 0.35);
+}
+
+.button-warning {
+	background: rgba(244, 201, 93, 0.16);
+	color: #fff2cf;
+	border: 1px solid rgba(244, 201, 93, 0.35);
+}
+
+.layout {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 20px;
+	align-items: start;
+}
+
+.layout > *,
+.sidebar,
+.content,
+.panel {
+	min-width: 0;
+}
+
+.sidebar,
+.content {
+	display: grid;
+	gap: 20px;
+	align-content: start;
+}
+
+.panel {
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	background: linear-gradient(180deg, rgba(16, 36, 59, 0.92), rgba(10, 23, 38, 0.96));
+	box-shadow: var(--shadow);
+	padding: 20px;
+}
+
+.panel h2 {
+	margin: 0 0 14px;
+	font-size: 19px;
+}
+
+.level-switcher {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 10px;
+}
+
+.level-btn {
+	position: relative;
+	overflow: hidden;
+	min-height: var(--touch-answer);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+	color: var(--text);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	font-weight: 800;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.level-btn.active {
+	background: linear-gradient(135deg, rgba(88, 196, 255, 0.26), rgba(29, 143, 225, 0.32));
+	border-color: rgba(88, 196, 255, 0.62);
+	color: #f4fbff;
+	box-shadow: 0 14px 30px rgba(16, 86, 145, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.kpis {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 10px;
+}
+
+.kpi {
+	padding: 14px;
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid var(--line);
+}
+
+.kpi-label {
+	display: block;
+	font-size: 12px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+	margin-bottom: 6px;
+}
+
+.kpi-value {
+	font-size: 24px;
+	font-weight: 800;
+}
+
+.level-meta {
+	font-size: 13px;
+	color: var(--muted);
+	line-height: 1.55;
+}
+
+.time-grid,
+.question-grid {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.time-grid {
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.time-card {
+	padding: 14px;
+	border-radius: 14px;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.time-card strong {
+	display: block;
+	margin-bottom: 8px;
+	text-transform: capitalize;
+}
+
+.form-row {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-3);
+}
+
+.question-grid .full {
+	grid-column: 1 / -1;
+}
+
+.answer-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-3);
+}
+
+.field label {
+	display: block;
+	margin-bottom: 7px;
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.form-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: var(--radius-pill);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.status-correct {
+	background: rgba(51, 209, 150, 0.16);
+	color: #dcfff0;
+}
+
+.status-wrong {
+	background: rgba(255, 111, 125, 0.16);
+	color: #ffe0e4;
+}
+
+.status-timeout {
+	background: rgba(244, 201, 93, 0.16);
+	color: #fff0c4;
+}
+
+.status-shown {
+	background: rgba(88, 196, 255, 0.14);
+	color: #daf5ff;
+}
+
+/* P1-6 — biểu đồ thanh THUẦN CSS, không thư viện chart (task ghi rõ).
+   Một thư viện chart là ~80KB cho ba biểu đồ cột — không đáng. */
+.chart {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chart-row {
+	display: grid;
+	grid-template-columns: 120px 1fr 72px;
+	gap: 10px;
+	align-items: center;
+}
+
+.chart-label {
+	font-size: 13px;
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* `display:block` là BẮT BUỘC: cả hai là <span>, mà phần tử inline thì bỏ qua
+   height — thiếu dòng này biểu đồ ra toàn thanh rỗng. */
+.chart-track {
+	display: block;
+	height: 16px;
+	border-radius: var(--radius-pill);
+	background: rgba(255, 255, 255, 0.06);
+	overflow: hidden;
+}
+
+.chart-bar {
+	display: block;
+	height: 100%;
+	min-width: 2px;
+	border-radius: var(--radius-pill);
+	background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+}
+
+.chart-bar.is-low {
+	background: linear-gradient(90deg, #ffb36b, var(--danger));
+}
+
+.chart-value {
+	font-size: 13px;
+	font-weight: 700;
+	text-align: right;
+}
+
+.chart-empty {
+	font-size: 13px;
+	color: var(--muted);
+	padding: 8px 0;
+}
+
+.table-wrap {
+	max-width: 100%;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.table-compact {
+	min-width: 100%;
+}
+
+.table-wide {
+	min-width: 980px;
+}
+
+th,
+td {
+	padding: 12px 14px;
+	text-align: left;
+	border-bottom: 1px solid var(--line);
+	vertical-align: top;
+}
+
+th {
+	font-size: 12px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+tbody tr:hover {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.actions button {
+	padding: 8px 11px;
+	border-radius: 10px;
+	font-size: 13px;
+}
+
+.answers-list {
+	display: grid;
+	gap: 4px;
+	font-size: 13px;
+	color: #dfe9f3;
+}
+
+.answers-list span {
+	display: block;
+}
+
+.muted {
+	color: var(--muted);
+}
+
+.empty {
+	padding: 18px;
+	color: var(--muted);
+	text-align: center;
+}
+
+.notice {
+	padding: 12px 14px;
+	border-radius: var(--radius-sm);
+	font-size: 14px;
+	line-height: 1.45;
+	margin-bottom: 14px;
+	border: 1px solid var(--line);
+}
+
+.notice-info {
+	background: rgba(88, 196, 255, 0.1);
+	color: #dff4ff;
+}
+
+.notice-success {
+	background: rgba(51, 209, 150, 0.12);
+	color: #dbfff0;
+}
+
+.notice-error {
+	background: rgba(255, 111, 125, 0.14);
+	color: #ffe3e7;
+}
+
+.toolbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--space-3);
+	flex-wrap: wrap;
+	margin-bottom: 14px;
+}
+
+.small {
+	font-size: 13px;
+}
+
+.hidden {
+	display: none;
+}
+
+@media (max-width: 760px) {
+	.hero {
+		padding: 20px;
+		flex-direction: column;
+	}
+
+	.kpis,
+	.answer-grid,
+	.form-row {
+		grid-template-columns: 1fr;
+	}
+
+	.page {
+		padding: 18px 14px 28px;
+	}
+
+	.auth-actions {
+		grid-template-columns: 1fr;
+	}
+
+	.auth-actions > * {
+		width: 100%;
+	}
+
+	.button-home {
+		width: 100%;
+		justify-content: center;
+	}
+}

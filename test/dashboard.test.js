@@ -383,7 +383,8 @@ test("bảng answer_events có đủ cột và 3 index theo task", function () {
 });
 
 test("dashboard KHÔNG dùng thư viện chart nào (task P1-6)", function () {
-	var admin = fs.readFileSync(path.join(rootDir, "admin.html"), "utf8");
+	// P2-7: trang quản trị đã vào Vite, nguồn nay là client/admin.html + client/src/admin/*.
+	var admin = require("../test-helpers/adminSource").readAdminSource();
 
 	assert.ok(/chart-bar/.test(admin), "phải có biểu đồ thanh thuần CSS");
 	assert.equal(/chart\.js|d3\.|echarts|highcharts/i.test(admin), false, "không được nhúng thư viện chart");

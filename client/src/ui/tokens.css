@@ -1,0 +1,118 @@
+/*
+ * DESIGN TOKEN DÙNG CHUNG (plan §5.2) — game và trang quản trị đọc cùng file này.
+ *
+ * Bảng màu, khoảng cách, bo góc, bóng đổ và font self-host khai báo MỘT LẦN ở đây;
+ * mọi component đọc qua biến. Đổi nhận diện = sửa đúng khối :root này.
+ *
+ * Tách khỏi `ui-tokens.css` ở P2-7: trang quản trị cần đúng bảng token này nhưng
+ * KHÔNG cần (và không được dính) hơn 1.000 dòng style của màn hình game — tên lớp
+ * của hai bên có thể trùng, và một trang quản trị kéo theo CSS của HUD là cách
+ * chắc chắn để một hôm nào đó bảng câu hỏi tự nhiên đổi màu.
+ *
+ * Chuẩn bắt buộc: chạm ≥48px (nút đáp án ≥56px), tương phản ≥4.5:1, đúng/sai luôn
+ * kèm icon ✓/✗ chứ không chỉ dựa vào màu (≈8% nam sinh mù màu), và tôn trọng
+ * `prefers-reduced-motion`.
+ */
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-700.woff2") format("woff2");
+	font-weight: 700;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Baloo 2";
+	src: url("/fonts/baloo-2-v23-latin_vietnamese-800.woff2") format("woff2");
+	font-weight: 800;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-600.woff2") format("woff2");
+	font-weight: 600;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Nunito";
+	src: url("/fonts/nunito-v32-latin_vietnamese-700.woff2") format("woff2");
+	font-weight: 700;
+	font-display: swap;
+}
+
+:root {
+	/* Bảng màu plan §5.2 */
+	--color-primary: #2e86ff;
+	--color-primary-dark: #1c62c4;
+	--color-cta: #ff7a1a;
+	--color-cta-dark: #c85607;
+	--color-coin: #ffc93c;
+	--color-correct: #22c55e;
+	--color-wrong: #ef4444;
+	--color-navy: #1b2a4a;
+	--color-navy-soft: #2b3f68;
+	--color-surface: #ffffff;
+	--color-surface-dim: #f2f6fd;
+	--color-text: #1b2a4a;
+	--color-text-invert: #ffffff;
+	--color-text-muted: #5a6a8a;
+
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+
+	--radius-sm: 10px;
+	--radius-md: 16px;
+	--radius-lg: 24px;
+	--radius-pill: 999px;
+
+	--shadow-panel: 0 12px 32px rgba(12, 22, 44, 0.28);
+	--shadow-button: 0 4px 0 #12447f;
+	--shadow-button-cta: 0 4px 0 var(--color-cta-dark);
+
+	--font-display: "Baloo 2", system-ui, sans-serif;
+	--font-body: "Nunito", system-ui, sans-serif;
+
+	/* Vùng chạm tối thiểu — không component nào được nhỏ hơn. */
+	--touch-min: 48px;
+	--touch-answer: 56px;
+
+	--duration-fast: 120ms;
+	--duration-base: 220ms;
+	--ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Người chơi bật "giảm chuyển động" thì tắt mọi transition/animation trang trí. */
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--duration-fast: 0ms;
+		--duration-base: 0ms;
+	}
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+	}
+}

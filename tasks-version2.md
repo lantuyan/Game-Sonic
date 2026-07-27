@@ -381,13 +381,59 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 | # | Gói | Ước lượng | Ghi chú |
 |---|---|---|---|
-| [ ] P2-1 | Biome ④ Không gian (hoặc Đền cổ) + chướng ngại di động + pattern tổ hợp khó | 3 | Quaternius Space Kit / KayKit Dungeon |
+| [x] P2-1 | Biome ④ Không gian (hoặc Đền cổ) + chướng ngại di động + pattern tổ hợp khó | 3 | Quaternius Space Kit / KayKit Dungeon — *đặc tả chi tiết ngay dưới bảng* |
 | [ ] P2-2 | Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao | 2 | |
 | [ ] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) |
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
 | [ ] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư |
 | [ ] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | SheetJS hoặc CSV nâng cao |
 | [ ] P2-7 | Admin chuyển hẳn vào Vite + `admin_users` nhiều tài khoản | 2 | Kết thúc trang legacy cuối cùng |
+
+### [x] P2-1 · Biome ④ Không gian + chướng ngại di động + pattern tổ hợp khó — *3 ngày*
+
+**Mục tiêu:** ba việc trong một gói, và việc thứ hai là cơ chế gameplay MỚI đầu tiên kể từ P0-6.
+
+**Việc cần làm:**
+- [x] **Biome ④ Không gian** — thêm phần tử thứ tư vào `fx/biomes.ts` theo đúng khuôn P1-2: bảng màu sky/fog riêng, BGM riêng, 3 props chướng ngại đặc trưng, 6–8 lớp trang trí. Asset qua pipeline P0-3 (`assets-src/sources.json` → `assets:fetch` → `assets:build` → `assets:license`).
+- [x] **Chướng ngại di động** — loại chướng ngại trôi ngang giữa các làn. Phải cập nhật **cả ba** chỗ: `systems/Collision.ts` (làn liên tục thay vì làn nguyên), `systems/NearMiss.ts` (đo khoảng hở theo x thật của vật), và `systems/Spawn.ts` (một InstancedMesh riêng, không cấp phát trong `update`).
+- [x] **Pattern tổ hợp khó** — thêm bậc `difficulty: 4` ghép nhiều loại chướng ngại (gồm cả chướng ngại di động), chỉ mở khoá khi ván đã "nóng" (ramp tốc độ hoặc đã qua ít nhất một chặng boss). Luật mở khoá là hàm thuần, có test.
+- [x] Cập nhật `globIgnores` trong `client/vite.config.mts` cho asset biome ④ (ngân sách: initial ≤10MB), thêm `bgm-biome4` vào `core/AudioManager.ts`.
+- [x] Mọi hằng số mới vào `client/src/tuning.ts` (quy tắc vàng #5).
+- [x] Unit test cho **mọi logic thuần**: quỹ đạo chướng ngại di động, làn chặn liên tục, luật mở khoá pattern khó, validator cho pattern có chướng ngại di động, mapping biome ④.
+
+**File đích:** `client/src/fx/biomes.ts` · `client/src/systems/movingObstacles.ts` (mới) · `client/src/systems/Collision.ts` · `client/src/systems/NearMiss.ts` · `client/src/systems/patternRules.ts` · `client/src/systems/Spawn.ts` · `client/src/data/patterns.json` · `client/src/scenes/RunScene.ts` · `client/src/tuning.ts` · `client/src/core/AudioManager.ts` · `client/vite.config.mts` · `assets-src/sources.json` · `scripts/assets-build.mjs` · `scripts/assets-license.mjs` · `docs/LICENSE-ASSETS.md` · `test/biomes.test.js` · `test/moving-obstacles.test.js` (mới)
+
+**Phụ thuộc:** P1-1 (Boss Gate — chuyển chặng), P1-2 (khuôn biome + `normalizeScale`).
+
+**Tham chiếu:** plan §4.2 (3 loại chướng ngại + luật công bằng), §4.5 (ramp tốc độ), §6.2–6.3 (asset + ngân sách); docs/v2/B1 §2–3 (Quaternius Space Kit / KayKit Dungeon / Kenney Car Kit).
+
+**Tiêu chí nghiệm thu (DoD):**
+1. `BIOMES.length === 4`; vòng lặp chặng quay đủ 4 rồi về ①; mỗi biome ≤3MB, có BGM riêng, draw call ước tính <100.
+2. Mọi GLB/BGM biome ④ tồn tại thật trong build và **không** nằm trong precache lúc cài; biome ① vẫn nằm trọn trong precache.
+3. Chướng ngại di động: quỹ đạo **tất định theo quãng đường** (không theo đồng hồ) nên giống hệt nhau ở mọi tốc độ 0.5–2.0; làn tới nơi (tại z = 0) là một hằng số kiểm được.
+4. Va chạm + near-miss dùng cùng một hàm chặn-làn; chướng ngại ĐỨNG YÊN cho kết quả **y hệt** luật cũ (`band.lane === lane`) — có test khoá.
+5. Validator pattern hiểu chướng ngại di động: mọi pattern (gồm bậc 4) vẫn có lối thoát ở mọi lát cắt z và mọi tốc độ trong dải.
+6. Pattern bậc 4 **không bao giờ** xuất hiện lúc đầu ván hay ngay sau khi mất tim.
+7. Không cấp phát trong game loop: `Spawn.update` không `new` gì (test đọc mã nguồn canh).
+8. `npm run ci` xanh toàn bộ; ngân sách initial ≤10MB.
+
+**Đã làm (nhánh `v2/p2-01-biome4`):** biome ④ "Không gian" (Kenney Space Kit + 1 track CC0 mới), `systems/movingObstacles.ts` (quỹ đạo thuần số học) + làn LIÊN TỤC trong `Collision`/`NearMiss`/`Spawn`, 6 pattern mới (3 làm quen với vật di động, 3 tổ hợp khó bậc 4) và cửa mở khoá `isPatternAllowed`. **17 test mới** (`test/moving-obstacles.test.js` 16 + 1 trong `test/biomes.test.js`), `npm run ci` **297/297**, ngân sách **6.24 MB / 10 MB**.
+
+**Quyết định đáng nêu:**
+· **Quỹ đạo tham số theo QUÃNG ĐƯỜNG, không theo đồng hồ.** Cả dự án đo bằng unit (xem `speedRangeUnitsPerSec`), nên nếu vật di động chạy theo thời gian thì cùng một pattern sẽ dễ ở lớp bị admin đặt `gameSpeed 0.5` và bất khả thi ở lớp đặt 2.0. Đi theo quãng đường còn cho một tính chất quý hơn: **làn mà vật đứng lúc tới chỗ player là hằng số**, nên validator chứng minh được công bằng y như pattern tĩnh, không phải mô phỏng. Kỹ năng mới người chơi phải học là "nó ĐANG ĐI ĐÂU", không phải "nó ĐANG Ở ĐÂU".
+· **KHÔNG làm chuyển động lên–xuống** dù task cho phép chọn một trong ba. Vật lên xuống làm TƯ THẾ cần dùng đổi giữa đường (lúc thấp phải nhảy, lúc cao phải trượt) trong khi người chơi quyết định tư thế trước đó ~0.6s ⇒ sẽ có những cái chết không cách nào tránh, phá thẳng bất biến "chết là do tay" của plan §4.2.
+· **Vật di động là loại `full` về LUẬT** (nhảy/trượt không cứu được, chỉ đổi làn) nhưng có model riêng và lớp vẽ riêng. Giữ nguyên 3 silhouette của plan §4.2, không thêm loại thứ tư vào `ObstacleKind` — thêm loại là phải trả lời "tư thế nào né được" cho một tín hiệu mà 15 unit/s không đủ thời gian đọc.
+· **Bán kính chặn làn hai mức** (`blockLaneRadius` 0.49 cho vật đứng yên, 0.55 cho vật di động). 0.49 < 1 nên với vật đứng yên điều kiện mới quy về đúng `band.lane === lane` của P0 — có test khoá. 0.55 suy ra từ hình học thật `(movingLength/2 + player.halfWidth) / laneOffsetX = 0.574`, lấy hụt xuống để sai số nghiêng về phía tha cho người chơi.
+· **Cửa mở khoá đo bằng RAMP tốc độ, không bằng tốc độ tuyệt đối** — tốc độ tuyệt đối phụ thuộc `gameSpeed` admin, nên lớp bị đặt 0.5 sẽ không bao giờ thấy pattern tổ hợp. Ramp đo "em đã chạy được bao lâu" (≥1.2 ⇔ 120s) HOẶC đã qua ≥1 chặng boss.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· docs/v2/B1 chốt biome ④ dùng **Quaternius Ultimate Space Kit**; đã dùng **Kenney Space Kit** (cùng CC0) vì bản Quaternius chỉ tải được qua Google Drive nên không script hoá được — đúng lý do đã ghi ở P0-3 cho bộ con vật.
+· Track BGM: pack "Short Loops" của Tim Mortimer chỉ có **đúng 4 track** và cả 4 đã dùng hết (menu + biome ①②③), nên track thứ 5 lấy từ OpenGameArt — "Observing The Star" của **yd**, đã đọc trực tiếp trên trang: License(s) = CC0. Nặng 768 KB (dưới trần 1 MB) và nằm ngoài precache lúc cài.
+· Thêm **Kenney Car Kit** cho đúng MỘT model (chiếc taxi làm vật di động của biome ①) — chính là vai trò docs/v2/B1 §3 đã thẩm định sẵn cho bộ này.
+
+**Lỗi THẬT phát hiện khi làm task này (không do P2-1 gây ra):** `Spawn`/`Track` dựng InstancedMesh từ **mesh đầu tiên** tìm được trong GLB (`firstMesh`), nên prop nhiều mesh mất lặng lẽ các phần còn lại — hộp quà chặn làn của biome ③ mất dải ruy-băng, chiếc thuyền của biome ② mất một phần. Không lỗi console, không cảnh báo, chỉ là thiếu. Đã thêm bước `flatten() + join()` vào `assets:build` (mọi kit Kenney dùng chung một atlas `colormap` nên gộp sạch) và test canh MỌI model biome có đúng một mesh.
+
+**Chưa nghiệm thu được ở môi trường này:** xem chiếc tàu bay trôi ngang ở TẦM GẦN. Sandbox treo `requestAnimationFrame` ở ~1 fps (hạn chế đã ghi từ P0-13), mà chu kỳ "thung lũng nghỉ" lại đếm bằng giây nên thực tế phải chờ hàng phút mới có một cụm chướng ngại. Đã kiểm được: biome ④ dựng đúng (trời tím, đất đỏ, vạch kẻ xanh lơ, **52 draw call / 100**, 53–70k tam giác), `movingObstacles:1` hiện trong panel `?debug`, console sạch. Máy thật: mở `/?debug&biome=3`.
 
 ---
 

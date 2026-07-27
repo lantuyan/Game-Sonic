@@ -5,6 +5,9 @@
 // Không cấp phát, không ma trận, không cây bao — chạy được cả nghìn vật thể.
 //
 // File này CỐ Ý không import three: thuần số học để `node --test` kiểm trực tiếp.
+// (Nhập `tuning` thì được — cũng thuần số, xem systems/patternRules.ts.)
+
+import { tuning } from "@/tuning";
 
 /** Ba loại chướng ngại đọc-được-ngay (plan §4.2). */
 export type ObstacleKind =
@@ -25,6 +28,13 @@ export interface ObstacleBand {
 	zEnd: number;
 	/** Đã va chạm rồi thì không tính lần hai cho tới khi tái chế. */
 	consumed: boolean;
+	/**
+	 * P2-1 — lệch làn LIÊN TỤC của chướng ngại di động, tính bằng làn.
+	 * Vắng mặt hoặc 0 = vật đứng yên đúng tâm làn `lane` (mọi thứ từ P0/P1).
+	 */
+	laneOffset?: number;
+	/** P2-1 — vật này có đang trôi ngang không (đổi bán kính chặn làn + near-miss). */
+	moving?: boolean;
 }
 
 export interface PlayerState {
@@ -55,6 +65,27 @@ export function poseClears(kind: ObstacleKind, pose: PlayerPose): boolean {
 	return false;
 }
 
+/**
+ * Vị trí ngang của một chướng ngại theo trục LÀN (số thực).
+ * Vật đứng yên trả về đúng `lane` như từ trước tới nay.
+ */
+export function bandLane(band: ObstacleBand): number {
+	return band.lane + (band.laneOffset ?? 0);
+}
+
+/**
+ * Chướng ngại này có chặn làn số `lane` không.
+ *
+ * ⚠ Bất biến phải giữ: với vật ĐỨNG YÊN, `blockLaneRadius` (0.49) < 1 nên điều kiện
+ * này đúng bằng `band.lane === lane` của P0 — không đổi một ván chơi cũ nào. Test
+ * `chướng ngại đứng yên chặn y hệt luật cũ` khoá điều đó lại.
+ */
+export function bandBlocksLane(band: ObstacleBand, lane: number): boolean {
+	const radius = band.moving === true ? tuning.spawn.movingBlockLaneRadius : tuning.spawn.blockLaneRadius;
+
+	return Math.abs(bandLane(band) - lane) < radius;
+}
+
 /** Player đang chiếm những làn nào (2 làn khi đang tween). */
 export function occupiedLanes(player: PlayerState): number[] {
 	if (player.lane === player.targetLane) {
@@ -83,7 +114,7 @@ export function findCollision(player: PlayerState, bands: readonly ObstacleBand[
 			continue;
 		}
 
-		if (lanes.includes(band.lane) === false) {
+		if (lanes.some((lane) => bandBlocksLane(band, lane)) === false) {
 			continue;
 		}
 
@@ -110,7 +141,7 @@ export function distanceToNextObstacle(player: PlayerState, bands: readonly Obst
 	let nearest = Number.POSITIVE_INFINITY;
 
 	for (const band of bands) {
-		if (band.consumed === true || band.lane !== player.lane) {
+		if (band.consumed === true || bandBlocksLane(band, player.lane) === false) {
 			continue;
 		}
 
@@ -131,7 +162,7 @@ export function distanceToNextObstacle(player: PlayerState, bands: readonly Obst
  */
 export function hasEscapeLane(bands: readonly ObstacleBand[], z: number, laneCount: number): boolean {
 	for (let lane = 0; lane < laneCount; lane += 1) {
-		const blocking = bands.filter((band) => band.lane === lane && z >= band.zStart && z <= band.zEnd);
+		const blocking = bands.filter((band) => bandBlocksLane(band, lane) && z >= band.zStart && z <= band.zEnd);
 
 		if (blocking.length === 0) {
 			return true;

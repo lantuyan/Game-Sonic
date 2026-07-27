@@ -276,7 +276,7 @@
 		{
 			"url": "models/props/beach-boat.glb",
 			"group": "beach",
-			"bytes": 8020
+			"bytes": 6484
 		},
 		{
 			"url": "models/props/beach-flag.glb",
@@ -296,7 +296,7 @@
 		{
 			"url": "models/props/obstacle-full-snow.glb",
 			"group": "obstacles-snow",
-			"bytes": 9044
+			"bytes": 7660
 		},
 		{
 			"url": "models/props/pine-a.glb",
@@ -332,6 +332,76 @@
 			"url": "models/props/snow-lantern.glb",
 			"group": "snow",
 			"bytes": 7128
+		},
+		{
+			"url": "models/props/obstacle-low-space.glb",
+			"group": "obstacles-space",
+			"bytes": 3384
+		},
+		{
+			"url": "models/props/obstacle-high-space.glb",
+			"group": "obstacles-space",
+			"bytes": 6020
+		},
+		{
+			"url": "models/props/obstacle-full-space.glb",
+			"group": "obstacles-space",
+			"bytes": 2888
+		},
+		{
+			"url": "models/props/space-rock-a.glb",
+			"group": "space",
+			"bytes": 5044
+		},
+		{
+			"url": "models/props/space-crystal-a.glb",
+			"group": "space",
+			"bytes": 8488
+		},
+		{
+			"url": "models/props/space-crystal-b.glb",
+			"group": "space",
+			"bytes": 8444
+		},
+		{
+			"url": "models/props/space-crater.glb",
+			"group": "space",
+			"bytes": 3624
+		},
+		{
+			"url": "models/props/space-rover.glb",
+			"group": "space",
+			"bytes": 7088
+		},
+		{
+			"url": "models/props/space-dish.glb",
+			"group": "space",
+			"bytes": 6388
+		},
+		{
+			"url": "models/props/space-hangar.glb",
+			"group": "space",
+			"bytes": 6872
+		},
+		{
+			"url": "models/props/obstacle-move-city.glb",
+			"group": "obstacles",
+			"bytes": 21856
+		},
+		{
+			"url": "models/props/obstacle-move-beach.glb",
+			"group": "obstacles-beach",
+			"bytes": 9216
+		},
+		{
+			"url": "models/props/obstacle-move-snow.glb",
+			"group": "obstacles-snow",
+			"bytes": 8128
+		},
+		{
+			"url": "models/props/obstacle-move-space.glb",
+			"group": "obstacles-space",
+			"bytes": 8192
 		}
 	],
 	"particles": [
@@ -392,7 +462,8 @@
 		"audio/bgm-menu.ogg",
 		"audio/bgm-biome1.ogg",
 		"audio/bgm-biome2.ogg",
-		"audio/bgm-biome3.ogg"
+		"audio/bgm-biome3.ogg",
+		"audio/bgm-biome4.ogg"
 	],
 	"clipFallbacks": [
 		"robot.slide → run (nguồn không có clip này)",

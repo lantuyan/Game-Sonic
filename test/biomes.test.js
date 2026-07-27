@@ -1,12 +1,12 @@
 "use strict";
 
-// P1-2 — BIOME ② Bãi biển + ③ Núi tuyết.
+// P1-2 — BIOME ② Bãi biển + ③ Núi tuyết. P2-1 — BIOME ④ Không gian.
 //
 // Ba thứ ở đây hỏng âm thầm (không lỗi console, chỉ là game xấu/nặng đi), nên phải
 // canh bằng test:
 //   1. biome khai một URL không tồn tại → chặng mới chạy trên đường trống;
-//   2. quên loại biome ②/③ khỏi precache → lần cài đầu nặng thêm ~850KB nhạc cho
-//      hai chặng mà đa số học sinh chưa từng tới;
+//   2. quên loại biome ②/③/④ khỏi precache → lần cài đầu nặng thêm hàng MB cho
+//      những chặng mà đa số học sinh chưa từng tới;
 //   3. thêm lớp trang trí quá tay → thủng trần 100 draw call.
 
 var test = require("node:test");
@@ -19,23 +19,23 @@ var loadClientBundle = helpers.loadClientBundle;
 var rootDir = path.resolve(__dirname, "..");
 var publicDir = path.join(rootDir, "client", "public");
 
-test("có đủ 3 biome và vòng lặp chặng quay đúng vòng", async function () {
+test("có đủ 4 biome và vòng lặp chặng quay đúng vòng", async function () {
 	var mods = await loadClientBundle({ biomes: "fx/biomes.ts" });
 
-	assert.equal(mods.biomes.BIOMES.length, 3, "P1-2 phải có biome ①, ②, ③");
+	assert.equal(mods.biomes.BIOMES.length, 4, "P2-1 phải có biome ①, ②, ③, ④");
 	assert.deepEqual(
 		mods.biomes.BIOMES.map(function (biome) {
 			return biome.id;
 		}),
-		["city-park", "beach", "snow"]
+		["city-park", "beach", "snow", "space"]
 	);
 
 	assert.equal(mods.biomes.nextBiomeIndex(0), 1);
-	assert.equal(mods.biomes.nextBiomeIndex(2), 0, "hết biome ③ thì quay về ①");
+	assert.equal(mods.biomes.nextBiomeIndex(3), 0, "hết biome ④ thì quay về ①");
 
 	// Chỉ số âm/quá cỡ vẫn phải ra biome hợp lệ — boss chạy mãi không được ném lỗi.
-	assert.equal(mods.biomes.biomeAt(-1).id, "snow");
-	assert.equal(mods.biomes.biomeAt(7).id, "beach");
+	assert.equal(mods.biomes.biomeAt(-1).id, "space");
+	assert.equal(mods.biomes.biomeAt(7).id, "space");
 });
 
 test("MỌI file GLB/BGM biome khai báo đều tồn tại trong build", async function () {
@@ -78,16 +78,16 @@ test("mỗi biome ≤3MB và mỗi biome có BGM riêng (DoD P1-2)", async funct
 		bgmNames.push(biome.bgm);
 	});
 
-	assert.equal(new Set(bgmNames).size, 3, "mỗi biome phải có BGM riêng, không dùng chung");
+	assert.equal(new Set(bgmNames).size, 4, "mỗi biome phải có BGM riêng, không dùng chung");
 });
 
 test("draw call của biome nặng nhất vẫn dưới 100 (DoD P1-2)", async function () {
 	var mods = await loadClientBundle({ biomes: "fx/biomes.ts" });
 
 	mods.biomes.BIOMES.forEach(function (biome) {
-		// 3 lớp track (đường/vạch/nền) + trang trí + 3 loại chướng ngại + coin
-		// + player + 3 cổng + boss + trời.
-		var drawCalls = 3 + biome.decor.length + 3 + 1 + 1 + 3 + 1 + 1;
+		// 3 lớp track (đường/vạch/nền) + trang trí + 4 loại chướng ngại (P2-1 thêm
+		// lớp di động) + coin + player + 3 cổng + boss + trời.
+		var drawCalls = 3 + biome.decor.length + 4 + 1 + 1 + 3 + 1 + 1;
 
 		assert.ok(drawCalls < 100, biome.id + " ước tính " + drawCalls + " draw call");
 		assert.ok(
@@ -97,17 +97,31 @@ test("draw call của biome nặng nhất vẫn dưới 100 (DoD P1-2)", async f
 	});
 });
 
-test("mỗi biome khai đủ 3 loại chướng ngại đọc-được-ngay (plan §4.2)", async function () {
+test("mỗi biome khai đủ 3 loại chướng ngại đọc-được-ngay (plan §4.2) + 1 loại di động (P2-1)", async function () {
 	var mods = await loadClientBundle({ biomes: "fx/biomes.ts" });
+	var movingUrls = [];
 
 	mods.biomes.BIOMES.forEach(function (biome) {
 		assert.equal(typeof biome.obstacles.low, "string", biome.id + " thiếu chướng ngại thấp");
 		assert.equal(typeof biome.obstacles.high, "string", biome.id + " thiếu chướng ngại cao");
 		assert.equal(typeof biome.obstacles.full, "string", biome.id + " thiếu khối chặn làn");
+		assert.equal(typeof biome.obstacles.moving, "string", biome.id + " thiếu chướng ngại di động");
+		movingUrls.push(biome.obstacles.moving);
+	});
+
+	// Mỗi biome phải có MODEL RIÊNG cho vật di động: dùng lại thùng/rào của chính
+	// biome thì người chơi không phân biệt được "cái này đứng yên" với "cái này đang
+	// chạy", mà đó chính là tín hiệu duy nhất của cơ chế mới.
+	assert.equal(new Set(movingUrls).size, mods.biomes.BIOMES.length, "vật di động phải khác nhau theo biome");
+
+	mods.biomes.BIOMES.forEach(function (biome) {
+		[biome.obstacles.low, biome.obstacles.high, biome.obstacles.full].forEach(function (url) {
+			assert.notEqual(url, biome.obstacles.moving, biome.id + ": vật di động trùng model với vật đứng yên");
+		});
 	});
 });
 
-test("biome ②/③ KHÔNG nằm trong precache lúc cài, biome ① thì CÓ", async function () {
+test("biome ②/③/④ KHÔNG nằm trong precache lúc cài, biome ① thì CÓ", async function () {
 	var mods = await loadClientBundle({ biomes: "fx/biomes.ts" });
 	var viteConfig = fs.readFileSync(path.join(rootDir, "client", "vite.config.mts"), "utf8");
 	var ignoreBlock = viteConfig.match(/globIgnores:\s*\[([\s\S]*?)\]/);
@@ -149,8 +163,8 @@ test("biome ②/③ KHÔNG nằm trong precache lúc cài, biome ① thì CÓ", 
 		});
 	}
 
-	// Biome ② và ③: mọi asset phải bị loại khỏi precache.
-	[1, 2].forEach(function (index) {
+	// Biome ②, ③ và ④: mọi asset phải bị loại khỏi precache.
+	[1, 2, 3].forEach(function (index) {
 		var biome = mods.biomes.BIOMES[index];
 
 		mods.biomes.biomeAssetUrls(index).forEach(function (url) {
@@ -260,7 +274,7 @@ function readGlbBounds(filePath) {
 		});
 	});
 
-	return { width: max[0] - min[0], height: max[1] - min[1] };
+	return { width: max[0] - min[0], height: max[1] - min[1], depth: max[2] - min[2] };
 }
 
 test("chướng ngại MỌI biome ra cùng kích thước sau chuẩn hóa (P1-2)", async function () {
@@ -306,4 +320,94 @@ test("chướng ngại MỌI biome ra cùng kích thước sau chuẩn hóa (P1-
 			);
 		});
 	});
+});
+
+test("chướng ngại DI ĐỘNG mọi biome ra cùng chiều dài sau chuẩn hoá (P2-1)", async function () {
+	// Cùng cái bẫy KHR_mesh_quantization của P1-2, nhưng thêm một tầng: vật di động
+	// chuẩn hoá theo trục DÀI NHẤT (max của x và z) rồi xoay cho trục đó nằm ngang,
+	// vì mỗi kit dựng xe theo một hướng khác nhau (taxi dài theo z, pháo dài theo z,
+	// xe trượt tuyết dài theo z, tàu bay gần vuông).
+	var mods = await loadClientBundle({ biomes: "fx/biomes.ts", tuningModule: "tuning.ts" });
+	var spawn = mods.tuningModule.tuning.spawn;
+
+	mods.biomes.BIOMES.forEach(function (biome) {
+		var bounds = readGlbBounds(path.join(publicDir, biome.obstacles.moving));
+		var longest = Math.max(bounds.width, bounds.depth);
+
+		assert.ok(longest > 0 && bounds.height > 0, biome.id + ": không đọc được hộp bao vật di động");
+
+		var horizontal = spawn.movingLength / longest;
+
+		assert.ok(
+			Math.abs(longest * horizontal - spawn.movingLength) < 1e-6,
+			biome.id + ": vật di động dài " + (longest * horizontal).toFixed(3) + ", cần " + spawn.movingLength
+		);
+		assert.ok(
+			horizontal > 0.05 && horizontal < 20,
+			biome.id + ": vật di động phải phóng ×" + horizontal.toFixed(2) + " — nhiều khả năng chọn nhầm model"
+		);
+
+		// Sau khi chuẩn hoá, bề DÀY theo trục z không được vượt một khoảng làn: dải va
+		// chạm chỉ sâu 1.6 unit, vẽ dài hơn nữa là hình nói một đằng hitbox một nẻo.
+		var shortest = Math.min(bounds.width, bounds.depth);
+		var finalDepth = shortest * horizontal;
+
+		assert.ok(
+			finalDepth <= mods.tuningModule.tuning.world.laneOffsetX,
+			biome.id + ": vật di động dày " + finalDepth.toFixed(2) + " theo z — vẽ tràn ra ngoài dải va chạm"
+		);
+	});
+});
+
+/** Số mesh trong một GLB — đọc thẳng khối JSON, không cần giải nén meshopt. */
+function countMeshes(filePath) {
+	var buffer = fs.readFileSync(filePath);
+	var jsonLength = buffer.readUInt32LE(12);
+	var gltf = JSON.parse(buffer.subarray(20, 20 + jsonLength).toString("utf8"));
+
+	return (gltf.meshes || []).length;
+}
+
+test("MỌI model biome dùng chỉ có ĐÚNG MỘT mesh (P2-1)", async function () {
+	// Lỗi thật tìm ra khi làm P2-1: `Spawn`/`Track` dựng InstancedMesh từ mesh ĐẦU
+	// TIÊN trong GLB (`firstMesh`), nên model nhiều mesh mất lặng lẽ các phần còn
+	// lại — chiếc taxi ra thân không bánh, hộp quà của biome ③ mất dải ruy-băng, và
+	// chiếc thuyền của biome ② mất mái chèo. Không lỗi console, không cảnh báo.
+	// `assets-build.mjs` giờ gộp mesh (flatten + join); test này canh kết quả.
+	var mods = await loadClientBundle({ biomes: "fx/biomes.ts" });
+	var offenders = [];
+
+	mods.biomes.BIOMES.forEach(function (biome, index) {
+		mods.biomes.biomeAssetUrls(index).forEach(function (url) {
+			var count = countMeshes(path.join(publicDir, url));
+
+			if (count !== 1) {
+				offenders.push(biome.id + " → " + url + " (" + count + " mesh)");
+			}
+		});
+	});
+
+	// Coin dùng chung mọi biome, cũng đi qua đúng đường instancing đó.
+	if (countMeshes(path.join(publicDir, "models/props/coin.glb")) !== 1) {
+		offenders.push("coin.glb");
+	}
+
+	assert.deepEqual(offenders, [], "instancing chỉ lấy mesh đầu tiên — phần còn lại biến mất trong game");
+});
+
+test("vật di động phải cao BẰNG khối chặn — hình không được nói dối luật (P2-1)", async function () {
+	// Vật di động thuộc luật `full`: nhảy KHÔNG cứu được. Nếu vẽ nó thấp hơn khối
+	// chặn thì học sinh sẽ thử nhảy — và chết vì một tín hiệu sai của chính game.
+	var mods = await loadClientBundle({ tuningModule: "tuning.ts" });
+	var spawn = mods.tuningModule.tuning.spawn;
+
+	assert.ok(
+		spawn.movingHeight >= spawn.fullHeight,
+		"movingHeight " + spawn.movingHeight + " thấp hơn fullHeight " + spawn.fullHeight
+	);
+	assert.ok(spawn.movingLength > spawn.fullWidth, "vật di động phải DÀI hơn khối chặn để đọc ra là một chiếc xe");
+	assert.ok(
+		spawn.movingY >= 0 && spawn.movingY < spawn.movingHeight * 0.3,
+		"nâng quá cao thì trông như đang bay khỏi tầm va chạm"
+	);
 });

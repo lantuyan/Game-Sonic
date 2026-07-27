@@ -33,7 +33,7 @@ export type SfxName =
 	| "boss-defeat"
 	| "near-miss";
 
-export type BgmName = "bgm-menu" | "bgm-biome1" | "bgm-biome2" | "bgm-biome3";
+export type BgmName = "bgm-menu" | "bgm-biome1" | "bgm-biome2" | "bgm-biome3" | "bgm-biome4";
 
 /** Khoảng cách phát tối thiểu (ms) cho từng SFX — chống chồng tiếng. */
 const THROTTLE_MS: Partial<Record<SfxName, number>> = {

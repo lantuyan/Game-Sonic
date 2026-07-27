@@ -7,7 +7,8 @@
 // Thuần số học, không import three.
 
 import { tuning } from "@/tuning";
-import { hasEscapeLane, type ObstacleBand, type ObstacleKind } from "@/systems/Collision";
+import { bandLane, hasEscapeLane, type ObstacleBand, type ObstacleKind } from "@/systems/Collision";
+import { arrivalLane, laneOffsetAt, validateMotion, type MotionSpec } from "@/systems/movingObstacles";
 
 export interface PatternEvent {
 	/** 0 = trái, 1 = giữa, 2 = phải. */
@@ -15,18 +16,33 @@ export interface PatternEvent {
 	type: ObstacleKind;
 	/** Khoảng cách dọc tính từ đầu pattern (unit, càng lớn càng xa về phía trước). */
 	offset: number;
+	/**
+	 * P2-1 — khai báo chuyển động. Vắng mặt = vật đứng yên (mọi pattern P0).
+	 * `type` vẫn quyết định luật né; chỉ vị trí NGANG là thay đổi theo thời gian.
+	 */
+	motion?: MotionSpec;
 }
 
 export interface Pattern {
 	id: string;
-	/** 1 = dễ … 3 = khó. Dùng để rải "thung lũng nghỉ" sau cụm khó. */
+	/**
+	 * 1 = dễ … 3 = khó, 4 = "tổ hợp khó" (P2-1 — chỉ mở khi ván đã nóng, xem
+	 * `isPatternAllowed`). Từ bậc 3 trở lên còn kéo theo "thung lũng nghỉ" 5–8s.
+	 */
 	difficulty: number;
 	events: PatternEvent[];
 }
 
 export interface ValidationIssue {
 	patternId: string;
-	kind: "no-escape" | "reaction-too-short" | "empty" | "bad-lane" | "overlapping-lane-block";
+	kind:
+		| "no-escape"
+		| "reaction-too-short"
+		| "empty"
+		| "bad-lane"
+		| "overlapping-lane-block"
+		| "bad-motion"
+		| "moving-row-conflict";
 	detail: string;
 }
 
@@ -44,14 +60,24 @@ export function speedRangeUnitsPerSec(): number[] {
 	return speeds;
 }
 
-/** Chuyển pattern thành các dải va chạm để dùng lại đúng logic của Collision. */
+/**
+ * Chuyển pattern thành các dải va chạm để dùng lại đúng logic của Collision.
+ *
+ * Với chướng ngại di động, `laneOffset` lấy ở **z = 0** — tức làn lúc vật tới chỗ
+ * player. Đó là lát cắt duy nhất có ý nghĩa cho luật công bằng: vật và player trôi
+ * cùng vận tốc nên hiệu z giữa chúng không đổi, và trong quãng chồng nhau (≈1.6
+ * unit) thì với bước sóng 80 unit vị trí ngang chỉ đổi ~0.04 làn — dưới cả sai số
+ * hình vẽ.
+ */
 export function toBands(pattern: Pattern): ObstacleBand[] {
 	return pattern.events.map((event) => ({
 		lane: event.lane,
 		kind: event.type,
 		zStart: event.offset,
 		zEnd: event.offset + OBSTACLE_DEPTH,
-		consumed: false
+		consumed: false,
+		laneOffset: event.motion === undefined ? 0 : laneOffsetAt(event.motion, event.lane, 0),
+		moving: event.motion !== undefined
 	}));
 }
 
@@ -82,7 +108,55 @@ export function validatePattern(pattern: Pattern): ValidationIssue[] {
 		}
 	}
 
+	// Luật 4 (P2-1): khai báo chuyển động phải hợp lệ.
+	for (const event of pattern.events) {
+		if (event.motion === undefined) {
+			continue;
+		}
+
+		const problem = validateMotion(event.motion, event.lane);
+
+		if (problem !== null) {
+			issues.push({ patternId: pattern.id, kind: "bad-motion", detail: `làn ${event.lane}: ${problem}` });
+		}
+	}
+
 	const bands = toBands(pattern);
+
+	// Luật 5 (P2-1): trong CÙNG một hàng (cùng offset), chướng ngại di động không
+	// được tới nơi ngay trên đầu một vật đứng yên. Fairness thì luật 1 đã canh, đây
+	// là chuyện HÌNH ẢNH: hai model lồng vào nhau, và người chơi mất đúng cái tín
+	// hiệu "chỗ này còn trống" mà cả cơ chế dựa vào.
+	//
+	// Chỉ cần xét trong một hàng: mọi vật trôi cùng vận tốc với nhau nên hiệu z giữa
+	// hai hàng khác offset là hằng số — hai hàng không bao giờ gặp nhau.
+	for (let a = 0; a < pattern.events.length; a += 1) {
+		const moving = pattern.events[a];
+
+		if (moving === undefined || moving.motion === undefined) {
+			continue;
+		}
+
+		const landing = arrivalLane(moving.motion, moving.lane);
+
+		for (let b = 0; b < pattern.events.length; b += 1) {
+			const other = pattern.events[b];
+
+			if (other === undefined || b === a || other.offset !== moving.offset) {
+				continue;
+			}
+
+			const otherLane = other.motion === undefined ? other.lane : arrivalLane(other.motion, other.lane);
+
+			if (Math.abs(landing - otherLane) < 1) {
+				issues.push({
+					patternId: pattern.id,
+					kind: "moving-row-conflict",
+					detail: `vật di động tới làn ${landing.toFixed(2)}, chồng lên vật ở làn ${otherLane.toFixed(2)} cùng hàng`
+				});
+			}
+		}
+	}
 
 	// Luật 1 + 3: quét mọi mốc z mà tập chướng ngại thay đổi.
 	const checkpoints = new Set<number>();
@@ -104,7 +178,8 @@ export function validatePattern(pattern: Pattern): ValidationIssue[] {
 	}
 
 	for (let lane = 0; lane < 3; lane += 1) {
-		const laneBands = bands.filter((band) => band.lane === lane);
+		// Dùng làn THẬT (đã cộng lệch) để vật di động cũng bị soi chung một luật.
+		const laneBands = bands.filter((band) => Math.round(bandLane(band)) === lane);
 
 		for (let a = 0; a < laneBands.length; a += 1) {
 			for (let b = a + 1; b < laneBands.length; b += 1) {
@@ -169,4 +244,49 @@ export function validateAllPatterns(patterns: readonly Pattern[]): ValidationIss
 /** Độ dài chiếm chỗ của cả pattern theo trục z. */
 export function patternLength(pattern: Pattern): number {
 	return Math.max(...pattern.events.map((event) => event.offset)) + OBSTACLE_DEPTH;
+}
+
+/** Pattern có chứa chướng ngại di động không (P2-1). */
+export function hasMovingObstacle(pattern: Pattern): boolean {
+	return pattern.events.some((event) => event.motion !== undefined);
+}
+
+/**
+ * Trạng thái "ván đang khó tới đâu" — đầu vào để mở khoá pattern tổ hợp (P2-1).
+ * Thuần dữ liệu để test khỏi phải dựng cả RunScene.
+ */
+export interface RunIntensity {
+	/**
+	 * Hệ số ramp tốc độ hiện tại (`computeRampFactor`): 1.0 lúc bắt đầu, +0.05 mỗi
+	 * 30s. Dùng RAMP chứ không dùng tốc độ tuyệt đối vì tốc độ tuyệt đối phụ thuộc
+	 * `gameSpeed` của admin — lớp bị đặt 0.5 sẽ không bao giờ thấy pattern tổ hợp,
+	 * trong khi cái ta muốn đo là "em đã chạy được bao lâu rồi".
+	 */
+	rampFactor: number;
+	/** Đã qua bao nhiêu chặng boss (0 = còn ở chặng đầu). */
+	stageIndex: number;
+	/** Vừa mất tim → đang trong pha giảm mật độ. */
+	recovering: boolean;
+}
+
+/**
+ * Pattern này được phép xuất hiện lúc này không.
+ *
+ * Hai cửa, theo đúng thứ tự mức độ nghiêm ngặt:
+ *   1. vừa mất tim → chỉ pattern dễ nhất (luật cũ từ P0-6, nay gom về đây);
+ *   2. pattern tổ hợp (difficulty ≥ 4) → phải ván đã nóng.
+ */
+export function isPatternAllowed(pattern: Pattern, intensity: RunIntensity): boolean {
+	if (intensity.recovering === true && pattern.difficulty > 1) {
+		return false;
+	}
+
+	if (pattern.difficulty < tuning.spawn.comboDifficulty) {
+		return true;
+	}
+
+	return (
+		intensity.rampFactor >= tuning.spawn.comboUnlockRampFactor ||
+		intensity.stageIndex >= tuning.spawn.comboUnlockStageIndex
+	);
 }

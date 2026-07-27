@@ -26,6 +26,9 @@ export interface NearMissBand {
 	/** Khoảng hở nhỏ nhất đo được; Infinity = chưa từng đi ngang. */
 	nearMissMin: number;
 	nearMissAwarded: boolean;
+	/** P2-1 — lệch làn của chướng ngại di động (xem systems/movingObstacles.ts). */
+	laneOffset?: number;
+	moving?: boolean;
 }
 
 export interface NearMissPlayer {
@@ -39,9 +42,17 @@ export interface NearMissPlayer {
 	pose: PlayerPose;
 }
 
-/** Tâm làn theo trục x (giống `laneToX` của PlayerMotion, nhân bản để giữ file thuần). */
+/**
+ * Tâm làn theo trục x (giống `laneToX` của PlayerMotion, nhân bản để giữ file thuần).
+ * Nhận cả số thực: chướng ngại di động (P2-1) đứng giữa hai làn được.
+ */
 export function laneCenterX(lane: number): number {
 	return (lane - 1) * tuning.world.laneOffsetX;
+}
+
+/** Tâm ngang thật của một chướng ngại — đã cộng lệch làn nếu nó đang trôi. */
+function bandCenterX(band: NearMissBand): number {
+	return laneCenterX(band.lane + (band.laneOffset ?? 0));
 }
 
 /**
@@ -55,8 +66,9 @@ export function laneCenterX(lane: number): number {
  * khoảng cách DỌC còn lại.
  */
 export function nearMissClearance(player: NearMissPlayer, band: NearMissBand): number {
-	const lateral =
-		Math.abs(player.x - laneCenterX(band.lane)) - player.halfWidth - tuning.nearMiss.obstacleHalfWidth;
+	const obstacleHalfWidth =
+		band.moving === true ? tuning.nearMiss.movingHalfWidth : tuning.nearMiss.obstacleHalfWidth;
+	const lateral = Math.abs(player.x - bandCenterX(band)) - player.halfWidth - obstacleHalfWidth;
 
 	if (lateral > 0) {
 		return lateral;

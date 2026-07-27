@@ -136,6 +136,30 @@
 			"note": "P1-2 biome ③ Núi tuyết: cây thông, người tuyết, hộp quà."
 		},
 		{
+			"id": "kenney-car-kit",
+			"title": "Kenney — Car Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/car-kit",
+			"kind": "kenney-zip",
+			"slug": "car-kit",
+			"target": "kenney/car-kit",
+			"note": "P2-1 chướng ngại DI ĐỘNG của biome ① — đúng vai trò docs/v2/B1 §3 đã thẩm định cho bộ này (\"Chướng ngại di động theme Thành phố\"). Chỉ rút đúng 1 model."
+		},
+		{
+			"id": "kenney-space-kit",
+			"title": "Kenney — Space Kit",
+			"author": "Kenney",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kenney.nl/assets/space-kit",
+			"kind": "kenney-zip",
+			"slug": "space-kit",
+			"target": "kenney/space-kit",
+			"note": "P2-1 biome ④ Không gian. THAY cho Quaternius Ultimate Space Kit mà docs/v2/B1 gợi ý: bản Quaternius chỉ tải được qua Google Drive nên không script hoá được (cùng lý do đã ghi ở P0-3 cho bộ con vật). Cùng license CC0, có sẵn GLB."
+		},
+		{
 			"id": "kenney-platformer-kit",
 			"title": "Kenney — Platformer Kit",
 			"author": "Kenney",
@@ -258,6 +282,18 @@
 			"url": "https://opengameart.org/sites/default/files/Winter%20Dust_0.ogg",
 			"target": "audio/bgm-biome3.ogg",
 			"note": "P1-2 biome ③ — tên track đúng chất núi tuyết, cùng pack CC0."
+		},
+		{
+			"id": "oga-observing-the-star",
+			"title": "Another space background track — \"Observing The Star\"",
+			"author": "yd (OpenGameArt)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://opengameart.org/content/another-space-background-track",
+			"kind": "file",
+			"url": "https://opengameart.org/sites/default/files/ObservingTheStar.ogg",
+			"target": "audio/bgm-biome4.ogg",
+			"note": "P2-1 biome ④ — pack \"Short Loops\" của Tim Mortimer chỉ có đúng 4 track và cả 4 đã dùng hết (menu + biome ①②③), nên track thứ 5 phải lấy nguồn khác. Đã đọc trực tiếp trên trang OGA: License(s) = CC0."
 		},
 		{
 			"id": "font-baloo2",

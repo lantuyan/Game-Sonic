@@ -23,13 +23,20 @@ const OUTPUT_OWNERS = [
 	// `obstacle-full-` chung chung sẽ nuốt luôn `obstacle-full-beach.glb` và ghi sai
 	// nguồn vào hồ sơ bản quyền, đúng thứ mà file này sinh ra để tránh.
 	{
-		match: /^models\/props\/(obstacle-low-beach|obstacle-full-beach|palm-|rocks-sand-|beach-)/,
+		match: /^models\/props\/(obstacle-low-beach|obstacle-full-beach|obstacle-move-beach|palm-|rocks-sand-|beach-)/,
 		sourceId: "kenney-pirate-kit"
 	},
 	{
-		match: /^models\/props\/(obstacle-low-snow|obstacle-high-snow|obstacle-full-snow|pine-|snowman|snow-)/,
+		match: /^models\/props\/(obstacle-low-snow|obstacle-high-snow|obstacle-full-snow|obstacle-move-snow|pine-|snowman|snow-)/,
 		sourceId: "kenney-holiday-kit"
 	},
+	// P2-1 — biome ④ Không gian + chiếc tàu bay làm chướng ngại di động của nó.
+	{
+		match: /^models\/props\/(obstacle-(low|high|full|move)-space|space-)/,
+		sourceId: "kenney-space-kit"
+	},
+	// P2-1 — chướng ngại di động của biome ① (chiếc taxi băng ngang đường).
+	{ match: /^models\/props\/obstacle-move-city\.glb$/, sourceId: "kenney-car-kit" },
 	{
 		match: /^models\/props\/(coin|heart|star|obstacle-low-fence|obstacle-low-spikes|obstacle-full-crate|obstacle-full-barrel|grass|flowers|rocks\.glb|obstacle-high-sign)/,
 		sourceId: "kenney-platformer-kit"
@@ -46,7 +53,8 @@ const OUTPUT_OWNERS = [
 	{ match: /^audio\/bgm-menu\.ogg$/, sourceId: "oga-short-loops-menu" },
 	{ match: /^audio\/bgm-biome1\.ogg$/, sourceId: "oga-short-loops-run" },
 	{ match: /^audio\/bgm-biome2\.ogg$/, sourceId: "oga-short-loops-beach" },
-	{ match: /^audio\/bgm-biome3\.ogg$/, sourceId: "oga-short-loops-snow" }
+	{ match: /^audio\/bgm-biome3\.ogg$/, sourceId: "oga-short-loops-snow" },
+	{ match: /^audio\/bgm-biome4\.ogg$/, sourceId: "oga-observing-the-star" }
 ];
 
 const ROBOT_SOURCE = {

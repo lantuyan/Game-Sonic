@@ -19,7 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, EXTMeshoptCompression } from "@gltf-transform/extensions";
-import { dedup, meshopt, prune, resample, textureCompress, weld } from "@gltf-transform/functions";
+import { dedup, flatten, join, meshopt, prune, resample, textureCompress, weld } from "@gltf-transform/functions";
 import { MeshoptEncoder } from "meshoptimizer";
 import sharp from "sharp";
 
@@ -214,7 +214,38 @@ const PROPS = [
 	{ kit: "holiday-kit", file: "snowman.glb", as: "snowman.glb", group: "snow" },
 	{ kit: "holiday-kit", file: "snow-pile.glb", as: "snow-pile.glb", group: "snow" },
 	{ kit: "holiday-kit", file: "rocks-large.glb", as: "snow-rocks.glb", group: "snow" },
-	{ kit: "holiday-kit", file: "lantern.glb", as: "snow-lantern.glb", group: "snow" }
+	{ kit: "holiday-kit", file: "lantern.glb", as: "snow-lantern.glb", group: "snow" },
+
+	// --- P2-1 · biome ④ Không gian (Kenney Space Kit) ---
+	//
+	// Space Kit xuất GLB trong thư mục "GLTF format" (không phải "GLB format" như
+	// các kit khác) — giống Nature Kit, nên phải khai `format`.
+	//
+	// Chọn theo SILHOUETTE chứ không theo tên: `rail_middle` mỏng dẹt (x=1.00,
+	// z=0.05) nên đọc ra "rào thấp — nhảy qua"; `gate_simple` là khung cổng nên khi
+	// ép về 1.4×0.5 treo ở y=1.35 đọc ra "thanh chắn trên cao — trượt qua";
+	// `meteor` gần khối lập phương nên đọc ra "khối chặn — đổi làn".
+	{ kit: "space-kit", file: "rail_middle.glb", as: "obstacle-low-space.glb", group: "obstacles-space", format: "GLTF format" },
+	{ kit: "space-kit", file: "gate_simple.glb", as: "obstacle-high-space.glb", group: "obstacles-space", format: "GLTF format" },
+	{ kit: "space-kit", file: "meteor.glb", as: "obstacle-full-space.glb", group: "obstacles-space", format: "GLTF format" },
+	{ kit: "space-kit", file: "rock_largeA.glb", as: "space-rock-a.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "rock_crystalsLargeA.glb", as: "space-crystal-a.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "rock_crystalsLargeB.glb", as: "space-crystal-b.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "craterLarge.glb", as: "space-crater.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "rover.glb", as: "space-rover.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "satelliteDish_large.glb", as: "space-dish.glb", group: "space", format: "GLTF format" },
+	{ kit: "space-kit", file: "hangar_roundA.glb", as: "space-hangar.glb", group: "space", format: "GLTF format" },
+
+	// --- P2-1 · CHƯỚNG NGẠI DI ĐỘNG, mỗi biome một chiếc ---
+	//
+	// Cả bốn đều là VẬT DI CHUYỂN ĐƯỢC trong đời thật, nên khi nó trôi ngang qua các
+	// làn thì mắt đọc ra ngay "cái này đang chạy", không cần thêm mũi tên hay hiệu
+	// ứng nào. Đó cũng là lý do không dùng lại thùng/rào của chính biome: một cái
+	// thùng trôi ngang trông như lỗi đồ hoạ.
+	{ kit: "car-kit", file: "taxi.glb", as: "obstacle-move-city.glb", group: "obstacles" },
+	{ kit: "pirate-kit", file: "cannon-mobile.glb", as: "obstacle-move-beach.glb", group: "obstacles-beach" },
+	{ kit: "holiday-kit", file: "sled.glb", as: "obstacle-move-snow.glb", group: "obstacles-snow" },
+	{ kit: "space-kit", file: "craft_speederA.glb", as: "obstacle-move-space.glb", group: "obstacles-space", format: "GLTF format" }
 ];
 
 const PARTICLES = [
@@ -280,13 +311,13 @@ const SOUNDS = [
 ];
 
 /** BGM: copy nguyên, không nén lại (đã là .ogg từ nguồn CC0). */
-const BGM_TRACKS = ["bgm-menu.ogg", "bgm-biome1.ogg", "bgm-biome2.ogg", "bgm-biome3.ogg"];
+const BGM_TRACKS = ["bgm-menu.ogg", "bgm-biome1.ogg", "bgm-biome2.ogg", "bgm-biome3.ogg", "bgm-biome4.ogg"];
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
 	"meshopt.encoder": MeshoptEncoder
 });
 
-const report = { characters: [], props: [], fallbacks: [], sizes: {} };
+const report = { characters: [], props: [], fallbacks: [], multiMesh: [], sizes: {} };
 
 async function fileSize(filePath) {
 	const stats = await stat(filePath);
@@ -304,7 +335,25 @@ function formatKb(bytes) {
  * lượng tử hoá cả **track animation** (quaternion/exponential filter), chỗ chiếm
  * ~1.5MB trong bản Knight gốc — chỉ nén mesh thôi thì không tài nào đạt ngân sách.
  */
-async function optimizeDocument(document) {
+async function optimizeDocument(document, options = {}) {
+	if (options.joinMeshes === true) {
+		// P2-1 — GỘP prop nhiều mesh thành MỘT.
+		//
+		// Vì sao bắt buộc: `Spawn`/`Track` dựng InstancedMesh từ **mesh đầu tiên** tìm
+		// được trong GLB (`firstMesh`). Model nào có nhiều mesh thì các phần còn lại
+		// biến mất lặng lẽ — chiếc taxi của Kenney Car Kit là thân + 2 bánh nên sẽ ra
+		// một cái thân không bánh, còn hộp quà của Holiday Kit mất dải ruy-băng.
+		// Không có lỗi, không có cảnh báo, chỉ là thiếu.
+		//
+		// `flatten` nướng transform của node vào mesh, `join` gộp các primitive dùng
+		// CHUNG material — mọi kit Kenney đều dùng đúng một atlas `colormap` nên gộp
+		// được sạch. Chỉ áp cho props: nhân vật có skin/animation, gộp là hỏng rig.
+		// `keepNamed: false` là mấu chốt: mặc định gltf-transform GIỮ node/mesh có tên
+		// (để pipeline khác còn tham chiếu tới chúng), mà kit Kenney đặt tên cho mọi
+		// bộ phận — nên để mặc định thì không gộp được gì cả.
+		await document.transform(dedup(), flatten({ keepNamed: false }), join({ keepNamed: false, keepMeshes: false }));
+	}
+
 	await document.transform(
 		// resample() rút gọn keyframe thừa. Dung sai 0.0005 vẫn mượt mắt trên nhân vật
 		// cao ~1.75 unit nhưng bỏ được phần lớn keyframe trùng lặp của clip KayKit.
@@ -420,7 +469,17 @@ async function buildProps() {
 		const sourcePath = path.join(kenneyDir, prop.kit, "Models", format, prop.file);
 		const document = await io.read(sourcePath);
 
-		await optimizeDocument(document);
+		await optimizeDocument(document, { joinMeshes: true });
+
+		const meshCount = document.getRoot().listMeshes().length;
+
+		if (meshCount !== 1) {
+			// Không ném lỗi ở đây: vài model Kenney có ANIMATION (bẫy chông chẳng hạn) và
+			// `flatten` cố ý không nướng transform của node đang được animation điều khiển.
+			// Ràng buộc thật sự nằm ở `test/biomes.test.js`, chỗ kiểm đúng những prop mà
+			// biome CÓ dùng — prop chưa dùng thì nhiều mesh cũng không hại ai.
+			report.multiMesh.push(`${prop.as} (${meshCount} mesh)`);
+		}
 
 		const outputPath = path.join(outputDir, prop.as);
 		await io.write(outputPath, document);
@@ -546,6 +605,14 @@ async function main() {
 	report.sizes.audio = await buildAudio();
 	report.sizes.fonts = await buildFonts();
 	await writeAssetManifest();
+
+	if (report.multiMesh.length > 0) {
+		console.log("[assets:build] prop còn nhiều mesh sau khi gộp (instancing chỉ lấy mesh ĐẦU TIÊN):");
+
+		for (const line of report.multiMesh) {
+			console.log(`    · ${line}`);
+		}
+	}
 
 	if (report.fallbacks.length > 0) {
 		console.log("[assets:build] clip thiếu (đã fallback sang `run`):");

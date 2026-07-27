@@ -21,6 +21,13 @@ export interface GameEvents {
 	"quiz:telegraph": { questionText: string; secondsUntilStation: number };
 	"quiz:station-open": { questionId: string; mode: "gate" | "modal" };
 	"quiz:answered": { questionId: string; result: "correct" | "wrong" | "timeout"; mode: "gate" | "modal" };
+	/** Boss Gate (P1-1). */
+	"boss:intro": { stage: number; questionText: string };
+	"boss:resolved": { result: "correct" | "wrong" | "timeout"; livesLeft: number };
+	"boss:countdown": { secondsLeft: number };
+	"boss:closed": Record<string, never>;
+	"biome:changed": { index: number; label: string };
+	"nearmiss": { points: number; total: number };
 	"powerup:started": { kind: string; durationSec: number };
 	"powerup:ended": { kind: string };
 	"player:hit": { livesLeft: number };

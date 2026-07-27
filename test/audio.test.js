@@ -40,6 +40,7 @@ function createHowlerStub() {
 		this.options = options;
 		this.plays = 0;
 		this._volume = options.volume;
+		this._rate = 1;
 		this.fades = [];
 		this.stopped = false;
 		instances.push(this);
@@ -59,6 +60,16 @@ function createHowlerStub() {
 		}
 
 		this._volume = value;
+		return value;
+	};
+
+	/** P1-1: "nhạc căng" của Boss Gate là đổi rate, không phải tải track mới. */
+	FakeHowl.prototype.rate = function (value) {
+		if (value === undefined) {
+			return this._rate;
+		}
+
+		this._rate = value;
 		return value;
 	};
 
@@ -226,6 +237,40 @@ test("chưa có gesture nào thì hoãn BGM (chính sách autoplay iOS)", async 
 
 	assert.equal(stub.instances.length, before + 1, "sau gesture đầu tiên mới phát");
 	assert.equal(stub.instances[stub.instances.length - 1].plays, 1);
+
+	audio.dispose();
+});
+
+test("nhạc căng của Boss Gate = đổi rate BGM, KHÔNG tải track riêng (P1-1)", async function () {
+	var stub = createHowlerStub();
+	var module = await loadAudioManager(stub);
+	globalThis.performance = { now: function () { return 0; } };
+	globalThis.__listeners = {};
+
+	var audio = new module.AudioManager("/");
+	(globalThis.__listeners.pointerdown || []).forEach(function (listener) {
+		listener();
+	});
+
+	audio.playBgm("bgm-biome1");
+	var bgm = stub.instances[stub.instances.length - 1];
+	var howlCount = stub.instances.length;
+	assert.equal(bgm.rate(), 1);
+
+	audio.setBgmRate(1.18);
+	assert.ok(Math.abs(bgm.rate() - 1.18) < 1e-9, "boss phải dồn nhịp track đang phát");
+
+	// Không được sinh thêm Howl nào — đó chính là điểm tiết kiệm băng thông.
+	assert.equal(stub.instances.length, howlCount, "boss không được tải thêm track nào");
+
+	audio.setBgmRate(1);
+	assert.equal(bgm.rate(), 1, "hết boss phải trả nhịp về bình thường");
+
+	// Giá trị vô lý bị chặn để không bao giờ chia cho 0 / phát ngược.
+	audio.setBgmRate(0);
+	assert.equal(bgm.rate(), 1);
+	audio.setBgmRate(Number.NaN);
+	assert.equal(bgm.rate(), 1);
 
 	audio.dispose();
 });

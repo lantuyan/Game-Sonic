@@ -14,10 +14,16 @@ export class Hud {
 	private readonly livesElement: HTMLDivElement;
 	private readonly questionElement: HTMLDivElement;
 	private readonly toastElement: HTMLDivElement;
+	/** Banner giữa màn: "TRÙM CHẶN ĐƯỜNG!", đếm ngược 3-2-1, tên chặng mới (P1-1). */
+	private readonly bannerElement: HTMLDivElement;
+	/** Popup "SÁT NÚT! +10" — bay lên rồi tắt (P1-1). */
+	private readonly nearMissElement: HTMLDivElement;
 
 	private readonly lifeElements: HTMLSpanElement[] = [];
 	private readonly unsubscribes: Array<() => void> = [];
 	private toastTimer = 0;
+	private bannerTimer = 0;
+	private nearMissTimer = 0;
 
 	constructor(parent: HTMLElement, events: EventBus<GameEvents>) {
 		this.root = document.createElement("div");
@@ -61,8 +67,19 @@ export class Hud {
 		this.toastElement.hidden = true;
 		this.toastElement.setAttribute("role", "status");
 
+		this.bannerElement = document.createElement("div");
+		this.bannerElement.className = "hud__banner";
+		this.bannerElement.hidden = true;
+		this.bannerElement.setAttribute("role", "status");
+
+		this.nearMissElement = document.createElement("div");
+		this.nearMissElement.className = "hud__nearmiss";
+		this.nearMissElement.hidden = true;
+		// aria-hidden: đọc màn hình không cần hét "SÁT NÚT" mỗi lần lướt sát.
+		this.nearMissElement.setAttribute("aria-hidden", "true");
+
 		this.root.append(top, document.createElement("div"), this.questionElement);
-		parent.append(this.root, this.toastElement);
+		parent.append(this.root, this.toastElement, this.bannerElement, this.nearMissElement);
 
 		this.bind(events);
 	}
@@ -83,8 +100,48 @@ export class Hud {
 			}),
 			events.on("toast", ({ message, durationSec }) => {
 				this.showToast(message, durationSec);
+			}),
+			events.on("boss:intro", () => {
+				this.showBanner("TRÙM CHẶN ĐƯỜNG!", 2.4, "boss");
+			}),
+			events.on("boss:resolved", ({ result }) => {
+				this.showBanner(
+					result === "correct" ? "PHÁ KHIÊN! 🎉" : "Trùm chạy mất — em mất 1 tim",
+					2,
+					result === "correct" ? "win" : "lose"
+				);
+			}),
+			events.on("boss:countdown", ({ secondsLeft }) => {
+				this.showBanner(String(secondsLeft), 0.95, "countdown");
+			}),
+			events.on("biome:changed", ({ label }) => {
+				this.showToast(`Chặng mới: ${label}`, 3);
+			}),
+			events.on("nearmiss", ({ points }) => {
+				this.showNearMiss(points);
 			})
 		);
+	}
+
+	/** Banner giữa màn hình. `variant` chỉ đổi màu/cỡ chữ qua CSS. */
+	showBanner(text: string, durationSec: number, variant: "boss" | "win" | "lose" | "countdown"): void {
+		this.bannerElement.textContent = text;
+		this.bannerElement.dataset.variant = variant;
+		this.bannerElement.hidden = false;
+		this.bannerTimer = durationSec;
+		// Restart animation: bỏ rồi gắn lại class để 3-2-1 nảy từng số một.
+		this.bannerElement.classList.remove("is-pop");
+		void this.bannerElement.offsetWidth;
+		this.bannerElement.classList.add("is-pop");
+	}
+
+	showNearMiss(points: number): void {
+		this.nearMissElement.textContent = `SÁT NÚT! +${points}`;
+		this.nearMissElement.hidden = false;
+		this.nearMissTimer = 0.8;
+		this.nearMissElement.classList.remove("is-pop");
+		void this.nearMissElement.offsetWidth;
+		this.nearMissElement.classList.add("is-pop");
 	}
 
 	private setLives(lives: number): void {
@@ -109,14 +166,28 @@ export class Hud {
 	}
 
 	update(deltaSec: number): void {
-		if (this.toastTimer <= 0) {
-			return;
+		if (this.toastTimer > 0) {
+			this.toastTimer -= deltaSec;
+
+			if (this.toastTimer <= 0) {
+				this.toastElement.hidden = true;
+			}
 		}
 
-		this.toastTimer -= deltaSec;
+		if (this.bannerTimer > 0) {
+			this.bannerTimer -= deltaSec;
 
-		if (this.toastTimer <= 0) {
-			this.toastElement.hidden = true;
+			if (this.bannerTimer <= 0) {
+				this.bannerElement.hidden = true;
+			}
+		}
+
+		if (this.nearMissTimer > 0) {
+			this.nearMissTimer -= deltaSec;
+
+			if (this.nearMissTimer <= 0) {
+				this.nearMissElement.hidden = true;
+			}
 		}
 	}
 
@@ -128,5 +199,7 @@ export class Hud {
 		this.unsubscribes.length = 0;
 		this.root.remove();
 		this.toastElement.remove();
+		this.bannerElement.remove();
+		this.nearMissElement.remove();
 	}
 }

@@ -188,7 +188,12 @@ const SOUNDS = [
 	{ as: "hit.ogg", kit: "impact-sounds", file: "Audio/impactGeneric_light_002.ogg" },
 	{ as: "land.ogg", kit: "impact-sounds", file: "Audio/footstep_concrete_003.ogg" },
 	{ as: "jump.ogg", kit: "digital-audio", file: "Audio/highUp.ogg" },
-	{ as: "gate-bell.ogg", kit: "impact-sounds", file: "Audio/impactBell_heavy_001.ogg" }
+	{ as: "gate-bell.ogg", kit: "impact-sounds", file: "Audio/impactBell_heavy_001.ogg" },
+	// P1-1 — Boss Gate + near-miss. Không tải bộ kit mới: 3 tiếng này lấy từ đúng
+	// 2 kit Kenney đã có trong ngân sách P0.
+	{ as: "boss-appear.ogg", kit: "digital-audio", file: "Audio/lowThreeTone.ogg" },
+	{ as: "boss-defeat.ogg", kit: "music-jingles", file: "Audio/8-Bit jingles/jingles_NES02.ogg" },
+	{ as: "near-miss.ogg", kit: "digital-audio", file: "Audio/phaseJump1.ogg" }
 ];
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({

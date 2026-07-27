@@ -27,7 +27,11 @@ export type SfxName =
 	| "hit"
 	| "land"
 	| "jump"
-	| "gate-bell";
+	| "gate-bell"
+	// P1-1 — Boss Gate + near-miss.
+	| "boss-appear"
+	| "boss-defeat"
+	| "near-miss";
 
 export type BgmName = "bgm-menu" | "bgm-biome1";
 
@@ -36,7 +40,10 @@ const THROTTLE_MS: Partial<Record<SfxName, number>> = {
 	coin: 60,
 	land: 120,
 	jump: 120,
-	hit: 200
+	hit: 200,
+	// Cụm 2 chướng ngại sát nhau cho 2 near-miss trong cùng frame — throttle để
+	// không nghe thành một tiếng "xoẹt" méo.
+	"near-miss": 260
 };
 
 const DEFAULT_THROTTLE_MS = 40;
@@ -52,6 +59,7 @@ export class AudioManager {
 	private musicVolume: number;
 	private sfxVolume: number;
 	private ducked = false;
+	private bgmRate = 1;
 	private unlocked = false;
 	private currentBgm: BgmName | null = null;
 	private pendingBgm: BgmName | null = null;
@@ -151,6 +159,7 @@ export class AudioManager {
 		}
 
 		howl.volume(this.effectiveMusicVolume);
+		howl.rate(this.bgmRate);
 		howl.play();
 		this.currentBgm = name;
 	}
@@ -186,6 +195,23 @@ export class AudioManager {
 
 	get isDucked(): boolean {
 		return this.ducked;
+	}
+
+	/**
+	 * "Nhạc căng" của Boss Gate (P1-1) = tăng nhịp BGM đang phát.
+	 *
+	 * Không tải track boss riêng: ~250KB cho khoảng 10 giây mỗi 3 phút là món hời
+	 * tệ trong ngân sách 10MB, còn nâng rate cho đúng cảm giác dồn dập và tốn 0 KB.
+	 * Gọi `setBgmRate(1)` để trả lại bình thường.
+	 */
+	setBgmRate(rate: number): void {
+		this.bgmRate = Number.isFinite(rate) === true && rate > 0 ? rate : 1;
+
+		if (this.currentBgm === null) {
+			return;
+		}
+
+		this.bgm.get(this.currentBgm)?.rate(this.bgmRate);
 	}
 
 	setMusicVolume(volume: number): void {
@@ -259,5 +285,8 @@ export const RUN_SFX: readonly SfxName[] = [
 	"fever",
 	"game-over",
 	"new-record",
-	"countdown"
+	"countdown",
+	"boss-appear",
+	"boss-defeat",
+	"near-miss"
 ];

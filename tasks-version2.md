@@ -282,9 +282,15 @@ Chi tiết: [`docs/v2/P0-ACCEPTANCE.md`](docs/v2/P0-ACCEPTANCE.md).
 
 > Bắt đầu sau nghiệm thu P0. Backend (P1-4, P1-6, P1-7) chạy song song với client (P1-1, P1-2, P1-3, P1-5, P1-8).
 
-### [ ] P1-1 · Boss Gate trọn gói + near-miss — *3 ngày*
+### [x] P1-1 · Boss Gate trọn gói + near-miss — *3 ngày*
 Chặng ~2.5–3 phút → trùm chặn đường (model Quaternius theo biome): cắt cảnh vào (camera dolly, nhạc căng), modal câu `hard/expert` (bốc `targetDifficultyIndex+0.5..1` qua bridge), đúng → phá khiên + mưa coin + **chuyển biome**; sai/timeout → mất 1 tim, trùm bỏ chạy, vẫn sang chặng. Countdown khi quay lại. Cờ tắt boss trong tuning. Kèm: **near-miss** — lướt sát chướng ngại <0.4 unit: +10 điểm + "SÁT NÚT!" + tiếng gió (plan §4.4).
 **DoD:** chu trình 2 chặng liên tiếp mượt; sai ở boss trừ đúng 1 tim; số liệu markQuestionResult vẫn đủ; near-miss không kích hoạt nhầm khi va chạm thật.
+**Đã làm (nhánh `v2/p1-01-boss-gate`):** `systems/BossGate.ts` (máy trạng thái) + `systems/bossRules.ts` (bốc câu `target+0.5..1`, sàn `hard`) + `systems/NearMiss.ts` + `entities/BossVisual.ts` + `fx/biomes.ts`. 26 test mới (`test/boss.test.js`, `test/nearmiss.test.js`).
+**Khác thiết kế gợi ý — ghi rõ để không ai tưởng là bỏ sót:**
+· model trùm dùng lại `robot.glb` (đã trong ngân sách P0) thay vì tải bộ Quaternius — mỗi biome sẽ đổi MÀU KHIÊN ở P1-2;
+· "nhạc căng" là tăng rate BGM đang phát, không tải track boss riêng (tiết kiệm ~250KB cho ~10s mỗi 3 phút);
+· dừng thế giới lúc modal boss bằng phanh riêng `worldSpeedFactor`, KHÔNG dùng `engine.timeScale = 0` (timeScale 0 làm accumulator không bao giờ đầy ⇒ `update()` chết ⇒ modal treo vĩnh viễn).
+**Chưa nghiệm thu được ở môi trường này:** xem cắt cảnh chạy thật (rAF bị treo ~1 fps trong sandbox — đúng hạn chế đã ghi ở P0-13). Máy thật: mở `/?debug`, boss tới sau 8 giây.
 
 ### [ ] P1-2 · Biome ② Bãi biển + ③ Núi tuyết — *4 ngày*
 Kenney Pirate Kit / Holiday Kit qua pipeline P0-3 (+LICENSE cập nhật); mỗi biome: bảng màu sky/fog riêng, 2–3 props chướng ngại đặc trưng, BGM riêng; lazy-load GLB khi sắp chuyển chặng (P1-1), precache SW sau ván đầu.

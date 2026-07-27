@@ -14,6 +14,7 @@ import { applyCurvedWorld } from "@/fx/CurvedWorld";
 import { createSeededRandom, randomRange, type SeededRandom } from "@/core/random";
 import { OBSTACLE_DEPTH, patternLength, type Pattern } from "@/systems/patternRules";
 import type { ObstacleBand, ObstacleKind } from "@/systems/Collision";
+import { resetNearMiss, type NearMissBand } from "@/systems/NearMiss";
 import { laneToX } from "@/entities/PlayerMotion";
 
 export interface CoinSlot {
@@ -26,7 +27,7 @@ export interface CoinSlot {
 	attracted: boolean;
 }
 
-export interface ObstacleSlot extends ObstacleBand {
+export interface ObstacleSlot extends ObstacleBand, NearMissBand {
 	active: boolean;
 	/** Chỉ số InstancedMesh theo loại. */
 	instanceIndex: number;
@@ -99,7 +100,9 @@ export class Spawn {
 				kind: "full",
 				zStart: 0,
 				zEnd: 0,
-				consumed: false
+				consumed: false,
+				nearMissMin: Number.POSITIVE_INFINITY,
+				nearMissAwarded: false
 			});
 		}
 
@@ -143,6 +146,7 @@ export class Spawn {
 		for (const obstacle of this.obstacles) {
 			obstacle.active = false;
 			obstacle.consumed = false;
+			resetNearMiss(obstacle);
 		}
 
 		for (const coin of this.coins) {
@@ -178,6 +182,36 @@ export class Spawn {
 				// Chỉ cần tắt cờ: writeMatrices() nén lại chỉ số mỗi frame nên slot
 				// vừa tắt tự biến mất khỏi dải instance đang vẽ.
 				obstacle.active = false;
+			}
+		}
+	}
+
+	/**
+	 * Mưa coin thưởng khi hạ được trùm (P1-1).
+	 *
+	 * Rải trên CẢ 3 LÀN ngay trước mặt để người chơi nhặt được kha khá mà không phải
+	 * lạng lách — đây là lúc ăn mừng, không phải lúc thử phản xạ. Dùng đúng pool coin
+	 * sẵn có nên không thêm draw call nào.
+	 */
+	coinRain(count: number): void {
+		const startZ = -18;
+		let placed = 0;
+
+		for (let step = 0; placed < count && step < count; step += 1) {
+			for (let lane = 0; lane < 3 && placed < count; lane += 1) {
+				const slot = this.takeCoin();
+
+				if (slot === null) {
+					return;
+				}
+
+				slot.active = true;
+				slot.attracted = false;
+				slot.lane = lane;
+				slot.x = laneToX(lane);
+				slot.y = 0.7 + Math.sin(step * 0.8) * 0.35;
+				slot.z = startZ - step * tuning.spawn.coinSpacing;
+				placed += 1;
 			}
 		}
 	}
@@ -218,6 +252,7 @@ export class Spawn {
 
 			slot.active = true;
 			slot.consumed = false;
+			resetNearMiss(slot);
 			slot.lane = event.lane;
 			slot.kind = event.type;
 			slot.zStart = baseZ - event.offset - OBSTACLE_DEPTH;
@@ -290,6 +325,7 @@ export class Spawn {
 			if (obstacle.zStart > tuning.world.recycleZ) {
 				obstacle.active = false;
 				obstacle.consumed = false;
+				resetNearMiss(obstacle);
 			}
 		}
 

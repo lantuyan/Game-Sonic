@@ -60,7 +60,7 @@ export class Track {
 	private readonly laneLineMesh: InstancedMesh;
 	private readonly groundMesh: Mesh;
 	private readonly decorLayers: DecorLayer[] = [];
-	private readonly palette: BiomePalette;
+	private palette: BiomePalette;
 	private readonly random: SeededRandom;
 
 	// Bộ đệm dùng lại — tránh cấp phát trong vòng lặp.
@@ -140,6 +140,29 @@ export class Track {
 		this.group.add(this.groundMesh);
 
 		this.layoutChunks();
+	}
+
+	/**
+	 * Đổi bảng màu khi chuyển chặng (Boss Gate — P1-1).
+	 *
+	 * Chỉ ghi lại `color` của 3 material sẵn có, KHÔNG dựng lại geometry: đổi chặng
+	 * giữa ván phải dưới 100ms (DoD P1-2), mà tạo lại InstancedMesh thì chắc chắn khựng.
+	 */
+	setPalette(palette: BiomePalette): void {
+		this.palette = palette;
+
+		const road = this.roadMesh.material as MeshStandardMaterial;
+		const line = this.laneLineMesh.material as MeshStandardMaterial;
+		const ground = this.groundMesh.material as MeshStandardMaterial;
+
+		road.color.set(palette.road);
+		line.color.set(palette.roadLine);
+		line.emissive.set(palette.roadLine);
+		ground.color.set(palette.ground);
+	}
+
+	get currentPalette(): BiomePalette {
+		return this.palette;
 	}
 
 	private layoutChunks(): void {

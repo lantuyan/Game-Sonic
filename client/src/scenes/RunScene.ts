@@ -22,6 +22,15 @@ import { QuizGateController } from "@/systems/QuizGate";
 import { BossGateController, type BossOutcome } from "@/systems/BossGate";
 import { pickBossDifficultyIndex, pickBossQuestion } from "@/systems/bossRules";
 import { NearMissTracker } from "@/systems/NearMiss";
+import {
+	earnsShield,
+	LearningStatsRecorder,
+	MicroDda,
+	offerRevival,
+	pickRevivalQuestion
+} from "@/systems/learningRules";
+import { Unlocks } from "@/systems/Unlocks";
+import { loadWallet } from "@/core/SaveData";
 import { BossVisual } from "@/entities/BossVisual";
 import { QuizGateVisual, GATE_TRIGGER_HALF_DEPTH, gateSpawnZ } from "@/entities/QuizGateVisual";
 import { buildGateLayout, SessionStatsRecorder, type GateLayout, type QuizMode } from "@/systems/quizRules";
@@ -89,6 +98,18 @@ export class RunScene implements GameScene {
 	/** Phanh thế giới của boss: 1 = chạy bình thường, 0 = đứng im. */
 	private worldSpeedFactor = 1;
 
+	// --- Học tập nâng cao (P1-5) ---
+	private readonly dda = new MicroDda();
+	private readonly learning = new LearningStatsRecorder();
+	private readonly unlocks = new Unlocks();
+	/** Luyện tập: không tim, không điểm, không BXH — chỉ cổng và đề (plan §4.6). */
+	private readonly practiceMode: boolean;
+	/** Đang hỏi câu hồi sinh: modal đang mở, thế giới đứng im. */
+	private revivalPending = false;
+	private revivalQuestion: LegacyQuestion | null = null;
+	private revivalTimerSec = 0;
+	private revivalCost = 0;
+
 	// --- Streak / Fever / Power-up (P0-8) ---
 	private readonly combo = new Combo();
 	private readonly powerups = new Powerups();
@@ -110,8 +131,13 @@ export class RunScene implements GameScene {
 	private cameraX = 0;
 	private previousCameraX = 0;
 
-	constructor(level = "lop6") {
+	constructor(level = "lop6", options: { practice?: boolean } = {}) {
 		this.level = level;
+		this.practiceMode = options.practice === true;
+	}
+
+	get isPractice(): boolean {
+		return this.practiceMode;
 	}
 
 	/** Số câu đúng/tổng của ván — S8 hiển thị. */
@@ -161,11 +187,16 @@ export class RunScene implements GameScene {
 		this.powerups.reset();
 		this.bindComboEvents(context);
 		this.scheduleNextPowerup();
-		this.hud = new Hud(context.uiRoot, context.events);
+		this.hud = new Hud(context.uiRoot, context.events, { practice: this.practiceMode });
 		this.modal = new QuizModal(context.uiRoot, {
 			onAnswer: (answerKey) => {
-				// Cùng một modal phục vụ cả cổng mềm lẫn Boss Gate — boss được ưu tiên
-				// vì khi boss đang hỏi thì cổng Toán chắc chắn đang idle.
+				// Ba thứ dùng chung một modal. Thứ tự ưu tiên theo mức độ khẩn:
+				// hồi sinh (đang chết) > boss (đang bị chặn) > cổng mềm.
+				if (this.revivalPending === true) {
+					this.resolveRevival(answerKey);
+					return;
+				}
+
 				if (this.boss !== null && this.boss.currentPhase === "question") {
 					this.boss.answer(answerKey, performance.now());
 					return;
@@ -200,13 +231,20 @@ export class RunScene implements GameScene {
 			const baseQueue = await bridge.buildQuestionQueue(this.level, bundle.questions);
 			this.allQuestions = bundle.questions;
 			// Trộn câu sai của các ván trước vào ĐẦU hàng đợi (queue pop từ cuối).
-			const queue = this.reviewQueue.mixIntoQueue(this.level, baseQueue, bundle.questions);
+			const mixedQueue = this.reviewQueue.mixIntoQueue(this.level, baseQueue, bundle.questions);
+			// LUYỆN TẬP (P1-5): câu đã sai lên TRƯỚC — đó chính là lý do em bấm vào đây.
+			const queue = this.practiceMode === true ? this.orderForPractice(mixedQueue) : mixedQueue;
 			this.wrongThisRun.length = 0;
 
 			this.levelQuizMode = bundle.quizMode ?? "gate";
 			this.speed.start({ gameSpeed: bundle.gameSpeed, adaptiveFactor });
 
+			this.dda.reset();
+			this.learning.reset();
 			this.quiz = new QuizGateController(this.buildQuizCallbacks(context));
+			// P1-5: nhịp cổng bám accuracy NGAY TRONG VÁN.
+			this.quiz.setAccuracyProvider(() => this.learning.accuracy);
+			this.quiz.setDifficultyShiftProvider(() => this.dda.shift);
 			this.quiz.start(queue, { avgAnswerMs, levelQuizMode: this.levelQuizMode });
 			this.session.start(performance.now());
 			this.usedQuestionIds.clear();
@@ -411,6 +449,21 @@ export class RunScene implements GameScene {
 		}
 	}
 
+	/**
+	 * Sắp lại hàng đợi cho chế độ Luyện tập: câu đang nằm trong hàng đợi ôn tập
+	 * xuống CUỐI mảng (game pop từ cuối ⇒ gặp trước), phần còn lại giữ thứ tự cũ.
+	 */
+	private orderForPractice(queue: LegacyQuestion[]): LegacyQuestion[] {
+		const review: LegacyQuestion[] = [];
+		const others: LegacyQuestion[] = [];
+
+		for (const question of queue) {
+			(this.reviewQueue.has(question.id) === true ? review : others).push(question);
+		}
+
+		return [...others, ...review];
+	}
+
 	private buildQuizCallbacks(context: GameContext) {
 		return {
 			onTelegraph: (question: LegacyQuestion): void => {
@@ -491,11 +544,28 @@ export class RunScene implements GameScene {
 			answeredMs: quiz?.answerElapsedMs ?? 0,
 			selectedAnswer: selected
 		});
+		// P1-5 — micro-DDA + số liệu cho hồ sơ kỹ năng. Timeout tính như sai: cả hai
+		// đều nghĩa là "em chưa làm được câu này".
+		this.learning.record(mode, outcome === "correct", quiz?.answerElapsedMs ?? 0);
+
+		if (outcome === "correct") {
+			this.dda.registerCorrect();
+		} else {
+			this.dda.registerWrong();
+		}
 
 		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode });
 
 		if (outcome === "correct") {
 			this.audio.play("answer-correct");
+
+			// P1-5: đúng câu hard/expert được tặng Khiên — phần thưởng cho việc dám
+			// làm câu khó, và đúng lúc cần nhất vì câu khó hay rơi vào lúc tốc độ cao.
+			if (earnsShield(question, true) === true) {
+				this.powerups.collect("shield");
+				context.events.emit("toast", { message: "Câu khó! Em được tặng Khiên 🛡️", durationSec: 2.5 });
+			}
+
 			this.reviewQueue.recordCorrect(question.id, Date.now());
 			this.combo.registerCorrect();
 			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
@@ -607,7 +677,7 @@ export class RunScene implements GameScene {
 			return;
 		}
 
-		const kinds: PowerupKind[] = ["magnet", "shield", "doublePoints"];
+		const kinds: PowerupKind[] = ["magnet", "shield", "doublePoints", "speedBoost"];
 		this.pendingPowerup = kinds[Math.floor(this.quizRandom() * kinds.length)] ?? "magnet";
 		this.pendingPowerupZ = -tuning.world.fogNear;
 		this.scheduleNextPowerup();
@@ -786,7 +856,17 @@ export class RunScene implements GameScene {
 	 * `worldSpeedFactor` là phanh riêng của Boss Gate (P1-1) — xem `updateBoss`.
 	 */
 	get speedUnitsPerSec(): number {
-		return this.speedFactor * tuning.speed.unitsPerSecondAtOne * this.worldSpeedFactor;
+		// Luyện tập chạy chậm hơn (plan §4.6): mục tiêu là đọc kịp đề, không phải
+		// luyện phản xạ. Tăng tốc (P1-5) nhân thêm trong 6 giây.
+		const practiceFactor = this.practiceMode === true ? tuning.learning.practiceSpeedFactor : 1;
+
+		return (
+			this.speedFactor *
+			tuning.speed.unitsPerSecondAtOne *
+			this.worldSpeedFactor *
+			practiceFactor *
+			this.powerups.speedMultiplier
+		);
 	}
 
 	get distanceM(): number {
@@ -809,6 +889,7 @@ export class RunScene implements GameScene {
 		this.player?.update(deltaSec, this.speedFactor);
 
 		this.score.setDistance(this.track.distanceM);
+		this.updateRevival(deltaSec);
 		this.updateQuiz(deltaSec, advance);
 		this.updateBoss(deltaSec);
 		this.updatePowerups(deltaSec, advance);
@@ -910,6 +991,25 @@ export class RunScene implements GameScene {
 		return 1;
 	}
 
+	/**
+	 * Đồng hồ câu hồi sinh (P1-5). Dùng phanh `worldSpeedFactor` giống boss chứ
+	 * KHÔNG dùng `engine.timeScale = 0` — timeScale 0 làm chính đồng hồ này đứng.
+	 */
+	private updateRevival(deltaSec: number): void {
+		if (this.revivalPending === false) {
+			// Thế giới trở lại bình thường (trừ khi boss đang phanh).
+			return;
+		}
+
+		this.worldSpeedFactor = 0;
+		this.revivalTimerSec -= deltaSec;
+
+		if (this.revivalTimerSec <= 0) {
+			this.worldSpeedFactor = 1;
+			this.resolveRevival(null);
+		}
+	}
+
 	/** Near-miss (P1-1). Chạy SAU `checkCollisions` để cờ `consumed` đã đúng frame này. */
 	private checkNearMiss(): void {
 		const player = this.player;
@@ -988,12 +1088,28 @@ export class RunScene implements GameScene {
 		const nowMs = performance.now();
 		const snapshot = this.score.snapshot();
 
+		// LUYỆN TẬP (P1-5): không điểm, không bảng xếp hạng — nhưng VẪN cập nhật hồ sơ
+		// kỹ năng, vì em vẫn đang học thật và AI vẫn cần biết em làm được gì.
+		if (this.practiceMode === true) {
+			try {
+				await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
+				void bridge.syncLearningStats(this.level, this.learning.snapshot());
+			} catch (error) {
+				console.warn("[RunScene] không cập nhật được hồ sơ kỹ năng:", error);
+			}
+
+			context.events.emit("game:over", { score: 0, coins: 0 });
+			return;
+		}
+
 		// Ván đã xong, băng thông rảnh: bơm biome chưa có vào cache để ván sau chơi
 		// offline được trọn 3 chặng (P1-2).
 		warmBiomeCache(BIOMES.flatMap((_biome, index) => biomeAssetUrls(index)));
 
 		try {
 			await bridge.updateSkillProfileAfterGame(this.level, this.session.toSessionStats(nowMs));
+			// P1-5 — gateAnswerMs + modeStats đi kèm hồ sơ kỹ năng (JSONB, không migration).
+			void bridge.syncLearningStats(this.level, this.learning.snapshot());
 			const result = await bridge.submitScore(this.level, {
 				...this.session.toScoreStats(snapshot.total, nowMs),
 				...(this.runTicket !== null ? { runId: this.runTicket.runId, token: this.runTicket.token } : {})
@@ -1015,6 +1131,98 @@ export class RunScene implements GameScene {
 			return;
 		}
 
+		// P1-5 — trước khi kết thúc: mời một câu hồi sinh. Luyện tập thì không có
+		// tim nên không bao giờ tới đây.
+		if (this.practiceMode === false && this.offerRevivalQuestion(context) === true) {
+			return;
+		}
+
+		this.finishRun(context);
+	}
+
+	/**
+	 * Mời câu hồi sinh (P1-5): hết tim → một câu `easy` trong 10s.
+	 * Đúng → sống lại + 3s bất tử; sai/hết giờ → kết thúc ván như bình thường.
+	 * Trả về true khi đã mở lời mời (ván tạm chưa kết thúc).
+	 */
+	private offerRevivalQuestion(context: GameContext): boolean {
+		if (this.revivalPending === true) {
+			return false;
+		}
+
+		this.unlocks.reload();
+		const offer = offerRevival(this.unlocks.revivalUsedToday(), loadWallet().coins);
+
+		if (offer.kind === "unavailable") {
+			return false;
+		}
+
+		const question = pickRevivalQuestion(this.allQuestions, this.quizRandom, this.usedQuestionIds);
+
+		if (question === null) {
+			return false;
+		}
+
+		// Trừ coin NGAY khi mở lời mời, không phải khi trả lời đúng: nếu chỉ trừ khi
+		// đúng thì người chơi được xem đề miễn phí rồi mới quyết định.
+		if (offer.kind === "paid" && this.unlocks.consumeRevival(offer.coins) === false) {
+			return false;
+		}
+
+		if (offer.kind === "free") {
+			this.unlocks.consumeRevival(0);
+		}
+
+		this.revivalPending = true;
+		this.revivalQuestion = question;
+		this.revivalCost = offer.kind === "paid" ? offer.coins : 0;
+		this.revivalTimerSec = tuning.learning.revivalQuestionSec;
+		this.usedQuestionIds.add(question.id);
+
+		this.hideGates();
+		this.modal?.show(question, tuning.learning.revivalQuestionSec, true);
+		context.events.emit("toast", {
+			message: offer.kind === "free" ? "Trả lời đúng để chơi tiếp!" : `Đã dùng ${offer.coins} xu để hồi sinh`,
+			durationSec: 2.5
+		});
+
+		return true;
+	}
+
+	/** Người chơi trả lời câu hồi sinh (hoặc hết 10s → `answerKey` là null). */
+	private resolveRevival(answerKey: string | null): void {
+		const question = this.revivalQuestion;
+		const context = this.context;
+
+		this.revivalPending = false;
+		this.revivalQuestion = null;
+		this.modal?.hide();
+
+		if (question === null || context === null) {
+			return;
+		}
+
+		const correct = answerKey !== null && answerKey === question.correctAnswer;
+		void bridge.markQuestionResult(this.level, question.id, correct ? "correct" : "wrong");
+
+		if (correct === false) {
+			// Sai thì kết thúc thật. `revivalPending` đã false nên không mời lại vòng nữa.
+			this.worldSpeedFactor = 1;
+			this.finishRun(context);
+			return;
+		}
+
+		this.worldSpeedFactor = 1;
+		this.audio.play("answer-correct");
+		this.lives.revive();
+		this.lives.grantInvincibility(tuning.learning.revivalInvincibleSec);
+		this.spawn?.clearRange(-60, tuning.world.recycleZ);
+		context.events.emit("lives:changed", { lives: this.lives.current });
+		context.events.emit("toast", { message: "Sống lại rồi! Chạy tiếp nào 🎉", durationSec: 2.5 });
+	}
+
+	/** Kết thúc ván THẬT SỰ (sau khi hồi sinh đã hết đường). */
+	private finishRun(context: GameContext): void {
 		this.gameOver = true;
 		this.audio.play("game-over");
 		this.audio.setBgmRate(1);
@@ -1045,6 +1253,15 @@ export class RunScene implements GameScene {
 		}
 
 		hit.consumed = true;
+
+		// LUYỆN TẬP (P1-5): không có tim, va chạm chỉ làm vấp + chậm lại. Mục tiêu
+		// của chế độ này là ôn đề, không phải sống sót.
+		if (this.practiceMode === true) {
+			this.audio.play("hit");
+			this.speed.onHit();
+			this.player?.takeHit();
+			return;
+		}
 
 		// Khiên đỡ TRƯỚC khi đụng tới tim (plan §4.4 Q11).
 		if (this.powerups.consumeShield() === true) {

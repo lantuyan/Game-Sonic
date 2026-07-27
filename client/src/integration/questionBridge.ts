@@ -243,6 +243,46 @@ export async function getDifficultyOrder(): Promise<readonly string[]> {
 	return Array.isArray(api.DIFFICULTY_ORDER) === true ? api.DIFFICULTY_ORDER : [];
 }
 
+/**
+ * Đồng bộ số liệu học tập bổ sung của P1-5 (`gateAnswerMs`, `modeStats`).
+ *
+ * Đi thẳng route `PUT /api/players/:deviceId/skill` đã có sẵn thay vì thêm hàm vào
+ * `questionBank.js`: quy tắc vàng #4 chỉ cho P1-4 chạm file đó, và ở đây không cần —
+ * `getDeviceId` đã được export, còn route thì là API công khai.
+ *
+ * Server nhét `learning` vào cột JSONB `difficulty_weights`, nên KHÔNG có migration
+ * và server bản cũ vẫn nhận (chỉ lưu rồi bỏ qua). Lỗi mạng → bỏ qua im lặng: đây là
+ * số liệu để P1-6 dựng dashboard, không phải thứ người chơi trông chờ.
+ */
+export async function syncLearningStats(level: string, learning: unknown): Promise<void> {
+	const api = await loadQuestionBank();
+
+	if (typeof api.getDeviceId !== "function" || typeof api.getSkillProfile !== "function") {
+		return;
+	}
+
+	const deviceId = api.getDeviceId();
+	const profile = api.getSkillProfile(level);
+
+	try {
+		await fetch(`/api/players/${encodeURIComponent(deviceId)}/skill`, {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			body: JSON.stringify({
+				level,
+				skill: profile.skill,
+				accuracy: profile.accuracy,
+				avgAnswerMs: profile.avgAnswerMs,
+				gamesPlayed: profile.gamesPlayed,
+				learning
+			})
+		});
+	} catch {
+		// Không có gì để báo người chơi.
+	}
+}
+
 /** Chỉ dùng trong test — xóa cache để nạp lại từ đầu. */
 export function resetBridgeForTests(): void {
 	loadPromise = null;

@@ -25,9 +25,10 @@ export class Hud {
 	private bannerTimer = 0;
 	private nearMissTimer = 0;
 
-	constructor(parent: HTMLElement, events: EventBus<GameEvents>) {
+	constructor(parent: HTMLElement, events: EventBus<GameEvents>, options: { practice?: boolean } = {}) {
 		this.root = document.createElement("div");
 		this.root.className = "hud";
+		this.root.dataset.practice = options.practice === true ? "true" : "false";
 
 		this.scoreElement = document.createElement("div");
 		this.scoreElement.className = "hud__score";
@@ -55,7 +56,18 @@ export class Hud {
 
 		const top = document.createElement("div");
 		top.className = "hud__top";
-		top.append(stats, this.livesElement);
+
+		if (options.practice === true) {
+			// Luyện tập KHÔNG có tim và KHÔNG có điểm (plan §4.6) — giấu luôn để màn
+			// hình không nói dối. Thay bằng nhãn để em biết mình đang ở chế độ nào.
+			const badge = document.createElement("div");
+			badge.className = "hud__practice";
+			badge.textContent = "LUYỆN TẬP";
+			this.scoreElement.hidden = true;
+			top.append(stats, badge);
+		} else {
+			top.append(stats, this.livesElement);
+		}
 
 		this.questionElement = document.createElement("div");
 		this.questionElement.className = "hud__question";

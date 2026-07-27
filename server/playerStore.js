@@ -292,6 +292,13 @@ function createPlayerStore(options) {
 			? data.difficultyWeights
 			: {};
 
+		// P1-5 — số liệu học tập bổ sung (gateAnswerMs, modeStats) đi NHỜ trong cột
+		// JSONB `difficulty_weights` thay vì thêm cột mới: JSONB nhận khoá lạ mà
+		// không cần migration, và bản server cũ chỉ đơn giản lưu rồi bỏ qua.
+		if (data.learning != null && typeof data.learning === "object") {
+			difficultyWeights = Object.assign({}, difficultyWeights, { learning: data.learning });
+		}
+
 		return run(
 			"INSERT INTO skill_profiles (device_id, level, skill, accuracy, avg_answer_ms, recommended_speed, difficulty_weights, games_played, updated_at) " +
 			"VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,now()) " +

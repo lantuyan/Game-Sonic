@@ -40,6 +40,8 @@ export class App {
 	private readonly unlocks = new Unlocks();
 
 	private level = "lop6";
+	/** P1-5 — ván kế tiếp là Luyện tập (không tim/điểm/BXH). */
+	private practice = false;
 	private runScene: RunScene | null = null;
 	private nickname = "";
 
@@ -52,6 +54,12 @@ export class App {
 
 		const home = new HomeScreen({
 			onPlay: () => {
+				this.practice = false;
+				this.screens.show("level", { nickname: this.nickname });
+			},
+			onPractice: () => {
+				// Luyện tập vẫn qua S3 để chọn lớp — ôn câu của lớp nào là chuyện quan trọng.
+				this.practice = true;
 				this.screens.show("level", { nickname: this.nickname });
 			},
 			onLeaderboard: () => {
@@ -208,10 +216,14 @@ export class App {
 
 			// P1-3: ghi nhận ván vào tiến trình mở khoá, và báo nếu vừa đạt mốc.
 			// Làm ở đây chứ không trong RunScene vì đây là nơi biết cả thứ hạng BXH.
-			for (const characterId of this.unlocks.recordGame({
-				correctAnswers: stats.correct,
-				leaderboardRank: rank
-			})) {
+			// Luyện tập KHÔNG tính vào tiến trình mở khoá: nếu tính thì "mở nhân vật"
+			// biến thành cày chế độ không rủi ro, còn mốc thành tích mất hết ý nghĩa.
+			const newlyUnlocked =
+				this.practice === true
+					? []
+					: this.unlocks.recordGame({ correctAnswers: stats.correct, leaderboardRank: rank });
+
+			for (const characterId of newlyUnlocked) {
 				const character = CHARACTERS.find((entry) => entry.id === characterId);
 				this.showToast(`Đã mở khoá ${character?.label ?? characterId}! 🎉`);
 			}
@@ -253,7 +265,7 @@ export class App {
 		this.screens.show("splash");
 		this.splash.setProgress(0.1);
 
-		const scene = new RunScene(this.level);
+		const scene = new RunScene(this.level, { practice: this.practice });
 		this.runScene = scene;
 
 		this.splash.setProgress(0.5);

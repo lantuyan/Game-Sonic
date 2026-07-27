@@ -84,6 +84,17 @@ export class Lives {
 		return this.lives <= 0 ? "dead" : "damaged";
 	}
 
+	/**
+	 * Hồi sinh sau khi trả lời đúng câu hồi sinh (P1-5).
+	 *
+	 * Cho lại ĐÚNG 1 tim, không phải đầy máu: hồi sinh là cơ hội chơi tiếp, không
+	 * phải phần thưởng để nhân đôi độ dài ván. Vẫn đi qua Lives để bất biến "chỉ
+	 * file này đụng tới số tim" đứng vững.
+	 */
+	revive(): void {
+		this.lives = Math.max(this.lives, 0) + 1;
+	}
+
 	update(deltaSec: number): void {
 		if (this.invincibleRemainingSec > 0) {
 			this.invincibleRemainingSec = Math.max(this.invincibleRemainingSec - deltaSec, 0);

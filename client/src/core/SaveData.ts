@@ -129,6 +129,26 @@ export function saveSettings(settings: SettingsV2): void {
 	writeJson(V2_STORAGE_KEYS.settings, settings);
 }
 
+/**
+ * Số lần hồi sinh đã dùng HÔM NAY (P1-5).
+ *
+ * Lưu chung khoá `unlocks-v2` thay vì thêm khoá thứ sáu: cả hai đều là "tiến trình
+ * ngoài ván", đọc/ghi cùng lúc, và một khoá ít hơn là một chỗ ít hỏng hơn.
+ * `date` là chuỗi `YYYY-MM-DD` theo giờ MÁY người chơi — đúng cảm nhận "hôm nay"
+ * của học sinh, không phải UTC.
+ */
+export interface RevivalUsage {
+	date: string;
+	count: number;
+}
+
+export function todayKey(now: Date): string {
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, "0");
+	const day = String(now.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
 /** Nhân vật đã mở khoá + tiến trình chấm mốc thành tích (P1-3). */
 export interface UnlocksV2 {
 	unlocked: string[];
@@ -138,6 +158,8 @@ export interface UnlocksV2 {
 	bestLeaderboardRank: number | null;
 	/** Chữ ký của `unlocked` — xem `systems/unlockRules.signUnlocks`. */
 	signature: string;
+	/** P1-5 — số lần hồi sinh đã dùng trong ngày. */
+	revival: RevivalUsage;
 }
 
 export const DEFAULT_UNLOCKS: UnlocksV2 = {
@@ -145,7 +167,8 @@ export const DEFAULT_UNLOCKS: UnlocksV2 = {
 	gamesPlayed: 0,
 	correctAnswers: 0,
 	bestLeaderboardRank: null,
-	signature: ""
+	signature: "",
+	revival: { date: "", count: 0 }
 };
 
 /**
@@ -172,7 +195,25 @@ export function loadUnlocks(verify: (ids: readonly string[], signature: string) 
 			typeof stored.bestLeaderboardRank === "number" && Number.isFinite(stored.bestLeaderboardRank)
 				? stored.bestLeaderboardRank
 				: null,
-		signature: trusted ? signature : ""
+		signature: trusted ? signature : "",
+		revival: normalizeRevival(stored.revival)
+	};
+}
+
+/**
+ * Số lần hồi sinh chỉ có ý nghĩa trong NGÀY của nó — sang ngày mới thì đếm lại từ 0
+ * mà không cần tác vụ dọn dẹp nào.
+ */
+function normalizeRevival(stored: unknown): RevivalUsage {
+	if (stored === null || typeof stored !== "object") {
+		return { date: "", count: 0 };
+	}
+
+	const value = stored as Partial<RevivalUsage>;
+
+	return {
+		date: typeof value.date === "string" ? value.date : "",
+		count: Math.max(toFiniteNumber(value.count, 0), 0)
 	};
 }
 

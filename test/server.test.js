@@ -3,11 +3,11 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 
 // ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
 //
@@ -16,7 +16,7 @@ var createApp = require("../server/app").createApp;
 // tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
 // `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
 // chung đúng một instance.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-"));
+var sharedTempDir = pgTempDir.createTempDir("game-sonic-running-");
 
 // The tests run against PGlite (embedded Postgres) because DATABASE_URL is unset.
 // When a data dir is closed and immediately reopened (the "restart" tests),
@@ -37,7 +37,9 @@ process.on("unhandledRejection", function (error) {
 	throw error;
 });
 
-function createTestContext() {
+// `async` vì server HTTP loopback phải nghe xong trước request đầu tiên — lý do
+// đầy đủ nằm ở đầu `test-helpers/loopbackRequest.js`.
+async function createTestContext() {
 	var tempDir = sharedTempDir;
 	var config = {
 		rootDir: path.resolve(__dirname, ".."),
@@ -49,6 +51,8 @@ function createTestContext() {
 		nodeEnv: "test"
 	};
 	var runtime = createApp(config);
+
+	await request.ready(runtime.app);
 
 	return {
 		config: config,
@@ -64,7 +68,7 @@ function createTestContext() {
 }
 
 test("health endpoint and seeded question bank are available", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var healthResponse = await request(context.runtime.app)
@@ -89,7 +93,7 @@ test("health endpoint and seeded question bank are available", async function ()
 });
 
 test("admin login, session cookie and logout work", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 	var agent = request.agent(context.runtime.app);
 
 	try {
@@ -124,7 +128,7 @@ test("admin login, session cookie and logout work", async function () {
 });
 
 test("question bank writes persist across restarts and duplicate ids are rejected", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 	var agent = request.agent(context.runtime.app);
 
 	try {
@@ -161,6 +165,7 @@ test("question bank writes persist across restarts and duplicate ids are rejecte
 
 		await context.runtime.close();
 		context.runtime = createApp(context.config);
+		await request.ready(context.runtime.app);
 
 		var persistedBundleResponse = await request(context.runtime.app)
 			.get("/api/levels/lop6/question-bank")
@@ -173,7 +178,7 @@ test("question bank writes persist across restarts and duplicate ids are rejecte
 });
 
 test("difficulty settings update requires auth and applies to all levels", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 	var agent = request.agent(context.runtime.app);
 
 	try {
@@ -236,6 +241,7 @@ test("difficulty settings update requires auth and applies to all levels", async
 
 		await context.runtime.close();
 		context.runtime = createApp(context.config);
+		await request.ready(context.runtime.app);
 
 			var persistedBundleResponse = await request(context.runtime.app)
 				.get("/api/levels/lop6/question-bank")
@@ -258,7 +264,7 @@ test("difficulty settings update requires auth and applies to all levels", async
 	});
 
 test("leaderboard records scores, ranks players by best, and exposes the viewer entry", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var app = context.runtime.app;
@@ -308,7 +314,7 @@ test("leaderboard records scores, ranks players by best, and exposes the viewer 
 });
 
 test("score submission validates device id, nickname and level", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var app = context.runtime.app;
@@ -322,7 +328,7 @@ test("score submission validates device id, nickname and level", async function 
 });
 
 test("nickname update backfills scores and skill profile upserts", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 
 	try {
 		var app = context.runtime.app;
@@ -357,4 +363,40 @@ test("nickname update backfills scores and skill profile upserts", async functio
 	} finally {
 		await context.cleanup();
 	}
+});
+
+// --- Canh gác chống lặp lại lỗi cổng phù du (P2-9) -----------------------------
+
+test("mọi test backend gọi HTTP qua test-helpers/loopbackRequest, KHÔNG qua supertest thẳng", function () {
+	// Nạp supertest thẳng nghĩa là mỗi request lại `app.listen(0)` trên ĐỊA
+	// CHỈ ĐẠI DIỆN. Trên macOS, bind `0.0.0.0:P` vẫn thành công khi một tiến trình
+	// khác (MCP server, language server…) đang giữ `127.0.0.1:P`, và kết nối tới
+	// `127.0.0.1:P` sẽ đi sang tiến trình đó. Đúng cơ chế này từng làm 13% số lượt
+	// `npm test` đỏ ngẫu nhiên ở file bất kỳ, với 404/405/406 không tồn tại trong
+	// `server/app.js`. Đọc `test-helpers/loopbackRequest.js` trước khi đổi test này.
+	var testDir = path.join(__dirname);
+	var offenders = fs.readdirSync(testDir)
+		.filter(function (name) {
+			return name.endsWith(".test.js");
+		})
+		.filter(function (name) {
+			return /require\(["']supertest["']\)/.test(fs.readFileSync(path.join(testDir, name), "utf8"));
+		});
+
+	assert.deepEqual(offenders, [], "các file này phải dùng ../test-helpers/loopbackRequest");
+});
+
+test("thư mục dữ liệu tạm của test nằm dưới MỘT gốc tự dọn được", function () {
+	// Trước P2-9, mỗi file gọi `fs.mkdtempSync(os.tmpdir(), …)` và không ai xoá:
+	// 666 thư mục PGlite còn sót, 25 GB, đủ làm đầy ổ đĩa thật.
+	var testDir = path.join(__dirname);
+	var offenders = fs.readdirSync(testDir)
+		.filter(function (name) {
+			return name.endsWith(".test.js");
+		})
+		.filter(function (name) {
+			return /mkdtempSync\(\s*path\.join\(\s*os\.tmpdir\(\)/.test(fs.readFileSync(path.join(testDir, name), "utf8"));
+		});
+
+	assert.deepEqual(offenders, [], "các file này phải dùng pgTempDir.createTempDir()");
 });

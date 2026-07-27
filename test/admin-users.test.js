@@ -16,11 +16,11 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var adminUser = require("../server/adminUser");
 var adminUserStoreModule = require("../server/adminUserStore");
 var createSqlClient = require("../server/sql").createSqlClient;
@@ -31,7 +31,7 @@ var rootDir = path.resolve(__dirname, "..");
 
 // MỘT PGlite duy nhất cho cả file — mỗi test một `mkdtempSync` từng làm đầy ổ đĩa
 // thật 25 GB (ghi ở P1-6). Dọn bảng trước mỗi test thay vì dựng CSDL mới.
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "admin-users-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("admin-users-");
 
 /** Mật khẩu admin ĐANG CHẠY TRÊN PRODUCTION, mô phỏng bằng biến môi trường. */
 var LEGACY_PASSWORD = "matkhau-cu-cua-co-ha";
@@ -54,6 +54,12 @@ var sharedConfig = {
 };
 
 var sharedRuntime = createApp(sharedConfig);
+
+// Server HTTP loopback của app dùng chung phải NGHE XONG trước request đầu tiên —
+// `test-helpers/loopbackRequest.js` giải thích vì sao phải bind vào đúng 127.0.0.1.
+test.before(async function () {
+	await request.ready(sharedRuntime.app);
+});
 var sharedSql = createSqlClient(sharedConfig);
 
 /**
@@ -495,6 +501,8 @@ test("CHƯA NỐI CSDL (production hôm nay): vẫn đăng nhập được bằn
 			loginRateLimitMax: 200,
 			nodeEnv: "test"
 		});
+
+		await request.ready(runtime.app);
 
 		var agent = request.agent(runtime.app);
 		var login = await agent.post("/api/admin/login").send({ password: LEGACY_PASSWORD }).expect(200);

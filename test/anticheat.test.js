@@ -11,11 +11,11 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var runToken = require("../server/runToken");
 var scoreCheck = require("../server/scoreCheck");
 var badwords = require("../server/badwords-vi");
@@ -34,10 +34,12 @@ var SECRET = "test-secret-key-p1-4";
 // Các test ở đây không đọc CSDL nên không cần cô lập dữ liệu; thứ cần cô lập là
 // rate-limit và vé đã tiêu, và cả hai đã được `resetSpentTokens()` + `deviceId`
 // riêng cho từng test lo.
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "anticheat-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("anticheat-");
 
-function makeRuntime(overrides) {
-	return createApp(Object.assign({
+// `async` vì server HTTP loopback phải nghe xong trước request đầu tiên — lý do đầy
+// đủ nằm ở đầu `test-helpers/loopbackRequest.js`.
+async function makeRuntime(overrides) {
+	var runtime = createApp(Object.assign({
 		rootDir: rootDir,
 		staticDir: rootDir,
 		runtimeDir: sharedRuntimeDir,
@@ -46,6 +48,10 @@ function makeRuntime(overrides) {
 		adminPasswordHash: bcrypt.hashSync("admin123", 10),
 		nodeEnv: "test"
 	}, overrides || {}));
+
+	await request.ready(runtime.app);
+
+	return runtime;
 }
 
 /** Payload của một ván THẬT, hợp lệ: 5 phút, 9 câu đúng, điểm hợp lý. */
@@ -158,7 +164,7 @@ test("hằng MAX_SPEED_MPS khớp tuning của client", async function () {
 
 test("(b) nộp KHÔNG vé vẫn nhận, và (e) luồng V1 cũ không gãy", async function () {
 	runToken.resetSpentTokens();
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		// Đây CHÍNH LÀ payload của questionBank.js bản V1 — không có runId/token.
@@ -173,7 +179,7 @@ test("(b) nộp KHÔNG vé vẫn nhận, và (e) luồng V1 cũ không gãy", as
 
 test("(a) vé sai → 4xx", async function () {
 	runToken.resetSpentTokens();
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		await request(runtime.app)
@@ -187,7 +193,7 @@ test("(a) vé sai → 4xx", async function () {
 
 test("(a) dùng lại vé qua HTTP → lần hai 4xx", async function () {
 	runToken.resetSpentTokens();
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		var ticket = (await request(runtime.app).post("/api/runs/start").send({}).expect(200)).body;
@@ -204,7 +210,7 @@ test("(a) dùng lại vé qua HTTP → lần hai 4xx", async function () {
 
 test("(c) ANTICHEAT_ENFORCE=1 → nộp không vé bị từ chối, có vé thì vẫn qua", async function () {
 	runToken.resetSpentTokens();
-	var runtime = makeRuntime({ anticheatEnforce: true });
+	var runtime = await makeRuntime({ anticheatEnforce: true });
 
 	try {
 		await request(runtime.app).post("/api/scores").send(validRun()).expect(400);
@@ -218,7 +224,7 @@ test("(c) ANTICHEAT_ENFORCE=1 → nộp không vé bị từ chối, có vé th�
 
 test("(a) quá rate-limit 10 submit/phút → 429", async function () {
 	runToken.resetSpentTokens();
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		var lastStatus = 200;
@@ -236,7 +242,7 @@ test("(a) quá rate-limit 10 submit/phút → 429", async function () {
 });
 
 test("rate-limit đăng nhập admin: 5 lần/phút", async function () {
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		var lastStatus = 401;
@@ -255,7 +261,7 @@ test("rate-limit đăng nhập admin: 5 lần/phút", async function () {
 // --- Kiểm duyệt --------------------------------------------------------------
 
 test("(f) admin xoá được điểm; không đăng nhập thì không đụng được", async function () {
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		// Chưa đăng nhập → 401.
@@ -277,7 +283,7 @@ test("(f) admin xoá được điểm; không đăng nhập thì không đụng 
 });
 
 test("admin khoá/bỏ khoá biệt danh qua API", async function () {
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		var agent = request.agent(runtime.app);
@@ -292,7 +298,7 @@ test("admin khoá/bỏ khoá biệt danh qua API", async function () {
 });
 
 test("biệt danh có từ cấm bị từ chối NGAY khi đặt", async function () {
-	var runtime = makeRuntime();
+	var runtime = await makeRuntime();
 
 	try {
 		var response = await request(runtime.app)

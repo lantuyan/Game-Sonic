@@ -12,10 +12,10 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var QuestionModel = require("../shared/questionModel");
 var createQuestionStore = require("../server/questionStore").createQuestionStore;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var createSqlClient = require("../server/sql").createSqlClient;
 var applySchema = require("../server/schema").applySchema;
 
@@ -23,7 +23,7 @@ var rootDir = path.resolve(__dirname, "..");
 
 // Một PGlite dùng chung cho cả file — xem ghi chú ở test/anticheat.test.js về việc
 // mỗi instance là một cluster Postgres vài chục MB.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "question-store-"));
+var sharedTempDir = pgTempDir.createTempDir("question-store-");
 var sql = createSqlClient({ pgDataDir: path.join(sharedTempDir, "pgdata"), databaseUrl: "" });
 
 async function freshStore() {

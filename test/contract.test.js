@@ -10,12 +10,12 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var vm = require("node:vm");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 
 // ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
 //
@@ -24,7 +24,7 @@ var createApp = require("../server/app").createApp;
 // tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
 // `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
 // chung đúng một instance.
-var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-contract-"));
+var sharedTempDir = pgTempDir.createTempDir("game-sonic-running-contract-");
 
 var rootDir = path.resolve(__dirname, "..");
 
@@ -41,7 +41,9 @@ process.on("unhandledRejection", function (error) {
 	throw error;
 });
 
-function createTestContext() {
+// `async` vì server HTTP loopback phải nghe xong trước request đầu tiên — lý do
+// đầy đủ nằm ở đầu `test-helpers/loopbackRequest.js`.
+async function createTestContext() {
 	var tempDir = sharedTempDir;
 	var config = {
 		rootDir: rootDir,
@@ -53,6 +55,8 @@ function createTestContext() {
 		nodeEnv: "test"
 	};
 	var runtime = createApp(config);
+
+	await request.ready(runtime.app);
 
 	return {
 		config: config,
@@ -90,7 +94,7 @@ function assertBundleShape(body, label) {
 }
 
 test("contract A: 13 endpoint HTTP giữ nguyên shape response", async function () {
-	var context = createTestContext();
+	var context = await createTestContext();
 	var agent = request.agent(context.runtime.app);
 	var deviceId = "contract-test-device-1";
 

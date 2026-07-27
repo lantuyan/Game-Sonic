@@ -15,11 +15,11 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var createApp = require("../server/app").createApp;
+var pgTempDir = require("../test-helpers/pgTempDir");
 var createSqlClient = require("../server/sql").createSqlClient;
 var applySchema = require("../server/schema").applySchema;
 var economyStoreModule = require("../server/economyStore");
@@ -27,7 +27,7 @@ var shopCatalog = require("../server/shopCatalog");
 var helpers = require("../test-helpers/clientModule");
 
 var rootDir = path.resolve(__dirname, "..");
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "economy-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("economy-");
 var sharedConfig = {
 	rootDir: rootDir,
 	staticDir: rootDir,
@@ -39,6 +39,12 @@ var sharedConfig = {
 };
 
 var sharedRuntime = createApp(sharedConfig);
+
+// Server HTTP loopback của app dùng chung phải NGHE XONG trước request đầu tiên —
+// `test-helpers/loopbackRequest.js` giải thích vì sao phải bind vào đúng 127.0.0.1.
+test.before(async function () {
+	await request.ready(sharedRuntime.app);
+});
 var sharedSql = createSqlClient(sharedConfig);
 var store = economyStoreModule.createEconomyStore({ sql: sharedSql });
 
@@ -464,6 +470,8 @@ test("RATE-LIMIT ĐẾM THEO deviceId, KHÔNG theo IP (DoD 9)", async function (
 	// App RIÊNG để bộ đếm sạch, nhưng DÙNG LẠI `pgDataDir` (server/sql.js cache
 	// client theo thư mục) nên KHÔNG có cluster PGlite thứ hai nào được tạo ra.
 	var runtime = createApp(sharedConfig);
+
+	await request.ready(runtime.app);
 	var agent = request(runtime.app);
 	var blocked = false;
 

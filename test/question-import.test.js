@@ -17,12 +17,12 @@
 var test = require("node:test");
 var assert = require("node:assert/strict");
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var bcrypt = require("bcrypt");
-var request = require("supertest");
+var request = require("../test-helpers/loopbackRequest");
 var QuestionModel = require("../shared/questionModel");
 var questionImport = require("../server/questionImport");
+var pgTempDir = require("../test-helpers/pgTempDir");
 var createApp = require("../server/app").createApp;
 
 var rootDir = path.resolve(__dirname, "..");
@@ -31,7 +31,7 @@ var rootDir = path.resolve(__dirname, "..");
 //
 // Không `mkdtempSync` trong từng test: mỗi instance PGlite là một cluster Postgres
 // vài chục MB, và cách làm kia đã từng làm ĐẦY Ổ ĐĨA 25 GB (docs/v2/P1-ACCEPTANCE §3).
-var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "question-import-"));
+var sharedRuntimeDir = pgTempDir.createTempDir("question-import-");
 var sharedConfig = {
 	rootDir: rootDir,
 	staticDir: rootDir,
@@ -47,6 +47,12 @@ var sharedConfig = {
 };
 
 var sharedRuntime = createApp(sharedConfig);
+
+// Server HTTP loopback của app dùng chung phải NGHE XONG trước request đầu tiên —
+// `test-helpers/loopbackRequest.js` giải thích vì sao phải bind vào đúng 127.0.0.1.
+test.before(async function () {
+	await request.ready(sharedRuntime.app);
+});
 
 // Đăng nhập MỘT lần cho cả file: `loginLimiter` đếm 5 lần/phút THEO IP (đúng như
 // vậy — chống dò mật khẩu thì phải theo IP), nên mỗi test tự đăng nhập lại sẽ tự

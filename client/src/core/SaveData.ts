@@ -24,6 +24,16 @@ export interface WalletV2 {
 	bestScoreByLevel: Record<string, number>;
 	/** Đã migrate cookie `highscoresonic` chưa (chỉ đọc 1 lần — plan §7.3.3). */
 	migratedLegacyBestScore: boolean;
+	/**
+	 * P2-3 — đã đẩy ví này lên server chưa.
+	 *
+	 * ⚠ Cờ này CHỈ là tối ưu để khỏi gọi lại, KHÔNG phải thứ bảo đảm không nhân đôi
+	 * xu. Bảo đảm nằm ở khoá tự nhiên cố định phía server (`economyStore.MIGRATION_REF`
+	 * + `ON CONFLICT DO NOTHING`). Cờ mất (xoá localStorage, ghi hỏng) thì lần gọi
+	 * sau vẫn vô hại. Và nó chỉ được đặt SAU khi server xác nhận đã nhận — ví local
+	 * không bao giờ bị xoá hay đổi vì chuyện di trú.
+	 */
+	migratedToServer: boolean;
 }
 
 export const DEFAULT_SETTINGS: SettingsV2 = {
@@ -39,7 +49,8 @@ export const DEFAULT_WALLET: WalletV2 = {
 	coins: 0,
 	bestScore: 0,
 	bestScoreByLevel: {},
-	migratedLegacyBestScore: false
+	migratedLegacyBestScore: false,
+	migratedToServer: false
 };
 
 function readStorage(): Storage | null {
@@ -264,7 +275,8 @@ export function loadWallet(): WalletV2 {
 			wallet.bestScoreByLevel !== null && typeof wallet.bestScoreByLevel === "object"
 				? wallet.bestScoreByLevel
 				: {},
-		migratedLegacyBestScore: wallet.migratedLegacyBestScore === true
+		migratedLegacyBestScore: wallet.migratedLegacyBestScore === true,
+		migratedToServer: wallet.migratedToServer === true
 	};
 }
 

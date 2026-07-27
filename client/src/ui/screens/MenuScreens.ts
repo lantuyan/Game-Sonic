@@ -22,6 +22,7 @@ import {
 } from "@/systems/cosmeticRules";
 import { isVibrationSupported, setVibrationEnabled } from "@/core/haptics";
 import { UNLOCK_RULES, type UnlockState } from "@/systems/unlockRules";
+import { coinLedger } from "@/systems/economyLedger";
 import { loadWallet, migrateLegacyBestScore, saveWallet, loadSettings, saveSettings } from "@/core/SaveData";
 import { V2_STORAGE_KEYS } from "@/core/storageKeys";
 import { tuning } from "@/tuning";
@@ -700,11 +701,18 @@ export class GameOverScreen implements Screen {
 
 		// Cập nhật ví ngay tại đây để Home hiển thị đúng khi quay về.
 		const wallet = loadWallet();
+		const earned = data.coins ?? 0;
 		saveWallet({
 			...wallet,
-			coins: wallet.coins + (data.coins ?? 0),
+			coins: wallet.coins + earned,
 			bestScore: Math.max(wallet.bestScore, score)
 		});
+
+		// P2-3 — báo sổ cái server trong cùng nhánh đã cộng ví. `onShow` chỉ chạy một
+		// lần cho mỗi ván (S8 hiện ra một lần), nên đây là một bút toán cho một ván.
+		if (earned > 0) {
+			coinLedger()?.record("run", earned, "Xu nhặt trong ván");
+		}
 	}
 }
 

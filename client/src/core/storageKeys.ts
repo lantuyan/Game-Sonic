@@ -26,5 +26,10 @@ export const V2_STORAGE_KEYS = Object.freeze({
 	// P1-3: nhân vật đã mở khoá + tiến trình chấm mốc thành tích.
 	unlocks: "endlessrunner-unlocks-v2",
 	// P1-8: nhiệm vụ ngày + huy hiệu + chuỗi ngày chăm chỉ.
-	missions: "endlessrunner-missions-v2"
+	missions: "endlessrunner-missions-v2",
+	// P2-3: hộp thư đi của sổ cái xu — bút toán chờ đẩy lên server.
+	// Khoá RIÊNG, không nhét chung `wallet-v2`: hàng đợi này bị ghi rất thường
+	// xuyên, còn ví thì phải càng ít bị chạm càng tốt. Trộn chung nghĩa là mỗi lần
+	// đẩy hàng đợi là một cơ hội ghi hỏng đúng vào chỗ giữ số xu của người chơi.
+	coinOutbox: "endlessrunner-coin-outbox-v2"
 });

@@ -3,8 +3,10 @@
 // Áp schema Postgres và gieo hạt ngân hàng câu hỏi.
 //
 //   - Có DATABASE_URL (Neon): migrate CSDL production — bảng người chơi
-//     (players/scores/skill_profiles/answer_events) VÀ ngân hàng câu hỏi
-//     (questions/level_settings, P1-7).
+//     (players/scores/skill_profiles/answer_events), ngân hàng câu hỏi
+//     (questions/level_settings, P1-7) VÀ nền kinh tế (wallet/coin_ledger/unlocks,
+//     P2-3 — chỉ tạo bảng, KHÔNG gieo hạt: xu là dữ liệu của người chơi, không
+//     phải dữ liệu hạt giống).
 //   - Không có DATABASE_URL (máy dev): khởi tạo kho PGlite nhúng. Ngân hàng câu
 //     hỏi khi đó vẫn chạy trên kho JSON (xem server/db.js), nên bước gieo hạt
 //     được bỏ qua — đúng chủ ý, không phải thiếu sót.
@@ -50,6 +52,21 @@ dotenv.config();
 				result.rows.forEach(function (row) {
 					console.log("  · " + row.level + ": " + row.total + " câu");
 				});
+
+				// P2-3 — báo số dòng kinh tế hiện có. Chạy migrate lần hai mà con số
+				// KHÔNG đổi chính là bằng chứng schema idempotent, xem được ngay tại chỗ.
+				return sql.query(
+					"SELECT (SELECT COUNT(*) FROM wallet) AS wallets, " +
+						"(SELECT COUNT(*) FROM coin_ledger) AS ledger, " +
+						"(SELECT COUNT(*) FROM unlocks) AS unlocks",
+					[]
+				);
+			}).then(function (result) {
+				var row = result.rows[0] || {};
+				console.log(
+					"Kinh tế (P2-3): " + (row.wallets || 0) + " ví · " +
+					(row.ledger || 0) + " bút toán · " + (row.unlocks || 0) + " quyền sở hữu."
+				);
 			});
 		})
 		.then(function () {

@@ -383,7 +383,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 |---|---|---|---|
 | [x] P2-1 | Biome ④ Không gian (hoặc Đền cổ) + chướng ngại di động + pattern tổ hợp khó | 3 | Quaternius Space Kit / KayKit Dungeon — *đặc tả chi tiết ngay dưới bảng* |
 | [x] P2-2 | Skin/trail nhân vật + Đồng hồ chậm + near-miss tinh chỉnh + daily streak nâng cao | 2 | *đặc tả chi tiết ngay dưới P2-1* |
-| [ ] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) |
+| [x] P2-3 | Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog | 3 | Thay local wallet (migrate 1 chiều local→server) — *đặc tả chi tiết ngay dưới P2-2* |
 | [ ] P2-4 | KaTeX tự host + preview admin + hình minh họa đề (field `image` + upload) | 3–4 | Chỉ khi khách xác nhận (plan §11 câu 4) |
 | [ ] P2-5 | Mã lớp học (`class_codes`) + dashboard lọc theo lớp thật | 2.5 | Kéo theo rà quyền riêng tư |
 | [ ] P2-6 | Import/export Excel ngân hàng câu hỏi | 2 | SheetJS hoặc CSV nâng cao |
@@ -495,6 +495,77 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 
 ---
 
+### [x] P2-3 · Economy server-side: wallet/coin_ledger/unlocks + `GET /api/players/:id/profile` + shop catalog — *3 ngày*
+
+**Mục tiêu:** đưa nền kinh tế (xu, quyền sở hữu, bảng giá) lên server để nó bền và kiểm toán được, mà **không làm bốc hơi một xu nào** của những em đã cày từ P0/P1.
+
+> ⚠ **Đây là task động vào TIỀN của người chơi.** Mọi đường đi phải an toàn khi chạy lại và an toàn khi đứt mạng giữa chừng. Nguyên tắc bao trùm: **không bao giờ xoá/ghi đè ví local trước khi server xác nhận đã nhận.**
+
+**Việc cần làm:**
+- [x] **Ba bảng mới** trên schema idempotent hiện có (`server/schema.js`, `CREATE TABLE IF NOT EXISTS`): `coin_ledger` (**sổ cái append-only** — nguồn sự thật duy nhất của số dư), `wallet` (bộ đệm số dư suy ra từ sổ, ghi trong CÙNG transaction), `unlocks` (quyền sở hữu nhân vật/ngoại hình theo `device_id`).
+- [x] **Idempotency bằng khoá tự nhiên:** mỗi bút toán mang một `ref` do client sinh; `UNIQUE (device_id, ref)` + `ON CONFLICT DO NOTHING` đúng khuôn `seedIfEmpty` của `server/questionStore.js`. Gửi lại cùng `ref` là **no-op**, không nhân đôi xu.
+- [x] **Shop catalog phục vụ từ server** (`server/shopCatalog.js` + `GET /api/shop/catalog`). Giá dùng để trừ xu lúc mua **luôn đọc từ catalog server**, không bao giờ từ body request.
+- [x] **5 route mới (bổ sung, không đụng 13 route cũ):** `GET /api/shop/catalog` · `GET /api/players/:deviceId/profile` · `POST /api/players/:deviceId/wallet/migrate` · `POST /api/players/:deviceId/wallet/entries` · `POST /api/players/:deviceId/purchases`. Rate-limit **đếm theo `deviceId`** (đọc từ `req.params`, ngã về body rồi mới tới IP) đúng khuôn `scoreLimiter`.
+- [x] **Di trú MỘT CHIỀU local → server, đúng một lần:** khoá tự nhiên cố định `migrate:local-v2`. Chạy lại bao nhiêu lần cũng chỉ có một bút toán. Cờ `migratedToServer` phía client chỉ là tối ưu, **không** phải thứ bảo đảm — bảo đảm nằm ở khoá tự nhiên phía server.
+- [x] **Hộp thư đi (outbox) phía client** — mọi thay đổi xu ghi vào hàng đợi FIFO trong localStorage rồi mới đẩy lên. Đứt mạng → nằm lại hàng đợi, lần sau đẩy tiếp theo ĐÚNG THỨ TỰ. Lỗi 4xx (server từ chối thật) thì bỏ khỏi hàng đợi, lỗi mạng/5xx thì giữ lại.
+- [x] **Giữ nguyên kỷ luật một-đường-đi:** `Unlocks` vẫn là nơi DUY NHẤT ghi mở khoá + trừ xu, `Missions` vẫn là nơi DUY NHẤT trao xu nhiệm vụ. Việc đẩy lên server là *thêm một bước* trong đúng những chỗ đó, không mở nhánh cộng xu thứ hai.
+- [x] **Tắt êm khi không có CSDL** — đúng khuôn `createDisabledPlayerStore`/`createDisabledStatsStore`: không có `DATABASE_URL` (hoặc chạy Vercel chưa nối Neon) thì mọi route kinh tế trả `disabled: true` và game vẫn chơi trọn vẹn bằng ví local.
+- [x] Unit/integration test cho **mọi luật**: di trú chạy hai lần không nhân đôi, số dư khớp sổ cái, mua hết xu bị từ chối, mất kết nối giữa chừng không mất xu, catalog server khớp bảng giá client.
+
+**File đích:** `server/schema.js` · `server/shopCatalog.js` (mới) · `server/economyStore.js` (mới) · `server/app.js` · `client/src/systems/coinOutbox.ts` (mới) · `client/src/systems/EconomySync.ts` (mới) · `client/src/core/SaveData.ts` · `client/src/core/storageKeys.ts` · `client/src/systems/Unlocks.ts` · `client/src/systems/Missions.ts` · `client/src/ui/screens/MenuScreens.ts` · `client/src/App.ts` · `.env.example` · `test/economy.test.js` (mới) · `test/economy-client.test.js` (mới)
+
+**Phụ thuộc:** P1-3 (Shop/Unlocks + `unlockRules`), P1-4 (khuôn rate-limit theo `deviceId`, vé HMAC), P1-7 (khuôn store Postgres + `seedIfEmpty` idempotent), P2-2 (`cosmeticRules`).
+
+**Tham chiếu:** plan §3 Q6 (ví local P0/P1, ledger server lùi P2), §7.3 (hợp đồng — mọi thứ mới là BỔ SUNG), §7.4 bảng P2; `server/questionStore.js` (khuôn idempotent + `guard()`); `server/playerStore.js` (khuôn "tắt êm").
+
+**Tiêu chí nghiệm thu (DoD):**
+1. `npm run migrate` chạy **hai lần liên tiếp** trên cùng CSDL: schema không đổi, không nhân đôi dòng nào, không lỗi.
+2. **Di trú local → server chạy hai lần cho ra cùng một số dư** (test khoá). Bút toán di trú chỉ tồn tại đúng một dòng.
+3. **Số dư luôn khớp sổ cái:** `wallet.coins === SUM(coin_ledger.amount)` sau mọi chuỗi thao tác (test dựng lại số dư từ sổ và so).
+4. `coin_ledger` **chỉ được INSERT** — test đọc mã nguồn canh `server/economyStore.js` không có `UPDATE coin_ledger` / `DELETE FROM coin_ledger`.
+5. **Mua khi không đủ xu bị từ chối** ở phía server (không tin số dư client gửi lên), và **giá lấy từ catalog server** — gửi `price` giả trong body không có tác dụng.
+6. **Mua thành công là NGUYÊN TỬ:** trừ xu và ghi quyền sở hữu trong cùng một transaction; mua lại cùng `ref` không trừ lần hai.
+7. **Đứt mạng giữa chừng không mất xu:** đẩy thất bại → xu vẫn còn trong ví local và bút toán vẫn nằm trong outbox; lần đẩy sau thành công thì server có ĐÚNG số dư, không thiếu không thừa.
+8. Không có `DATABASE_URL` → mọi route kinh tế `disabled: true`, không route nào ném 500, game chơi bình thường.
+9. Rate-limit đếm theo `deviceId`: hai máy khác nhau **không** tiêu lượt của nhau (test khoá — đây là bẫy NAT phòng máy trường).
+10. **13 endpoint cũ + 5 khoá localStorage `-v1` + chữ ký `window.QuestionBank` không đổi** — contract-test xanh nguyên.
+11. Catalog server và bảng giá client **khớp từng id/slot/giá** (test khoá chống trôi hai bản).
+12. `npm run ci` xanh toàn bộ.
+
+**Đã làm (nhánh `v2/p2-03-economy`):** ba bảng `coin_ledger`/`wallet`/`unlocks` (`server/schema.js`), kho `server/economyStore.js` + bảng giá `server/shopCatalog.js`, 5 route mới trong `server/app.js` với `economyLimiter` đếm theo `deviceId`; phía client là hàng đợi thuần `systems/coinOutbox.ts` + bộ đồng bộ `systems/EconomySync.ts` cắm vào `Unlocks`/`Missions`/S8 qua ổ cắm `systems/economyLedger.ts`. **43 test mới** (`test/economy.test.js` 23, `test/economy-client.test.js` 20), `npm run ci` **379/379**, ngân sách **6.26 MB / 10 MB** (+0.01 MB, không thêm asset).
+
+**Quyết định đáng nêu:**
+· **Số dư được TÍNH LẠI từ sổ, không cộng dồn.** Mỗi lần ghi sổ, `wallet.coins` được đặt bằng `SELECT SUM(amount) FROM coin_ledger` trong CÙNG transaction — không bao giờ `coins = coins + delta`. Hệ quả: bộ đệm **không có cách nào** trôi khỏi sổ cái, kể cả khi một request chết giữa chừng (request chết chỉ để lại sổ thiếu một dòng, chứ không để lại số dư sai). Đây là lý do DoD 3 kiểm được bằng một dòng assert thay vì phải dựng công cụ đối soát.
+· **Điều kiện đủ xu nằm TRONG câu SQL** (`... WHERE (SELECT SUM…) + $amount BETWEEN 0 AND trần`), không phải "đọc số dư rồi mới ghi". Hai request song song của cùng một máy sẽ cùng đọc ra số dư cũ và cùng tiêu; câu điều kiện thì không.
+· **Ví local VẪN là bản làm việc, server là sổ cái bền — cố ý KHÔNG đồng bộ hai chiều.** Task ghi "thay local wallet", nhưng biến server thành nguồn sự thật lúc chạy nghĩa là mỗi lần bấm mua phải chờ mạng, và một lần `fetch` timeout ở phòng máy trường = một em mất món vừa mua. Nặng hơn: kéo số dư server đè lên local là chỗ duy nhất trong cả thiết kế có thể XOÁ xu — chỉ cần một lần đọc trúng bản sao cũ. Có test đọc mã nguồn canh `EconomySync.ts` không bao giờ ghi `coins` từ phản hồi server. Chi tiết ở mục "Khác tài liệu".
+· **Hàng đợi FIFO thay vì "gửi được thì gửi".** Nếu mỗi thay đổi xu chỉ là một `fetch` bắn đi rồi quên, thì rớt mạng một lần = server thiếu vĩnh viễn số xu đó, và về sau nó sẽ từ chối một lần mua hoàn toàn hợp lệ. Hàng đợi giữ bút toán tới khi server nhận và replay **đúng thứ tự** — "nhận 150 rồi tiêu 150" sau ba ngày vẫn đi qua được dù server bắt đầu từ 0.
+· **Bút toán bị server từ chối thì BỎ, không thử lại mãi.** Server đã trả lời dứt khoát "không đủ xu"; giữ lại là hàng đợi tắc vĩnh viễn vì một dòng độc, và mọi xu phía sau nó cũng không bao giờ tới nơi. Chỉ lỗi mạng/5xx mới giữ lại. Số lần bị bỏ đếm vào `dropped` để còn chẩn đoán được.
+· **`ref` gồm ba phần: thời điểm · bộ đếm · nhiễu ngẫu nhiên.** Bộ đếm một mình là chưa đủ — localStorage ghi hỏng (hết quota, chế độ riêng tư) thì bộ đếm quay lại giá trị cũ và hai bút toán KHÁC NHAU mang cùng `ref`; server nuốt cái thứ hai như bản trùng và người chơi mất xu thật.
+· **Cờ `migratedToServer` phía client chỉ là tối ưu.** Thứ bảo đảm không nhân đôi là khoá tự nhiên cố định `migrate:local-v2` + `ON CONFLICT DO NOTHING`. Hai lớp độc lập: xoá localStorage làm mất cờ nhưng không làm mất tính đúng đắn. Có test xoá cờ rồi chạy lại để chứng minh.
+· **Ví local KHÔNG BAO GIỜ bị xoá.** Việc "xoá ví local sau khi di trú" không tồn tại trong thiết kế — đó chính là cách để không có kịch bản nào làm bốc hơi xu.
+· **Giá luôn lấy từ `server/shopCatalog.js`, không bao giờ từ body.** Gửi `price: 1` cho món 800 xu không có tác dụng (có test). Ranh giới: server sở hữu món đồ ĐÁNG GIÁ BAO NHIÊU, client sở hữu món đồ TRÔNG NHƯ THẾ NÀO (màu tint/emissive của P2-2 ở lại client — server không có việc gì phải biết).
+· **Mốc thành tích được GHI NHẬN chứ không thẩm định.** Q6 (plan §3) đã chốt tiến trình là local-trust, và server không có cách nào kiểm được "em ấy đã chơi 10 ván". Thay vì giả vờ, cột `unlocks.source` ghi rõ `coins` / `achievement` / `migrate` để admin nhìn ra ngay. Thứ server THẬT SỰ bảo vệ là xu — tài nguyên khan hiếm duy nhất.
+· **Rate-limit đọc `deviceId` từ `req.params`** (route dạng `/api/players/:deviceId/...`), ngã về body rồi mới tới IP. Có test bấm 65 lần bằng một máy rồi kiểm máy thứ hai **cùng IP** vẫn đi được — đây đúng là bẫy NAT phòng máy trường mà `scoreLimiter` đã ghi chú từ P1-4.
+· **Không route kinh tế nào đòi vé ván chơi.** `ANTICHEAT_ENFORCE` còn tắt ở production; bắt vé ở đây là khoá cửa với đúng những em đang có xu cần di trú.
+
+**Khác tài liệu — nêu ra để không ai tưởng là bỏ sót:**
+· **Ghi chú bảng P2 ghi "Thay local wallet"; ở đây ví local KHÔNG bị thay, nó được GIỮ làm bản làm việc offline.** Server nhận vai sổ cái bền + trọng tài giá + nơi giữ quyền sở hữu. Lý do đã nêu ở mục quyết định: đường đi "server là nguồn sự thật lúc chạy" bắt mỗi thao tác xu phải chờ mạng và mở ra đúng một kịch bản xoá xu mà cả task này được viết ra để chặn. Hệ quả cần biết: **đổi máy thì xu KHÔNG theo sang** (giống hệt trước P2-3). Server giờ đã có đủ dữ liệu để làm việc đó — nhưng "khôi phục ví từ server" là một tính năng riêng, cần quyết định sản phẩm (ai được khôi phục, chống lạm dụng thế nào), không phải hệ quả tự động của P2-3.
+· **Catalog server chưa thay bảng giá hiển thị của client.** Client vẫn dựng cửa hàng từ `unlockRules.ts`/`cosmeticRules.ts` — game là PWA và phải mở được khi mất mạng hoàn toàn; cửa hàng trống trơn vì `fetch` hỏng là hồi quy so với P1-3/P2-2. Hai bảng được khoá bằng nhau trong CI, và `systems/shopPrices.compareCatalog` đối chiếu lúc khởi động: lệch thì hiện toast "Cửa hàng vừa cập nhật giá — em tải lại trang nhé". Lệch chỉ xảy ra được trong đúng một tình huống có thật: máy đang chạy bản client cũ trong cache Service Worker.
+· Thêm **một khoá localStorage mới** `endlessrunner-coin-outbox-v2`. Cố ý KHÔNG nhét chung `wallet-v2` (khác tiền lệ P1-5/P2-2 đã đặt): hàng đợi bị ghi rất thường xuyên, còn ví thì phải càng ít bị chạm càng tốt — trộn chung nghĩa là mỗi lần đẩy hàng đợi là một cơ hội ghi hỏng đúng vào chỗ giữ xu. Vẫn đúng quy tắc vàng #2: không đụng 5 khoá `-v1`.
+· `client/src/integration/questionBridge.ts` được thêm export `getDeviceId()`. Không phải phá quy tắc vàng #3 mà là tuân thủ nó: `endlessrunner-device-id-v1` thuộc 5 khoá hợp đồng, nên tầng duy nhất được chạm vẫn phải là questionBridge. `questionBank.js` KHÔNG bị sửa.
+· **Không thêm biến môi trường nào.** Nền kinh tế dùng chung `DATABASE_URL` đã có.
+
+**Lỗi THẬT phát hiện khi làm task này:**
+· **(do P2-3, đã sửa trước khi commit)** Câu ghi sổ lúc mua ban đầu chỉ kiểm "đủ xu" mà không kiểm "chưa sở hữu". Món đã có sẵn từ đường di trú hoặc mốc thành tích, nếu client lỡ gửi một lệnh mua với `ref` mới, sẽ bị **trừ tiền lần hai cho thứ đã sở hữu** — `ON CONFLICT` trên `unlocks` chặn được dòng sở hữu trùng nhưng KHÔNG chặn được bút toán trừ xu, vì nó mang `ref` khác. Đã thêm `AND NOT EXISTS (SELECT 1 FROM unlocks …)` vào chính điều kiện của câu INSERT (cùng transaction, không phải kiểm trước rồi ghi sau), và test `món ĐÃ SỞ HỮU không bị trừ tiền lần hai dù ref mới` khoá lại.
+· **(do P2-3, đã sửa)** Bước ghi quyền sở hữu lúc đầu chạy vô điều kiện sau bước trừ xu. Khi trừ xu bị từ chối vì thiếu tiền thì **món vẫn được phát**. Đã đổi thành `INSERT … SELECT … WHERE EXISTS (SELECT 1 FROM coin_ledger WHERE ref = …)` để việc phát đồ phụ thuộc vào việc bút toán có thật trong sổ.
+· **(có sẵn, KHÔNG sửa — cần chủ dự án biết)** `npm run migrate` đọc `.env` nên **chạy thẳng vào Neon production** mà không hỏi lại và không có chế độ thử. Nó chỉ làm việc idempotent (`CREATE TABLE IF NOT EXISTS` + gieo lớp còn rỗng) nên vô hại, nhưng một script chạm CSDL thật mà không có `--dry-run` hay xác nhận là chỗ chờ tai nạn. Không sửa trong P2-3 vì đổi giao diện script giữa lúc bàn giao là rủi ro không cần thiết; đề xuất thêm cờ xác nhận ở một task riêng.
+
+**Đã nghiệm thu trực tiếp trên trình duyệt** (server cục bộ PGlite, KHÔNG chạm Neon): ví giả lập 1240 xu + `mage` + `skin-gold` → sau khi tải trang, server có **đúng 1 bút toán** 1240 và 2 quyền sở hữu, ví local **nguyên vẹn**; mua "Chiến binh" 800 xu → local 440 / server 440 / `barbarian/coins/800`, hàng đợi rỗng; **cắt mạng** rồi mua "Bóng đêm" 150 xu → local 290 nhưng server vẫn 440 và bút toán **nằm lại hàng đợi**; nối mạng và tải lại → server 290, `skin-shadow/150`, hàng đợi rỗng, `dropped: 0`. Console sạch, không có toast lệch giá.
+
+**Chưa nghiệm thu được ở môi trường này:** hành vi thật trên **Neon** (mọi test chạy trên PGlite) và hành vi khi **hai instance serverless** cùng ghi sổ cho một máy. PGlite và Neon nói cùng phương ngữ Postgres và mọi bất biến ở đây đều do CSDL cưỡng chế (`UNIQUE`, `ON CONFLICT`, điều kiện trong INSERT) chứ không do ứng dụng, nên rủi ro thấp — nhưng `sql.batch` của Neon là `transaction()` qua HTTP, cần một lượt smoke thật trên preview trước khi phát hành.
+
+---
+
 ## 5. Checklist release (dùng cho P0 và mỗi phase sau)
 
 - [x] `npm run ci` xanh (tsc, test, contract-test, budget-check). — **136/136 test**, budget 4.58MB/10MB.
@@ -504,6 +575,7 @@ Bảng `questions` + `level_settings` (schema theo `plan.md` cũ §2.1 + cột `
 - [ ] Kiểm `GET /api/health` = ok trên preview (Neon nối). — health đã thêm `dbKind`/`dbOk` ở P0-14, cần xác nhận trên preview thật.
 - [x] Gỡ maintenance overlay (chỉ lần release P0 — thuộc P0-15). — đã gỡ ở CẢ 2 file, có test canh không cho quay lại.
 - [ ] Riêng release P1: bật `ANTICHEAT_ENFORCE=1` sau khi xác nhận đa số client đã lên V2 (theo dõi tỉ lệ submit có token).
+- [ ] Riêng release P2-3: chạy `npm run migrate` **TRƯỚC** khi deploy client mới (bảng kinh tế phải có trước khi client đầu tiên gọi di trú), rồi smoke `GET /api/shop/catalog` và `GET /api/players/<deviceId>/profile` trên preview. Không cần biến môi trường mới. Nếu `DATABASE_URL` chưa nối thì mọi route kinh tế trả `disabled: true` và game vẫn chạy bằng ví local — **an toàn nhưng xu không được lưu**, nên đừng phát hành ở trạng thái đó rồi mới nối Neon sau.
 - [ ] Smoke production: chơi 1 ván, kiểm leaderboard ghi điểm, admin login + sửa 1 câu. — **CHỦ DỰ ÁN LÀM sau deploy.**
 - [ ] Tag phiên bản (`v2.0.0-p0` / `v2.1.0-p1`...), cập nhật README + `docs/technical.md` (đang lỗi thời — ghi chú docs/v2/A3).
 

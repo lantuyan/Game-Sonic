@@ -27,6 +27,11 @@ import { MenuScene } from "@/scenes/MenuScene";
 import { loadWallet } from "@/core/SaveData";
 import { Unlocks } from "@/systems/Unlocks";
 import { Missions } from "@/systems/Missions";
+import { EconomySync } from "@/systems/EconomySync";
+import { setCoinLedgerSink } from "@/systems/economyLedger";
+import { compareCatalog } from "@/systems/shopPrices";
+import { UNLOCK_RULES } from "@/systems/unlockRules";
+import { COSMETICS } from "@/systems/cosmeticRules";
 import { emptyRunTotals } from "@/systems/missionRules";
 import { ReviewQueue } from "@/systems/ReviewQueue";
 import { CHARACTERS } from "@/data/characters";
@@ -45,6 +50,8 @@ export class App {
 	/** Nhiệm vụ ngày + huy hiệu + chuỗi ngày (P1-8). */
 	private readonly missions = new Missions();
 	private readonly reviewQueue = new ReviewQueue();
+	/** Sổ cái xu trên server (P2-3) — cắm vào `economyLedger` ngay ở constructor. */
+	private readonly economy = new EconomySync();
 
 	private level = "lop6";
 	/** P1-5 — ván kế tiếp là Luyện tập (không tim/điểm/BXH). */
@@ -56,6 +63,11 @@ export class App {
 		this.game = new Game(container, uiRoot);
 		this.screens = new ScreenManager(uiRoot);
 		this.uiRoot = uiRoot;
+
+		// P2-3 — cắm sổ cái NGAY, trước khi bất kỳ màn hình nào có thể chạm ví.
+		// `Unlocks`/`Missions`/S8 gọi qua ổ cắm này; chưa cắm thì chúng chạy y như
+		// trước P2-3 (đó là lý do mọi test cũ không phải biết gì về mạng).
+		setCoinLedgerSink(this.economy);
 
 		this.splash = new SplashScreen();
 
@@ -331,6 +343,37 @@ export class App {
 
 		// Người chơi mới → hướng dẫn trước; đã xem rồi → vào thẳng Home.
 		this.screens.show(hasSeenTutorial() === true ? "home" : "tutorial");
+
+		// P2-3 — di trú ví local lên server (một lần) rồi đẩy hàng đợi bút toán.
+		// KHÔNG chờ: đây là việc nền, màn Home không được đợi mạng mới hiện ra. Mọi
+		// lỗi đã nuốt bên trong `EconomySync`, ván chơi không bao giờ dừng vì nó.
+		void this.economy.start([...this.unlocks.unlockedIds, ...this.unlocks.ownedCosmeticIds]);
+		void this.checkShopCatalog();
+	}
+
+	/**
+	 * Đối chiếu bảng giá client với catalog server.
+	 *
+	 * CI đã khoá hai bảng bằng nhau, nên lệch giá chỉ có một nghĩa: máy này đang
+	 * chạy bản client CŨ trong cache Service Worker còn server đã lên bản mới. Khi
+	 * đó em ấy nhìn thấy một con số mà server sẽ trừ một con số khác — im lặng là
+	 * cách chắc chắn nhất để không ai hiểu chuyện gì đã xảy ra.
+	 */
+	private async checkShopCatalog(): Promise<void> {
+		const serverItems = await this.economy.fetchCatalog();
+
+		if (serverItems === null) {
+			return;
+		}
+
+		const localItems = [
+			...UNLOCK_RULES.map((rule) => ({ id: rule.characterId, price: rule.price })),
+			...COSMETICS.map((item) => ({ id: item.id, price: item.price }))
+		];
+
+		if (compareCatalog(serverItems, localItems).length > 0) {
+			this.showToast("Cửa hàng vừa cập nhật giá — em tải lại trang nhé.");
+		}
 	}
 
 	/**

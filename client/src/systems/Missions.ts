@@ -6,6 +6,7 @@
 
 import { readJson, writeJson, loadWallet, saveWallet, todayKey } from "@/core/SaveData";
 import { V2_STORAGE_KEYS } from "@/core/storageKeys";
+import { coinLedger } from "@/systems/economyLedger";
 import {
 	advanceStreak,
 	generateDailyMissions,
@@ -188,6 +189,10 @@ export class Missions {
 		if (coins > 0) {
 			const wallet = loadWallet();
 			saveWallet({ ...wallet, coins: wallet.coins + coins });
+			// P2-3 — báo sổ cái server trong CÙNG nhánh đã cộng ví. Một bút toán cho
+			// cả nhiệm vụ lẫn mốc chuỗi ngày, đúng như `coins` đã gộp làm một ở trên:
+			// hai lời gọi là hai cơ hội để một cái bị mất mà không ai biết.
+			coinLedger()?.record("mission", coins, "Nhiệm vụ ngày");
 		}
 
 		this.persist();

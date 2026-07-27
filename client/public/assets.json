@@ -192,6 +192,101 @@
 			"url": "models/props/rocks.glb",
 			"group": "park",
 			"bytes": 6348
+		},
+		{
+			"url": "models/props/obstacle-low-beach.glb",
+			"group": "obstacles-beach",
+			"bytes": 9056
+		},
+		{
+			"url": "models/props/obstacle-full-beach.glb",
+			"group": "obstacles-beach",
+			"bytes": 6084
+		},
+		{
+			"url": "models/props/palm-a.glb",
+			"group": "beach",
+			"bytes": 8092
+		},
+		{
+			"url": "models/props/palm-b.glb",
+			"group": "beach",
+			"bytes": 8052
+		},
+		{
+			"url": "models/props/rocks-sand-a.glb",
+			"group": "beach",
+			"bytes": 10540
+		},
+		{
+			"url": "models/props/rocks-sand-b.glb",
+			"group": "beach",
+			"bytes": 10224
+		},
+		{
+			"url": "models/props/beach-tower.glb",
+			"group": "beach",
+			"bytes": 7144
+		},
+		{
+			"url": "models/props/beach-boat.glb",
+			"group": "beach",
+			"bytes": 8020
+		},
+		{
+			"url": "models/props/beach-flag.glb",
+			"group": "beach",
+			"bytes": 6184
+		},
+		{
+			"url": "models/props/obstacle-low-snow.glb",
+			"group": "obstacles-snow",
+			"bytes": 6032
+		},
+		{
+			"url": "models/props/obstacle-high-snow.glb",
+			"group": "obstacles-snow",
+			"bytes": 11172
+		},
+		{
+			"url": "models/props/obstacle-full-snow.glb",
+			"group": "obstacles-snow",
+			"bytes": 9044
+		},
+		{
+			"url": "models/props/pine-a.glb",
+			"group": "snow",
+			"bytes": 9000
+		},
+		{
+			"url": "models/props/pine-b.glb",
+			"group": "snow",
+			"bytes": 8348
+		},
+		{
+			"url": "models/props/pine-c.glb",
+			"group": "snow",
+			"bytes": 7452
+		},
+		{
+			"url": "models/props/snowman.glb",
+			"group": "snow",
+			"bytes": 8932
+		},
+		{
+			"url": "models/props/snow-pile.glb",
+			"group": "snow",
+			"bytes": 6200
+		},
+		{
+			"url": "models/props/snow-rocks.glb",
+			"group": "snow",
+			"bytes": 10880
+		},
+		{
+			"url": "models/props/snow-lantern.glb",
+			"group": "snow",
+			"bytes": 7128
 		}
 	],
 	"particles": [
@@ -250,7 +345,9 @@
 		"audio/boss-defeat.ogg",
 		"audio/near-miss.ogg",
 		"audio/bgm-menu.ogg",
-		"audio/bgm-biome1.ogg"
+		"audio/bgm-biome1.ogg",
+		"audio/bgm-biome2.ogg",
+		"audio/bgm-biome3.ogg"
 	],
 	"clipFallbacks": [
 		"robot.slide → run (nguồn không có clip này)",

@@ -54,6 +54,29 @@ export interface ObstacleTemplates {
 	coin: Mesh;
 }
 
+/**
+ * Hệ số đưa một mẫu GLB về đúng bề rộng/chiều cao chuẩn (P1-2).
+ *
+ * x và z dùng CÙNG hệ số (giữ tỉ lệ mặt bằng, rào mỏng vẫn mỏng); riêng y ép theo
+ * chiều cao mong muốn. Mẫu rỗng/dẹt → trả về scale 1 thay vì chia cho 0.
+ */
+function normalizeScale(template: Mesh, targetWidth: number, targetHeight: number): Vector3 {
+	const geometry = template.geometry;
+	geometry.computeBoundingBox();
+
+	const box = geometry.boundingBox;
+
+	if (box === null) {
+		return new Vector3(1, 1, 1);
+	}
+
+	const width = Math.max(box.max.x - box.min.x, 1e-4);
+	const height = Math.max(box.max.y - box.min.y, 1e-4);
+	const horizontal = targetWidth / width;
+
+	return new Vector3(horizontal, targetHeight / height, horizontal);
+}
+
 export class Spawn {
 	readonly group = new Object3D();
 
@@ -63,6 +86,8 @@ export class Spawn {
 	private readonly coins: CoinSlot[] = [];
 
 	private readonly obstacleMeshes: Record<ObstacleKind, InstancedMesh>;
+	/** Hệ số ép mẫu GLB về kích thước chuẩn (xem `tuning.spawn.lowWidth`…). */
+	private readonly obstacleScale: Record<ObstacleKind, Vector3>;
 	private readonly coinMesh: InstancedMesh;
 
 	private readonly scratchMatrix = new Matrix4();
@@ -88,6 +113,12 @@ export class Spawn {
 			low: this.createInstanced(templates.low, "obstacle-low"),
 			high: this.createInstanced(templates.high, "obstacle-high"),
 			full: this.createInstanced(templates.full, "obstacle-full")
+		};
+
+		this.obstacleScale = {
+			low: normalizeScale(templates.low, tuning.spawn.lowWidth, tuning.spawn.lowHeight),
+			high: normalizeScale(templates.high, tuning.spawn.highWidth, tuning.spawn.highHeight),
+			full: normalizeScale(templates.full, tuning.spawn.fullWidth, tuning.spawn.fullHeight)
 		};
 
 		this.coinMesh = this.createInstanced(templates.coin, "coin", COIN_POOL_SIZE);
@@ -406,7 +437,7 @@ export class Spawn {
 				(obstacle.zStart + obstacle.zEnd) / 2
 			);
 			this.scratchQuaternion.identity();
-			this.scratchScale.setScalar(1);
+			this.scratchScale.copy(this.obstacleScale[obstacle.kind]);
 			this.scratchMatrix.compose(this.scratchPosition, this.scratchQuaternion, this.scratchScale);
 			mesh.setMatrixAt(index, this.scratchMatrix);
 		}

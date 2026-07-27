@@ -24,7 +24,7 @@ import {
 } from "three";
 import { tuning } from "@/tuning";
 import { applyCurvedWorld } from "@/fx/CurvedWorld";
-import { BIOME_CITY_PARK, type BiomePalette } from "@/fx/Sky";
+import { BIOME_CITY_PARK, type BiomePalette } from "@/fx/biomes";
 import type { ObstacleBand } from "@/systems/Collision";
 import { createSeededRandom, type SeededRandom } from "@/core/random";
 
@@ -281,6 +281,22 @@ export class Track {
 			layer.mesh.count = Math.min(layer.used, layer.capacity);
 			layer.mesh.instanceMatrix.needsUpdate = true;
 		}
+	}
+
+	/**
+	 * Gỡ toàn bộ lớp trang trí khi chuyển biome (P1-2).
+	 *
+	 * Chỉ `dispose()` InstancedMesh (buffer instance), KHÔNG dispose geometry/material:
+	 * hai thứ đó thuộc về GLB trong cache của AssetManager và có thể được biome sau
+	 * dùng lại. Dispose nhầm ở đây thì lần quay lại biome ① sẽ ra mesh trắng/rỗng.
+	 */
+	clearDecorLayers(): void {
+		for (const layer of this.decorLayers) {
+			this.group.remove(layer.mesh);
+			layer.mesh.dispose();
+		}
+
+		this.decorLayers.length = 0;
 	}
 
 	/** Rải trang trí cho toàn bộ chunk đang có (gọi 1 lần sau khi addDecorLayer). */

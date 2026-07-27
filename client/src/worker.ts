@@ -78,5 +78,42 @@ registerRoute(
 self.addEventListener("message", (event) => {
 	if (event.data === "SKIP_WAITING") {
 		void self.skipWaiting();
+		return;
+	}
+
+	// P1-2: bơm biome ②/③ vào cache SAU VÁN ĐẦU (xem globIgnores ở vite.config).
+	// Dùng `add` từng cái thay vì `addAll`: một file lỗi không được huỷ cả mẻ.
+	if (
+		typeof event.data === "object" &&
+		event.data !== null &&
+		(event.data as { type?: string }).type === "WARM_BIOME_CACHE"
+	) {
+		const urls = (event.data as { urls?: unknown }).urls;
+
+		if (Array.isArray(urls) === false) {
+			return;
+		}
+
+		event.waitUntil(
+			(async () => {
+				const cache = await caches.open(RUNTIME_MEDIA_CACHE);
+
+				for (const url of urls as string[]) {
+					if (typeof url !== "string") {
+						continue;
+					}
+
+					if ((await cache.match(url)) !== undefined) {
+						continue;
+					}
+
+					try {
+						await cache.add(url);
+					} catch {
+						// Mất mạng giữa chừng: lần sau warm lại, không có gì để báo.
+					}
+				}
+			})()
+		);
 	}
 });

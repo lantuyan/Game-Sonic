@@ -55,6 +55,24 @@ export default defineConfig(({ command }) => ({
 			injectManifest: {
 				// App-shell + font + nhân vật + biome ① đều nằm trong ngân sách 10MB.
 				globPatterns: ["**/*.{js,css,html,woff2,glb,ogg,png,json}"],
+				// P1-2: biome ② và ③ KHÔNG nằm trong precache lúc cài.
+				//
+				// Lý do là băng thông ở trường: nhét cả 3 biome vào lần cài đầu bắt học
+				// sinh tải ~850KB nhạc cho hai chặng mà phần lớn các em chưa từng tới
+				// (boss đầu tiên ở phút thứ 2.5). Thay vào đó: tải nóng lúc cắt cảnh boss
+				// (RunScene.preloadNextBiome) rồi bơm vào cache SAU VÁN ĐẦU
+				// (core/pwa.ts → thông điệp WARM_BIOME_CACHE), nên ván thứ hai đã offline được.
+				//
+				// ⚠ Danh sách này khớp với `client/src/fx/biomes.ts` và được
+				// `test/biomes.test.js` canh — thêm prop biome mới mà quên ở đây thì
+				// prop đó lặng lẽ chui vào lần tải đầu.
+				globIgnores: [
+					"**/models/props/{obstacle-low-beach,obstacle-full-beach}.glb",
+					"**/models/props/{palm,rocks-sand,beach}-*.glb",
+					"**/models/props/{obstacle-low-snow,obstacle-high-snow,obstacle-full-snow,snowman}.glb",
+					"**/models/props/{pine,snow}-*.glb",
+					"**/audio/bgm-biome{2,3}.ogg"
+				],
 				maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
 				// IIFE chứ KHÔNG phải ES module: SW dạng module bắt buộc đăng ký bằng
 				// `{type:"module"}`, thứ mà Chrome cũ trên máy phòng tin học và iOS <16.4

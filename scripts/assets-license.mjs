@@ -14,18 +14,35 @@ const OUTPUT_OWNERS = [
 	{ match: /^models\/characters\/knight\.glb$/, sourceId: "kaykit-adventurers-knight" },
 	{ match: /^models\/characters\/robot\.glb$/, sourceId: "__robot__" },
 	{ match: /^models\/characters\/(fox|parrot)\.glb$/, sourceId: "kenney-cube-pets" },
-	{ match: /^models\/props\/(coin|heart|star|obstacle-low-fence|obstacle-low-spikes|obstacle-full-|grass|flowers|rocks|obstacle-high-sign)/, sourceId: "kenney-platformer-kit" },
+	// ⚠ Thứ tự QUAN TRỌNG: `find` lấy mục khớp ĐẦU TIÊN. Các mục riêng của biome
+	// ②/③ (P1-2) phải đứng trước mục chung, và mục chung phải liệt kê tên đầy đủ —
+	// `obstacle-full-` chung chung sẽ nuốt luôn `obstacle-full-beach.glb` và ghi sai
+	// nguồn vào hồ sơ bản quyền, đúng thứ mà file này sinh ra để tránh.
+	{
+		match: /^models\/props\/(obstacle-low-beach|obstacle-full-beach|palm-|rocks-sand-|beach-)/,
+		sourceId: "kenney-pirate-kit"
+	},
+	{
+		match: /^models\/props\/(obstacle-low-snow|obstacle-high-snow|obstacle-full-snow|pine-|snowman|snow-)/,
+		sourceId: "kenney-holiday-kit"
+	},
+	{
+		match: /^models\/props\/(coin|heart|star|obstacle-low-fence|obstacle-low-spikes|obstacle-full-crate|obstacle-full-barrel|grass|flowers|rocks\.glb|obstacle-high-sign)/,
+		sourceId: "kenney-platformer-kit"
+	},
 	{ match: /^models\/props\/(obstacle-low-barrier|obstacle-cone|streetlight)/, sourceId: "kenney-city-kit-roads" },
 	{ match: /^models\/props\/(building-|fence\.glb|planter)/, sourceId: "kenney-city-kit-suburban" },
 	{ match: /^models\/props\/tree-/, sourceId: "kenney-nature-kit" },
 	{ match: /^textures\/particles\//, sourceId: "kenney-particle-pack" },
 	{ match: /^textures\/icons\//, sourceId: "kenney-game-icons" },
 	{ match: /^audio\/(ui-|countdown)/, sourceId: "kenney-interface-sounds" },
-	{ match: /^audio\/(coin|powerup|fever|jump)\.ogg$/, sourceId: "kenney-digital-audio" },
-	{ match: /^audio\/(answer-|game-over|new-record)/, sourceId: "kenney-music-jingles" },
+	{ match: /^audio\/(coin|powerup|fever|jump|boss-appear|near-miss)\.ogg$/, sourceId: "kenney-digital-audio" },
+	{ match: /^audio\/(answer-|game-over|new-record|boss-defeat)/, sourceId: "kenney-music-jingles" },
 	{ match: /^audio\/(hit|land|gate-bell)\.ogg$/, sourceId: "kenney-impact-sounds" },
 	{ match: /^audio\/bgm-menu\.ogg$/, sourceId: "oga-short-loops-menu" },
-	{ match: /^audio\/bgm-biome1\.ogg$/, sourceId: "oga-short-loops-run" }
+	{ match: /^audio\/bgm-biome1\.ogg$/, sourceId: "oga-short-loops-run" },
+	{ match: /^audio\/bgm-biome2\.ogg$/, sourceId: "oga-short-loops-beach" },
+	{ match: /^audio\/bgm-biome3\.ogg$/, sourceId: "oga-short-loops-snow" }
 ];
 
 const ROBOT_SOURCE = {

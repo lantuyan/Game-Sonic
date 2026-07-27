@@ -292,9 +292,13 @@ Chặng ~2.5–3 phút → trùm chặn đường (model Quaternius theo biome):
 · dừng thế giới lúc modal boss bằng phanh riêng `worldSpeedFactor`, KHÔNG dùng `engine.timeScale = 0` (timeScale 0 làm accumulator không bao giờ đầy ⇒ `update()` chết ⇒ modal treo vĩnh viễn).
 **Chưa nghiệm thu được ở môi trường này:** xem cắt cảnh chạy thật (rAF bị treo ~1 fps trong sandbox — đúng hạn chế đã ghi ở P0-13). Máy thật: mở `/?debug`, boss tới sau 8 giây.
 
-### [ ] P1-2 · Biome ② Bãi biển + ③ Núi tuyết — *4 ngày*
+### [x] P1-2 · Biome ② Bãi biển + ③ Núi tuyết — *4 ngày*
 Kenney Pirate Kit / Holiday Kit qua pipeline P0-3 (+LICENSE cập nhật); mỗi biome: bảng màu sky/fog riêng, 2–3 props chướng ngại đặc trưng, BGM riêng; lazy-load GLB khi sắp chuyển chặng (P1-1), precache SW sau ván đầu.
 **DoD:** chuyển biome giữa ván không khựng >100ms; mỗi biome ≤3MB; draw calls giữ <100.
+**Đã làm (nhánh `v2/p1-02-biomes`):** `fx/biomes.ts` thành sổ đăng ký 3 biome (bảng màu + BGM + 3 props chướng ngại + 7–8 lớp trang trí); Pirate Kit + Holiday Kit + 2 track BGM cùng pack CC0 đi qua pipeline P0-3; `Track.setPalette/clearDecorLayers`; nạp trước biome kế tiếp ngay lúc cắt cảnh boss. 9 test mới (`test/biomes.test.js`).
+**Phát hiện đáng ghi:** pipeline dùng `KHR_mesh_quantization`, mà `Spawn` chỉ lấy `mesh.geometry` nên hệ số giải lượng tử hóa trên node bị bỏ — mọi mẫu GLB đều ra ~2 unit bất kể kích thước gốc. P1-2 thêm `normalizeScale` ép cả 3 loại về bộ số trong `tuning.spawn.lowWidth…`; nhờ vậy rào Pirate Kit (cao 2.20 ở nguồn) và dây đèn Holiday Kit (0.32) ra cùng một cỡ. Biome ① vì thế cũng đổi cỡ chướng ngại một chút — cố ý, vì 2 unit gần bằng cả khoảng cách làn 2.3.
+**Ngoài kế hoạch một chút:** biome ② dùng lại `obstacle-high-sign` của biome ① — Pirate Kit không có vật nào đọc ra "thanh chắn trên cao" ở tốc độ 15 unit/s.
+**Chưa nghiệm thu được ở môi trường này:** đo thời gian chuyển chặng thật (<100ms) và cảm giác chướng ngại ở tốc độ chơi — rAF bị treo ~1 fps trong sandbox. Máy thật: `/?debug&biome=1` (bãi biển) và `/?debug&biome=2` (núi tuyết) vào thẳng biome để soi.
 
 ### [ ] P1-3 · Shop + unlock + 3 nhân vật mới — *3 ngày*
 Mage/Rogue/Engineer qua pipeline; S12 Shop: giá coin (cân trong tuning: ~300/500/800 coin) **hoặc** mốc thành tích (vd "10 ván", "50 câu đúng", "1 lần top 10") — mỗi nhân vật 2 đường; trạng thái khóa ở S4; lưu `endlessrunner-unlocks-v2` (local — Q6); toast unlock.

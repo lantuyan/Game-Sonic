@@ -131,7 +131,36 @@ const PROPS = [
 	{ kit: "nature-kit", file: "tree_fat.glb", as: "tree-d.glb", group: "park", format: "GLTF format" },
 	{ kit: "platformer-kit", file: "grass.glb", as: "grass.glb", group: "park" },
 	{ kit: "platformer-kit", file: "flowers.glb", as: "flowers.glb", group: "park" },
-	{ kit: "platformer-kit", file: "rocks.glb", as: "rocks.glb", group: "park" }
+	{ kit: "platformer-kit", file: "rocks.glb", as: "rocks.glb", group: "park" },
+
+	// --- P1-2 · biome ② Bãi biển (Kenney Pirate Kit) ---
+	//
+	// Chướng ngại giữ ĐÚNG 3 silhouette của plan §4.2 (thấp = nhảy, cao = trượt,
+	// đặc = đổi làn); biome chỉ thay "da". Pirate Kit không có vật nào đọc ra
+	// "thanh chắn trên cao" nên biome ② DÙNG LẠI `obstacle-high-sign` — thà lặp
+	// hình còn hơn dạy học sinh một tín hiệu mơ hồ ở tốc độ 15 unit/s.
+	{ kit: "pirate-kit", file: "structure-fence.glb", as: "obstacle-low-beach.glb", group: "obstacles-beach" },
+	{ kit: "pirate-kit", file: "barrel.glb", as: "obstacle-full-beach.glb", group: "obstacles-beach" },
+	{ kit: "pirate-kit", file: "palm-straight.glb", as: "palm-a.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "palm-bend.glb", as: "palm-b.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "rocks-sand-a.glb", as: "rocks-sand-a.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "rocks-sand-b.glb", as: "rocks-sand-b.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "tower-watch.glb", as: "beach-tower.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "boat-row-small.glb", as: "beach-boat.glb", group: "beach" },
+	{ kit: "pirate-kit", file: "flag-pirate.glb", as: "beach-flag.glb", group: "beach" },
+
+	// --- P1-2 · biome ③ Núi tuyết (Kenney Holiday Kit) ---
+	// Ở đây thì CÓ vật đọc ra "trên cao": dây đèn treo ngang đường → trượt chui qua.
+	{ kit: "holiday-kit", file: "cabin-fence.glb", as: "obstacle-low-snow.glb", group: "obstacles-snow" },
+	{ kit: "holiday-kit", file: "lights-colored.glb", as: "obstacle-high-snow.glb", group: "obstacles-snow" },
+	{ kit: "holiday-kit", file: "present-a-cube.glb", as: "obstacle-full-snow.glb", group: "obstacles-snow" },
+	{ kit: "holiday-kit", file: "tree-snow-a.glb", as: "pine-a.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "tree-snow-b.glb", as: "pine-b.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "tree-snow-c.glb", as: "pine-c.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "snowman.glb", as: "snowman.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "snow-pile.glb", as: "snow-pile.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "rocks-large.glb", as: "snow-rocks.glb", group: "snow" },
+	{ kit: "holiday-kit", file: "lantern.glb", as: "snow-lantern.glb", group: "snow" }
 ];
 
 const PARTICLES = [
@@ -195,6 +224,9 @@ const SOUNDS = [
 	{ as: "boss-defeat.ogg", kit: "music-jingles", file: "Audio/8-Bit jingles/jingles_NES02.ogg" },
 	{ as: "near-miss.ogg", kit: "digital-audio", file: "Audio/phaseJump1.ogg" }
 ];
+
+/** BGM: copy nguyên, không nén lại (đã là .ogg từ nguồn CC0). */
+const BGM_TRACKS = ["bgm-menu.ogg", "bgm-biome1.ogg", "bgm-biome2.ogg", "bgm-biome3.ogg"];
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
 	"meshopt.encoder": MeshoptEncoder
@@ -399,13 +431,13 @@ async function buildAudio() {
 		total += await fileSize(outputPath);
 	}
 
-	for (const track of ["bgm-menu.ogg", "bgm-biome1.ogg"]) {
+	for (const track of BGM_TRACKS) {
 		const outputPath = path.join(outputDir, track);
 		await cp(path.join(downloadsDir, "audio", track), outputPath);
 		total += await fileSize(outputPath);
 	}
 
-	console.log(`  ✓ ${SOUNDS.length} SFX + 2 BGM — tổng ${formatKb(total)}`);
+	console.log(`  ✓ ${SOUNDS.length} SFX + ${BGM_TRACKS.length} BGM — tổng ${formatKb(total)}`);
 	return total;
 }
 
@@ -428,7 +460,7 @@ async function writeAssetManifest() {
 		})),
 		particles: PARTICLES.map((name) => `textures/particles/${name}`),
 		icons: ICONS.map((name) => `textures/icons/${name}`),
-		audio: [...SOUNDS.map((sound) => `audio/${sound.as}`), "audio/bgm-menu.ogg", "audio/bgm-biome1.ogg"],
+		audio: [...SOUNDS.map((sound) => `audio/${sound.as}`), ...BGM_TRACKS.map((track) => `audio/${track}`)],
 		clipFallbacks: report.fallbacks
 	};
 

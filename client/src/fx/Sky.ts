@@ -14,28 +14,10 @@ import {
 	type Scene
 } from "three";
 import { tuning } from "@/tuning";
+// Bảng màu sống ở fx/biomes.ts (thuần dữ liệu, không import three) để test chạy
+// được dưới `node --test`. Sky chỉ là thứ VẼ ra bảng màu đó.
+import { BIOME_CITY_PARK, type BiomePalette } from "@/fx/biomes";
 
-export interface BiomePalette {
-	/** Màu đỉnh trời. */
-	top: number;
-	/** Màu chân trời — fog PHẢI dùng đúng màu này. */
-	horizon: number;
-	/** Màu dưới đường chân trời (đất/sương). */
-	bottom: number;
-	ground: number;
-	road: number;
-	roadLine: number;
-}
-
-/** Biome ① — Thành phố + Công viên (plan §3 Q4). */
-export const BIOME_CITY_PARK: BiomePalette = {
-	top: 0x2f7ce0,
-	horizon: 0x9fd0ff,
-	bottom: 0xd8ecff,
-	ground: 0x4c9a4a,
-	road: 0x5b6273,
-	roadLine: 0xf2f4f8
-};
 
 const VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldDirection;

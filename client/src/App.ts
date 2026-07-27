@@ -14,6 +14,7 @@ import {
 	LeaderboardScreen,
 	PauseScreen,
 	SettingsScreen,
+	ShopScreen,
 	SplashScreen,
 	TutorialScreen,
 	hasSeenTutorial,
@@ -23,6 +24,8 @@ import { ReviewScreen } from "@/ui/ReviewScreen";
 import { RunScene } from "@/scenes/RunScene";
 import { MenuScene } from "@/scenes/MenuScene";
 import { loadWallet } from "@/core/SaveData";
+import { Unlocks } from "@/systems/Unlocks";
+import { CHARACTERS } from "@/data/characters";
 import * as bridge from "@/integration/questionBridge";
 
 export class App {
@@ -32,6 +35,9 @@ export class App {
 	private readonly splash: SplashScreen;
 	private readonly review: ReviewScreen;
 	private readonly gameOver: GameOverScreen;
+	private readonly uiRoot: HTMLElement;
+	/** Tiến trình mở khoá nhân vật (P1-3). */
+	private readonly unlocks = new Unlocks();
 
 	private level = "lop6";
 	private runScene: RunScene | null = null;
@@ -40,6 +46,7 @@ export class App {
 	constructor(container: HTMLElement, uiRoot: HTMLElement) {
 		this.game = new Game(container, uiRoot);
 		this.screens = new ScreenManager(uiRoot);
+		this.uiRoot = uiRoot;
 
 		this.splash = new SplashScreen();
 
@@ -77,6 +84,19 @@ export class App {
 			},
 			onBack: () => {
 				this.screens.show("level");
+			},
+			onOpenShop: () => {
+				this.screens.show("shop");
+			}
+		});
+
+		// S12 — Cửa hàng mở khoá nhân vật (P1-3).
+		const shop = new ShopScreen({
+			onBack: () => {
+				this.screens.show("character");
+			},
+			onUnlocked: (_characterId, label) => {
+				this.showToast(`Đã mở khoá ${label}! 🎉`);
 			}
 		});
 
@@ -167,7 +187,8 @@ export class App {
 			this.gameOver,
 			leaderboard,
 			settings,
-			tutorial
+			tutorial,
+			shop
 		]) {
 			uiRoot.appendChild(screen.element);
 			this.screens.register(screen);
@@ -183,13 +204,24 @@ export class App {
 			const scene = this.runScene;
 			const stats = scene?.sessionSummary ?? { correct: 0, total: 0 };
 			const wallet = loadWallet();
+			const rank = (payload as { rank?: number }).rank ?? null;
+
+			// P1-3: ghi nhận ván vào tiến trình mở khoá, và báo nếu vừa đạt mốc.
+			// Làm ở đây chứ không trong RunScene vì đây là nơi biết cả thứ hạng BXH.
+			for (const characterId of this.unlocks.recordGame({
+				correctAnswers: stats.correct,
+				leaderboardRank: rank
+			})) {
+				const character = CHARACTERS.find((entry) => entry.id === characterId);
+				this.showToast(`Đã mở khoá ${character?.label ?? characterId}! 🎉`);
+			}
 
 			this.screens.show("gameover", {
 				score: payload.score,
 				coins: payload.coins,
 				correct: stats.correct,
 				total: stats.total,
-				rank: (payload as { rank?: number }).rank ?? null,
+				rank,
 				isNewRecord: payload.score > wallet.bestScore
 			});
 		});
@@ -240,6 +272,22 @@ export class App {
 
 		// Người chơi mới → hướng dẫn trước; đã xem rồi → vào thẳng Home.
 		this.screens.show(hasSeenTutorial() === true ? "home" : "tutorial");
+	}
+
+	/**
+	 * Toast ngoài ván (mở khoá nhân vật…). HUD chỉ sống trong ván nên màn menu
+	 * cần đường riêng; dùng lại đúng class `.hud__toast` để không có style thứ hai.
+	 */
+	private showToast(message: string): void {
+		const toast = document.createElement("div");
+		toast.className = "hud__toast";
+		toast.setAttribute("role", "status");
+		toast.textContent = message;
+		this.uiRoot.appendChild(toast);
+
+		window.setTimeout(() => {
+			toast.remove();
+		}, 3200);
 	}
 
 	dispose(): void {

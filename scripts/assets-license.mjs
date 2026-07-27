@@ -14,6 +14,10 @@ const OUTPUT_OWNERS = [
 	{ match: /^models\/characters\/knight\.glb$/, sourceId: "kaykit-adventurers-knight" },
 	{ match: /^models\/characters\/robot\.glb$/, sourceId: "__robot__" },
 	{ match: /^models\/characters\/(fox|parrot)\.glb$/, sourceId: "kenney-cube-pets" },
+	// P1-3 — nhân vật mở khoá, cùng bộ KayKit Adventurers với Knight.
+	{ match: /^models\/characters\/mage\.glb$/, sourceId: "kaykit-adventurers-mage" },
+	{ match: /^models\/characters\/rogue\.glb$/, sourceId: "kaykit-adventurers-rogue" },
+	{ match: /^models\/characters\/barbarian\.glb$/, sourceId: "kaykit-adventurers-barbarian" },
 	// ⚠ Thứ tự QUAN TRỌNG: `find` lấy mục khớp ĐẦU TIÊN. Các mục riêng của biome
 	// ②/③ (P1-2) phải đứng trước mục chung, và mục chung phải liệt kê tên đầy đủ —
 	// `obstacle-full-` chung chung sẽ nuốt luôn `obstacle-full-beach.glb` và ghi sai

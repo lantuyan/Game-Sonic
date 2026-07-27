@@ -4,7 +4,7 @@
 > Nguồn khai báo tại [`assets-src/sources.json`](../assets-src/sources.json); danh sách file
 > đầu ra lấy từ `client/public/assets.json` do `npm run assets:build` sinh ra.
 
-Cập nhật lần cuối: **2026-07-27** · Tổng số file: **106**
+Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 
 ## 1. Nguyên tắc
 
@@ -19,6 +19,9 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **106**
 |---|---|---|---|
 | KayKit — Adventurers: Knight | Kay Lousberg (KayKit) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kaylousberg.itch.io/kaykit-adventurers> |
 | RobotExpressive | Tomás Laulhé, chỉnh sửa bởi Don McCurdy | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://github.com/mrdoob/three.js/tree/master/examples/models/gltf/RobotExpressive> |
+| KayKit — Adventurers: Mage | Kay Lousberg (KayKit) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kaylousberg.itch.io/kaykit-adventurers> |
+| KayKit — Adventurers: Rogue | Kay Lousberg (KayKit) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kaylousberg.itch.io/kaykit-adventurers> |
+| KayKit — Adventurers: Barbarian | Kay Lousberg (KayKit) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kaylousberg.itch.io/kaykit-adventurers> |
 | Kenney — Cube Pets | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/cube-pets> |
 | Kenney — Platformer Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/platformer-kit> |
 | Kenney — City Kit (Roads) | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/city-kit-roads> |
@@ -43,6 +46,9 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **106**
 
 - **KayKit — Adventurers: Knight** — Bản GLB trên GitHub chính chủ của KayKit — đã kèm sẵn 60+ clip gồm Idle/Running_A/Jump_Full_Long/Dodge_Forward/Death_A/Hit_A, đủ 6 clip P0 mà không cần Mixamo.
 - **RobotExpressive** — Đã có sẵn trong repo tại `characters/RobotExpressive.glb` từ V1 — giữ nguyên nhân vật `robot`.
+- **KayKit — Adventurers: Mage** — P1-3 nhân vật mở khoá (Pháp sư) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn.
+- **KayKit — Adventurers: Rogue** — P1-3 nhân vật mở khoá (Trinh sát) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn.
+- **KayKit — Adventurers: Barbarian** — P1-3 nhân vật mở khoá (Chiến binh) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn.
 - **Kenney — Cube Pets** — THAY cho Quaternius Ultimate Animated Animal Pack mà docs/v2/B1 gợi ý: bản Quaternius chỉ tải được qua Google Drive (không script hoá được). Cube Pets cùng license CC0, có sẵn GLB kèm clip idle/walk/run — lấy Fox (thay `horse`) và Parrot (giữ tên `parrot`).
 - **Kenney — Pirate Kit** — P1-2 biome ② Bãi biển: thùng/tháp/cọc/cây cọ.
 - **Kenney — Holiday Kit** — P1-2 biome ③ Núi tuyết: cây thông, người tuyết, hộp quà.
@@ -56,6 +62,9 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **106**
 |---|---|---|
 | `models/characters/knight.glb` | KayKit — Adventurers: Knight | CC0-1.0 |
 | `models/characters/robot.glb` | RobotExpressive | CC0-1.0 |
+| `models/characters/mage.glb` | KayKit — Adventurers: Mage | CC0-1.0 |
+| `models/characters/rogue.glb` | KayKit — Adventurers: Rogue | CC0-1.0 |
+| `models/characters/barbarian.glb` | KayKit — Adventurers: Barbarian | CC0-1.0 |
 | `models/characters/fox.glb` | Kenney — Cube Pets | CC0-1.0 |
 | `models/characters/parrot.glb` | Kenney — Cube Pets | CC0-1.0 |
 | `models/props/coin.glb` | Kenney — Platformer Kit | CC0-1.0 |

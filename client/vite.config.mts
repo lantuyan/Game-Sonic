@@ -71,7 +71,11 @@ export default defineConfig(({ command }) => ({
 					"**/models/props/{palm,rocks-sand,beach}-*.glb",
 					"**/models/props/{obstacle-low-snow,obstacle-high-snow,obstacle-full-snow,snowman}.glb",
 					"**/models/props/{pine,snow}-*.glb",
-					"**/audio/bgm-biome{2,3}.ogg"
+					"**/audio/bgm-biome{2,3}.ogg",
+					// P1-3: nhân vật phải MỞ KHOÁ mới chơi được (~850KB) — không bắt
+					// mọi học sinh tải ngay lúc cài. Route CacheFirst của SW sẽ giữ lại
+					// từ lần chọn đầu tiên, tức ngay sau khi mở khoá.
+					"**/models/characters/{mage,rogue,barbarian}.glb"
 				],
 				maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
 				// IIFE chứ KHÔNG phải ES module: SW dạng module bắt buộc đăng ký bằng

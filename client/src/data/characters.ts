@@ -44,6 +44,29 @@ export const CHARACTERS: readonly CharacterDefinition[] = [
 		label: "Vẹt",
 		description: "Nhẹ như gió.",
 		url: "models/characters/parrot.glb"
+	},
+	// --- P1-3 · nhân vật mở khoá (luật ở systems/unlockRules.ts) ---
+	// `legacyId` rỗng: V1 chưa từng có 3 nhân vật này nên không có giá trị cũ cần map.
+	{
+		id: "mage",
+		legacyId: "",
+		label: "Pháp sư",
+		description: "Chậm rãi mà chắc — hợp bạn thích suy nghĩ.",
+		url: "models/characters/mage.glb"
+	},
+	{
+		id: "rogue",
+		legacyId: "",
+		label: "Trinh sát",
+		description: "Lanh lẹ, né nhanh nhất bộ.",
+		url: "models/characters/rogue.glb"
+	},
+	{
+		id: "barbarian",
+		legacyId: "",
+		label: "Chiến binh",
+		description: "To khoẻ, không sợ gì cả.",
+		url: "models/characters/barbarian.glb"
 	}
 ];
 
@@ -74,7 +97,8 @@ export function resolveCharacterId(storedValue: string | null): string {
 		return direct.id;
 	}
 
-	const legacy = CHARACTERS.find((character) => character.legacyId === trimmed);
+	// `legacyId !== ""`: nhân vật P1-3 để rỗng, không được để chuỗi rỗng khớp bừa.
+	const legacy = CHARACTERS.find((character) => character.legacyId !== "" && character.legacyId === trimmed);
 
 	if (legacy !== undefined) {
 		return legacy.id;

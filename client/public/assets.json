@@ -31,6 +31,51 @@
 			"bytes": 137068
 		},
 		{
+			"id": "mage",
+			"legacyId": "",
+			"label": "Pháp sư",
+			"url": "models/characters/mage.glb",
+			"clips": [
+				"idle",
+				"run",
+				"jump",
+				"slide",
+				"death",
+				"hit"
+			],
+			"bytes": 287380
+		},
+		{
+			"id": "rogue",
+			"legacyId": "",
+			"label": "Trinh sát",
+			"url": "models/characters/rogue.glb",
+			"clips": [
+				"idle",
+				"run",
+				"jump",
+				"slide",
+				"death",
+				"hit"
+			],
+			"bytes": 291060
+		},
+		{
+			"id": "barbarian",
+			"legacyId": "",
+			"label": "Chiến binh",
+			"url": "models/characters/barbarian.glb",
+			"clips": [
+				"idle",
+				"run",
+				"jump",
+				"slide",
+				"death",
+				"hit"
+			],
+			"bytes": 292924
+		},
+		{
 			"id": "fox",
 			"legacyId": "horse",
 			"label": "Cáo",

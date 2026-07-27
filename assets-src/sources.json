@@ -20,6 +20,42 @@
 			"note": "Bản GLB trên GitHub chính chủ của KayKit — đã kèm sẵn 60+ clip gồm Idle/Running_A/Jump_Full_Long/Dodge_Forward/Death_A/Hit_A, đủ 6 clip P0 mà không cần Mixamo."
 		},
 		{
+			"id": "kaykit-adventurers-mage",
+			"title": "KayKit — Adventurers: Mage",
+			"author": "Kay Lousberg (KayKit)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kaylousberg.itch.io/kaykit-adventurers",
+			"kind": "file",
+			"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Mage.glb",
+			"target": "characters/Mage.glb",
+			"note": "P1-3 nhân vật mở khoá (Pháp sư) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn."
+		},
+		{
+			"id": "kaykit-adventurers-rogue",
+			"title": "KayKit — Adventurers: Rogue",
+			"author": "Kay Lousberg (KayKit)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kaylousberg.itch.io/kaykit-adventurers",
+			"kind": "file",
+			"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb",
+			"target": "characters/Rogue.glb",
+			"note": "P1-3 nhân vật mở khoá (Trinh sát) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn."
+		},
+		{
+			"id": "kaykit-adventurers-barbarian",
+			"title": "KayKit — Adventurers: Barbarian",
+			"author": "Kay Lousberg (KayKit)",
+			"license": "CC0-1.0",
+			"licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"sourcePage": "https://kaylousberg.itch.io/kaykit-adventurers",
+			"kind": "file",
+			"url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/Barbarian.glb",
+			"target": "characters/Barbarian.glb",
+			"note": "P1-3 nhân vật mở khoá (Chiến binh) — cùng bộ CC0 với Knight của P0 nên đủ 6 clip chuẩn."
+		},
+		{
 			"id": "kaykit-adventurers-license",
 			"title": "KayKit — Adventurers: LICENSE.txt",
 			"author": "Kay Lousberg (KayKit)",

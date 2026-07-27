@@ -4,7 +4,7 @@
 > Nguồn khai báo tại [`assets-src/sources.json`](../assets-src/sources.json); danh sách file
 > đầu ra lấy từ `client/public/assets.json` do `npm run assets:build` sinh ra.
 
-Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
+Cập nhật lần cuối: **2026-07-27** · Tổng số file: **124**
 
 ## 1. Nguyên tắc
 
@@ -29,6 +29,8 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 | Kenney — Nature Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/nature-kit> |
 | Kenney — Pirate Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/pirate-kit> |
 | Kenney — Holiday Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/holiday-kit> |
+| Kenney — Space Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/space-kit> |
+| Kenney — Car Kit | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/car-kit> |
 | Kenney — Particle Pack | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/particle-pack> |
 | Kenney — Game Icons | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/game-icons> |
 | Kenney — Interface Sounds | Kenney | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://kenney.nl/assets/interface-sounds> |
@@ -39,6 +41,7 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 | Short Loops Background Music Pack — "A Brand New Wisdom" | Tim Mortimer (OpenGameArt) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://opengameart.org/content/short-loops-background-music-pack> |
 | Short Loops Background Music Pack — "Just Saying Tho" | Tim Mortimer (OpenGameArt) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://opengameart.org/content/short-loops-background-music-pack> |
 | Short Loops Background Music Pack — "Winter Dust" | Tim Mortimer (OpenGameArt) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://opengameart.org/content/short-loops-background-music-pack> |
+| Another space background track — "Observing The Star" | yd (OpenGameArt) | [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) | <https://opengameart.org/content/another-space-background-track> |
 | Baloo 2 (subset vietnamese + latin, WOFF2) | Ek Type | [OFL-1.1](https://openfontlicense.org/) | <https://fonts.google.com/specimen/Baloo+2?subset=vietnamese> |
 | Nunito (subset vietnamese + latin, WOFF2) | Vernon Adams, Cyreal, Jacques Le Bailly | [OFL-1.1](https://openfontlicense.org/) | <https://fonts.google.com/specimen/Nunito?subset=vietnamese> |
 
@@ -52,9 +55,12 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 - **Kenney — Cube Pets** — THAY cho Quaternius Ultimate Animated Animal Pack mà docs/v2/B1 gợi ý: bản Quaternius chỉ tải được qua Google Drive (không script hoá được). Cube Pets cùng license CC0, có sẵn GLB kèm clip idle/walk/run — lấy Fox (thay `horse`) và Parrot (giữ tên `parrot`).
 - **Kenney — Pirate Kit** — P1-2 biome ② Bãi biển: thùng/tháp/cọc/cây cọ.
 - **Kenney — Holiday Kit** — P1-2 biome ③ Núi tuyết: cây thông, người tuyết, hộp quà.
+- **Kenney — Space Kit** — P2-1 biome ④ Không gian. THAY cho Quaternius Ultimate Space Kit mà docs/v2/B1 gợi ý: bản Quaternius chỉ tải được qua Google Drive nên không script hoá được (cùng lý do đã ghi ở P0-3 cho bộ con vật). Cùng license CC0, có sẵn GLB.
+- **Kenney — Car Kit** — P2-1 chướng ngại DI ĐỘNG của biome ① — đúng vai trò docs/v2/B1 §3 đã thẩm định cho bộ này ("Chướng ngại di động theme Thành phố"). Chỉ rút đúng 1 model.
 - **Short Loops Background Music Pack — "Swinging Sweet"** — THAY cho Tallbeard Music Loop Bundle mà docs/v2/B1 gợi ý: itch.io chặn tải tự động. Cùng license CC0.
 - **Short Loops Background Music Pack — "Just Saying Tho"** — P1-2 biome ② — cùng pack CC0 với 2 track đã dùng, không phải thẩm định license mới.
 - **Short Loops Background Music Pack — "Winter Dust"** — P1-2 biome ③ — tên track đúng chất núi tuyết, cùng pack CC0.
+- **Another space background track — "Observing The Star"** — P2-1 biome ④ — pack "Short Loops" của Tim Mortimer chỉ có đúng 4 track và cả 4 đã dùng hết (menu + biome ①②③), nên track thứ 5 phải lấy nguồn khác. Đã đọc trực tiếp trên trang OGA: License(s) = CC0.
 
 ## 3. Từng file trong build
 
@@ -113,6 +119,20 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 | `models/props/snow-pile.glb` | Kenney — Holiday Kit | CC0-1.0 |
 | `models/props/snow-rocks.glb` | Kenney — Holiday Kit | CC0-1.0 |
 | `models/props/snow-lantern.glb` | Kenney — Holiday Kit | CC0-1.0 |
+| `models/props/obstacle-low-space.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/obstacle-high-space.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/obstacle-full-space.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-rock-a.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-crystal-a.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-crystal-b.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-crater.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-rover.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-dish.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/space-hangar.glb` | Kenney — Space Kit | CC0-1.0 |
+| `models/props/obstacle-move-city.glb` | Kenney — Car Kit | CC0-1.0 |
+| `models/props/obstacle-move-beach.glb` | Kenney — Pirate Kit | CC0-1.0 |
+| `models/props/obstacle-move-snow.glb` | Kenney — Holiday Kit | CC0-1.0 |
+| `models/props/obstacle-move-space.glb` | Kenney — Space Kit | CC0-1.0 |
 | `textures/particles/circle_05.png` | Kenney — Particle Pack | CC0-1.0 |
 | `textures/particles/dirt_02.png` | Kenney — Particle Pack | CC0-1.0 |
 | `textures/particles/flare_01.png` | Kenney — Particle Pack | CC0-1.0 |
@@ -167,6 +187,7 @@ Cập nhật lần cuối: **2026-07-27** · Tổng số file: **109**
 | `audio/bgm-biome1.ogg` | Short Loops Background Music Pack — "A Brand New Wisdom" | CC0-1.0 |
 | `audio/bgm-biome2.ogg` | Short Loops Background Music Pack — "Just Saying Tho" | CC0-1.0 |
 | `audio/bgm-biome3.ogg` | Short Loops Background Music Pack — "Winter Dust" | CC0-1.0 |
+| `audio/bgm-biome4.ogg` | Another space background track — "Observing The Star" | CC0-1.0 |
 | `fonts/baloo-2-*.woff2` | Baloo 2 (subset vietnamese + latin, WOFF2) | OFL-1.1 |
 | `fonts/nunito-*.woff2` | Nunito (subset vietnamese + latin, WOFF2) | OFL-1.1 |
 

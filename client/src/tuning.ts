@@ -242,6 +242,12 @@ export const tuning = {
 		 * thực tế một chút thì near-miss khó ăn hơn, thà thiếu còn hơn thưởng oan.
 		 */
 		obstacleHalfWidth: 0.7,
+		/**
+		 * Nửa bề ngang của chướng ngại DI ĐỘNG (P2-1) — bằng `spawn.movingLength / 2`.
+		 * Vật di động dài hơn nên near-miss của nó phải khó ăn hơn, nếu không lướt
+		 * cách nửa mét cũng được thưởng "SÁT NÚT!".
+		 */
+		movingHalfWidth: 0.9,
 		/** Mép trên rào thấp (nhảy qua) và mép dưới rào cao (trượt lọt). */
 		lowTopY: 0.9,
 		highGapY: 1.05
@@ -313,7 +319,63 @@ export const tuning = {
 		highHeight: 0.5,
 		/** Khối chặn: ngang ngực người chơi (1.75) để đọc ra "không nhảy qua được". */
 		fullWidth: 1.2,
-		fullHeight: 1.35
+		fullHeight: 1.35,
+
+		/**
+		 * CHƯỚNG NGẠI DI ĐỘNG (P2-1) — vật trôi ngang qua các làn.
+		 *
+		 * Về luật va chạm nó là loại `full` (không tư thế nào né được, chỉ đổi làn),
+		 * chỉ khác ở chỗ vị trí ngang thay đổi liên tục. Vì thế nó dài hơn và thấp
+		 * hơn khối chặn: mắt phải đọc ra "cái xe/tàu đang chạy" chứ không phải "cái
+		 * thùng bị đẩy".
+		 */
+		movingLength: 1.8,
+		/**
+		 * CAO BẰNG khối chặn (`fullHeight`), không thấp hơn — và đây là ràng buộc
+		 * chứ không phải sở thích. Vật di động cũng thuộc luật `full` (nhảy không
+		 * cứu được); nếu vẽ nó thấp hơn ngực người chơi thì hình đang nói "nhảy qua
+		 * được" trong khi luật nói không, và cái chết đó là lỗi của game.
+		 */
+		movingHeight: 1.35,
+		/** Hở một chút khỏi mặt đường: khe bóng đổ chính là tín hiệu "cái này không bắt vít xuống đất". */
+		movingY: 0.12,
+		/**
+		 * Bán kính CHẶN LÀN, tính bằng LÀN (1 làn = `world.laneOffsetX` = 2.3 unit).
+		 *
+		 * Vì sao hai giá trị:
+		 *   · vật đứng yên luôn nằm đúng tâm làn, nên bán kính chỉ cần < 1 là quy về
+		 *     đúng luật cũ `band.lane === lane` — 0.49 giữ nguyên hành vi P0 từng con số;
+		 *   · vật DI ĐỘNG thì đứng giữa hai làn được, nên bán kính phải phản ánh bề
+		 *     ngang thật: (movingLength/2 + player.halfWidth) / laneOffsetX
+		 *     = (0.9 + 0.42) / 2.3 = 0.574. Lấy 0.55 — hụt một chút so với hình để
+		 *     phần sai số nghiêng về phía THA cho người chơi.
+		 */
+		blockLaneRadius: 0.49,
+		movingBlockLaneRadius: 0.55,
+		/**
+		 * Bước sóng quỹ đạo: quãng đường THẾ GIỚI cho một chu kỳ đi-và-về (unit).
+		 *
+		 * Tham số theo QUÃNG ĐƯỜNG chứ không theo thời gian — đó là quyết định quan
+		 * trọng nhất của cơ chế này. Quỹ đạo vì vậy nằm cố định trong không gian:
+		 * ở tốc độ 0.5× hay 2.0× thì hình vẽ trên đường vẫn y hệt, và làn mà vật
+		 * đứng LÚC TỚI CHỖ PLAYER là một hằng số — validator chứng minh được công
+		 * bằng, đúng như pattern tĩnh.
+		 *
+		 * 80 unit ≈ đổi một làn trong ~2.6s ở tốc độ chuẩn: đủ chậm để đọc, đủ nhanh
+		 * để thấy nó đang đi đâu.
+		 */
+		movingWavelengthUnits: 80,
+		/**
+		 * Pattern tổ hợp khó (difficulty 4) chỉ mở khi ván đã "nóng":
+		 *   · ramp tốc độ đạt ≥ 1.2 (tức đã chạy ≥ 120s, xem `speed.rampStepSec`), HOẶC
+		 *   · đã qua ít nhất 1 chặng boss.
+		 * Dùng HOẶC vì hai điều kiện đo hai thứ khác nhau: một cái là "đã đủ nhanh",
+		 * cái kia là "đã sống đủ lâu".
+		 */
+		comboUnlockRampFactor: 1.2,
+		comboUnlockStageIndex: 1,
+		/** Bậc khó của pattern tổ hợp — mọi pattern từ bậc này trở lên phải qua cửa trên. */
+		comboDifficulty: 4
 	},
 
 	input: {

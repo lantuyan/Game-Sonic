@@ -15,7 +15,7 @@ import { Player } from "@/entities/Player";
 import { Spawn, type ObstacleTemplates } from "@/systems/Spawn";
 import { Score } from "@/systems/Score";
 import { Lives } from "@/systems/Lives";
-import { SpeedController } from "@/systems/Speed";
+import { computeRampFactor, SpeedController } from "@/systems/Speed";
 import { findCollision } from "@/systems/Collision";
 import patternData from "@/data/patterns.json";
 import { QuizGateController } from "@/systems/QuizGate";
@@ -794,10 +794,11 @@ export class RunScene implements GameScene {
 
 	private async loadObstacleTemplates(biomeIndex: number): Promise<ObstacleTemplates> {
 		const biome = biomeAt(biomeIndex);
-		const [low, high, full, coin] = await Promise.all([
+		const [low, high, full, moving, coin] = await Promise.all([
 			this.assets.loadModel(biome.obstacles.low),
 			this.assets.loadModel(biome.obstacles.high),
 			this.assets.loadModel(biome.obstacles.full),
+			this.assets.loadModel(biome.obstacles.moving),
 			this.assets.loadModel("models/props/coin.glb")
 		]);
 
@@ -805,6 +806,7 @@ export class RunScene implements GameScene {
 			low: firstMesh(low.scene, biome.obstacles.low),
 			high: firstMesh(high.scene, biome.obstacles.high),
 			full: firstMesh(full.scene, biome.obstacles.full),
+			moving: firstMesh(moving.scene, biome.obstacles.moving),
 			coin: firstMesh(coin.scene, "coin")
 		};
 	}
@@ -928,6 +930,10 @@ export class RunScene implements GameScene {
 
 		const advance = this.speedUnitsPerSec * deltaSec;
 		this.track.update(deltaSec, this.speedUnitsPerSec);
+		// P2-1 — pattern tổ hợp khó chỉ mở khi ván đã "nóng". Ramp đo theo THỜI GIAN
+		// chạy chứ không theo tốc độ tuyệt đối, nên lớp bị admin đặt gameSpeed 0.5 vẫn
+		// tới được chỗ khó, chỉ là tới chậm hơn.
+		this.spawn?.setIntensity(computeRampFactor(this.speed.elapsed), this.boss?.stageIndex ?? 0);
 		this.spawn?.update(deltaSec, advance);
 		this.consumeInput();
 		this.player?.update(deltaSec, this.speedFactor);
@@ -1494,8 +1500,8 @@ export class RunScene implements GameScene {
 }
 
 /**
- * `?biome=1|2` — vào thẳng biome ② hoặc ③ để soi mà không phải chạy 2.5 phút
- * chờ boss (P1-2). Không có tham số → luôn bắt đầu từ biome ①.
+ * `?biome=1|2|3` — vào thẳng biome ②, ③ hoặc ④ để soi mà không phải chạy 2.5 phút
+ * chờ boss (P1-2, P2-1). Không có tham số → luôn bắt đầu từ biome ①.
  */
 function readStartBiomeIndex(): number {
 	if (typeof window === "undefined") {

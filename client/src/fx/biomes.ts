@@ -6,8 +6,8 @@
 // biết biome nào là biome nào.
 //
 // NGÂN SÁCH (DoD P1-2): mỗi biome ≤3MB, <100 draw call. Số draw call = 3 (đường,
-// vạch, nền) + số lớp `decor` + 3 lớp chướng ngại + coin + player + cổng. Vì vậy
-// `decor` giữ ở 6–8 lớp, đúng như biome ① của P0.
+// vạch, nền) + số lớp `decor` + 4 lớp chướng ngại (P2-1 thêm lớp di động) + coin +
+// player + cổng. Vì vậy `decor` giữ ở 6–8 lớp, đúng như biome ① của P0.
 
 import type { BgmName } from "@/core/AudioManager";
 
@@ -61,6 +61,20 @@ export const BIOME_SNOW: BiomePalette = {
 	roadLine: 0xffffff
 };
 
+/** Biome ④ — Không gian (Kenney Space Kit). */
+export const BIOME_SPACE: BiomePalette = {
+	// Không dùng đen tuyền: trời đen làm mọi prop low-poly mất viền và bầu không khí
+	// hoá ra u ám. Tím-xanh đậm vẫn đọc ra "vũ trụ" mà vẫn còn tương phản cho vật thể.
+	top: 0x141634,
+	horizon: 0x4a3a7a,
+	bottom: 0x2a2350,
+	// Đất đá hành tinh đỏ cam — tương phản mạnh với trời tím, đúng chất tranh bìa
+	// truyện khoa học viễn tưởng cho trẻ con.
+	ground: 0x8a5a4a,
+	road: 0x3d4a63,
+	roadLine: 0x7fe6ff
+};
+
 export interface BiomeDecorSource {
 	name: string;
 	url: string;
@@ -73,8 +87,15 @@ export interface BiomeDefinition {
 	label: string;
 	palette: BiomePalette;
 	bgm: BgmName;
-	/** 3 loại chướng ngại đọc-được-ngay (plan §4.2) — mỗi biome một bộ "da". */
-	obstacles: { low: string; high: string; full: string };
+	/**
+	 * 3 loại chướng ngại đọc-được-ngay (plan §4.2) — mỗi biome một bộ "da" — cộng
+	 * `moving` của P2-1.
+	 *
+	 * `moving` về LUẬT là loại `full` (không tư thế nào né được, chỉ đổi làn); nó
+	 * tách ra thành khai báo riêng vì cần một model đọc-ra-được-là-đang-chạy: chiếc
+	 * thùng của biome trôi ngang trông như lỗi đồ hoạ, còn chiếc xe thì không.
+	 */
+	obstacles: { low: string; high: string; full: string; moving: string };
 	/** Trang trí hai bên đường — mỗi mục là 1 InstancedMesh (1 draw call). */
 	decor: BiomeDecorSource[];
 }
@@ -88,7 +109,9 @@ export const BIOMES: readonly BiomeDefinition[] = [
 		obstacles: {
 			low: "models/props/obstacle-low-fence.glb",
 			high: "models/props/obstacle-high-sign.glb",
-			full: "models/props/obstacle-full-crate.glb"
+			full: "models/props/obstacle-full-crate.glb",
+			// Chiếc taxi băng ngang đường — đọc ra "xe đang chạy" ngay từ xa.
+			moving: "models/props/obstacle-move-city.glb"
 		},
 		decor: [
 			// Capacity = số bản sao TỐI ĐA hiển thị cùng lúc, cũng là trần tam giác của
@@ -113,7 +136,9 @@ export const BIOMES: readonly BiomeDefinition[] = [
 			// Pirate Kit không có vật nào đọc ra "thanh chắn trên cao"; dùng lại biển
 			// báo của biome ① còn hơn dạy học sinh một tín hiệu mơ hồ ở 15 unit/s.
 			high: "models/props/obstacle-high-sign.glb",
-			full: "models/props/obstacle-full-beach.glb"
+			full: "models/props/obstacle-full-beach.glb",
+			// Khẩu pháo có bánh xe — vật DUY NHẤT trong Pirate Kit tự di chuyển được.
+			moving: "models/props/obstacle-move-beach.glb"
 		},
 		decor: [
 			{ name: "palm-a", url: "models/props/palm-a.glb", capacity: 20 },
@@ -133,7 +158,9 @@ export const BIOMES: readonly BiomeDefinition[] = [
 		obstacles: {
 			low: "models/props/obstacle-low-snow.glb",
 			high: "models/props/obstacle-high-snow.glb",
-			full: "models/props/obstacle-full-snow.glb"
+			full: "models/props/obstacle-full-snow.glb",
+			// Xe trượt tuyết lao ngang dốc — chuyển động ngang là bản chất của nó.
+			moving: "models/props/obstacle-move-snow.glb"
 		},
 		decor: [
 			{ name: "pine-a", url: "models/props/pine-a.glb", capacity: 20 },
@@ -143,6 +170,32 @@ export const BIOMES: readonly BiomeDefinition[] = [
 			{ name: "snow-pile", url: "models/props/snow-pile.glb", capacity: 16 },
 			{ name: "snow-rocks", url: "models/props/snow-rocks.glb", capacity: 12 },
 			{ name: "snow-lantern", url: "models/props/snow-lantern.glb", capacity: 10 }
+		]
+	},
+	{
+		id: "space",
+		label: "Không gian",
+		palette: BIOME_SPACE,
+		bgm: "bgm-biome4",
+		obstacles: {
+			// Thanh ray dẹt sát đất → nhảy; khung cổng ép mỏng treo cao → trượt;
+			// thiên thạch khối vuông → đổi làn. Ba silhouette của plan §4.2 giữ nguyên,
+			// chỉ đổi "da" — đúng khuôn P1-2.
+			low: "models/props/obstacle-low-space.glb",
+			high: "models/props/obstacle-high-space.glb",
+			full: "models/props/obstacle-full-space.glb",
+			// Tàu bay là hình ảnh duy nhất mà chuyển động ngang trông TỰ NHIÊN — không
+			// bánh xe, không ma sát, nên mắt không đòi hỏi lời giải thích nào.
+			moving: "models/props/obstacle-move-space.glb"
+		},
+		decor: [
+			{ name: "space-rock-a", url: "models/props/space-rock-a.glb", capacity: 20 },
+			{ name: "space-crystal-a", url: "models/props/space-crystal-a.glb", capacity: 18 },
+			{ name: "space-crystal-b", url: "models/props/space-crystal-b.glb", capacity: 18 },
+			{ name: "space-crater", url: "models/props/space-crater.glb", capacity: 16 },
+			{ name: "space-rover", url: "models/props/space-rover.glb", capacity: 10 },
+			{ name: "space-dish", url: "models/props/space-dish.glb", capacity: 8 },
+			{ name: "space-hangar", url: "models/props/space-hangar.glb", capacity: 6 }
 		]
 	}
 ];
@@ -165,5 +218,11 @@ export function nextBiomeIndex(current: number): number {
 /** Mọi GLB một biome cần — dùng để nạp trước lúc cắt cảnh boss (DoD: đổi chặng <100ms). */
 export function biomeAssetUrls(index: number): string[] {
 	const biome = biomeAt(index);
-	return [biome.obstacles.low, biome.obstacles.high, biome.obstacles.full, ...biome.decor.map((item) => item.url)];
+	return [
+		biome.obstacles.low,
+		biome.obstacles.high,
+		biome.obstacles.full,
+		biome.obstacles.moving,
+		...biome.decor.map((item) => item.url)
+	];
 }

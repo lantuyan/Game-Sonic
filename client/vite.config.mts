@@ -67,11 +67,15 @@ export default defineConfig(({ command }) => ({
 				// `test/biomes.test.js` canh — thêm prop biome mới mà quên ở đây thì
 				// prop đó lặng lẽ chui vào lần tải đầu.
 				globIgnores: [
-					"**/models/props/{obstacle-low-beach,obstacle-full-beach}.glb",
+					"**/models/props/{obstacle-low-beach,obstacle-full-beach,obstacle-move-beach}.glb",
 					"**/models/props/{palm,rocks-sand,beach}-*.glb",
-					"**/models/props/{obstacle-low-snow,obstacle-high-snow,obstacle-full-snow,snowman}.glb",
+					"**/models/props/{obstacle-low-snow,obstacle-high-snow,obstacle-full-snow,obstacle-move-snow,snowman}.glb",
 					"**/models/props/{pine,snow}-*.glb",
-					"**/audio/bgm-biome{2,3}.ogg",
+					// P2-1: biome ④ Không gian — cùng lý do với ②/③, và nhạc của nó nặng
+					// nhất trong 5 track (768KB) nên càng không được vào lần cài đầu.
+					"**/models/props/obstacle-{low,high,full,move}-space.glb",
+					"**/models/props/space-*.glb",
+					"**/audio/bgm-biome{2,3,4}.ogg",
 					// P1-3: nhân vật phải MỞ KHOÁ mới chơi được (~850KB) — không bắt
 					// mọi học sinh tải ngay lúc cài. Route CacheFirst của SW sẽ giữ lại
 					// từ lần chọn đầu tiên, tức ngay sau khi mở khoá.

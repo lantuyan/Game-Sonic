@@ -12,8 +12,15 @@ import { InstancedMesh, Matrix4, Object3D, Quaternion, Vector3, type Mesh } from
 import { tuning } from "@/tuning";
 import { applyCurvedWorld } from "@/fx/CurvedWorld";
 import { createSeededRandom, randomRange, type SeededRandom } from "@/core/random";
-import { OBSTACLE_DEPTH, patternLength, type Pattern } from "@/systems/patternRules";
-import type { ObstacleBand, ObstacleKind } from "@/systems/Collision";
+import {
+	isPatternAllowed,
+	OBSTACLE_DEPTH,
+	patternLength,
+	type Pattern,
+	type RunIntensity
+} from "@/systems/patternRules";
+import { bandBlocksLane, type ObstacleBand, type ObstacleKind } from "@/systems/Collision";
+import { laneOffsetAt, type MotionSpec } from "@/systems/movingObstacles";
 import { resetNearMiss, type NearMissBand } from "@/systems/NearMiss";
 import { laneToX } from "@/entities/PlayerMotion";
 
@@ -31,6 +38,10 @@ export interface ObstacleSlot extends ObstacleBand, NearMissBand {
 	active: boolean;
 	/** Chỉ số InstancedMesh theo loại. */
 	instanceIndex: number;
+	/** P2-1 — null = đứng yên. Khác null thì `laneOffset` được tính lại mỗi frame. */
+	motion: MotionSpec | null;
+	laneOffset: number;
+	moving: boolean;
 }
 
 const HIDDEN_POSITION = new Vector3(0, -9999, 0);
@@ -51,6 +62,8 @@ export interface ObstacleTemplates {
 	low: Mesh;
 	high: Mesh;
 	full: Mesh;
+	/** P2-1 — "da" của chướng ngại di động (xe/tàu/xe trượt tuyết theo biome). */
+	moving: Mesh;
 	coin: Mesh;
 }
 
@@ -77,6 +90,42 @@ function normalizeScale(template: Mesh, targetWidth: number, targetHeight: numbe
 	return new Vector3(horizontal, targetHeight / height, horizontal);
 }
 
+/**
+ * Chuẩn hoá riêng cho chướng ngại DI ĐỘNG (P2-1) — và xoay nó cho đúng hướng đi.
+ *
+ * Xe/tàu trong mọi kit đều được dựng "đầu hướng theo trục dài", mà trục dài đó khi
+ * thì là x (rào tàu Pirate), khi thì là z (chiếc taxi dài 2.75 theo z, rộng 1.5).
+ * Vật này đi NGANG qua đường, nên trục dài phải nằm dọc trục x, nếu không nhìn như
+ * chiếc xe đang trôi ngang trong khi mũi vẫn hướng về phía trước.
+ *
+ * Trả về cả hệ số lẫn góc xoay quanh y (0 hoặc 90°).
+ */
+function normalizeMovingScale(template: Mesh, targetLength: number, targetHeight: number): {
+	scale: Vector3;
+	rotationY: number;
+} {
+	const geometry = template.geometry;
+	geometry.computeBoundingBox();
+
+	const box = geometry.boundingBox;
+
+	if (box === null) {
+		return { scale: new Vector3(1, 1, 1), rotationY: 0 };
+	}
+
+	const sizeX = Math.max(box.max.x - box.min.x, 1e-4);
+	const sizeY = Math.max(box.max.y - box.min.y, 1e-4);
+	const sizeZ = Math.max(box.max.z - box.min.z, 1e-4);
+	// Trục dài nằm ở z → xoay 90° để nó về trục x.
+	const longest = Math.max(sizeX, sizeZ);
+	const horizontal = targetLength / longest;
+
+	return {
+		scale: new Vector3(horizontal, targetHeight / sizeY, horizontal),
+		rotationY: sizeZ > sizeX ? Math.PI / 2 : 0
+	};
+}
+
 export class Spawn {
 	readonly group = new Object3D();
 
@@ -88,12 +137,22 @@ export class Spawn {
 	private readonly obstacleMeshes: Record<ObstacleKind, InstancedMesh>;
 	/** Hệ số ép mẫu GLB về kích thước chuẩn (xem `tuning.spawn.lowWidth`…). */
 	private readonly obstacleScale: Record<ObstacleKind, Vector3>;
+	/** P2-1 — lớp vẽ RIÊNG cho chướng ngại di động (+1 draw call, ngân sách 100). */
+	private readonly movingMesh: InstancedMesh;
+	private readonly movingScale: Vector3;
+	private readonly movingRotationY: number;
 	private readonly coinMesh: InstancedMesh;
 
 	private readonly scratchMatrix = new Matrix4();
 	private readonly scratchPosition = new Vector3();
 	private readonly scratchQuaternion = new Quaternion();
 	private readonly scratchScale = new Vector3(1, 1, 1);
+
+	/**
+	 * Độ khó hiện tại của ván (P2-1) — RunScene ghi vào mỗi frame qua `setIntensity`.
+	 * Là object cố định, sửa tại chỗ: cấp phát mỗi frame là vi phạm quy tắc vàng #6.
+	 */
+	private readonly intensity: RunIntensity = { rampFactor: 1, stageIndex: 0, recovering: false };
 
 	private lastPatternId: string | null = null;
 	/** z của mép xa nhất đã sinh — pattern kế tiếp nối vào sau mốc này. */
@@ -121,6 +180,11 @@ export class Spawn {
 			full: normalizeScale(templates.full, tuning.spawn.fullWidth, tuning.spawn.fullHeight)
 		};
 
+		const moving = normalizeMovingScale(templates.moving, tuning.spawn.movingLength, tuning.spawn.movingHeight);
+		this.movingMesh = this.createInstanced(templates.moving, "obstacle-moving");
+		this.movingScale = moving.scale;
+		this.movingRotationY = moving.rotationY;
+
 		this.coinMesh = this.createInstanced(templates.coin, "coin", COIN_POOL_SIZE);
 
 		for (let index = 0; index < OBSTACLE_POOL_SIZE; index += 1) {
@@ -133,7 +197,10 @@ export class Spawn {
 				zEnd: 0,
 				consumed: false,
 				nearMissMin: Number.POSITIVE_INFINITY,
-				nearMissAwarded: false
+				nearMissAwarded: false,
+				motion: null,
+				laneOffset: 0,
+				moving: false
 			});
 		}
 
@@ -173,10 +240,22 @@ export class Spawn {
 		mesh.setMatrixAt(index, this.scratchMatrix);
 	}
 
+	/**
+	 * RunScene bơm "ván đang khó tới đâu" vào đây (P2-1) — sửa TẠI CHỖ, không tạo
+	 * object mới, vì hàm này chạy mỗi frame.
+	 */
+	setIntensity(rampFactor: number, stageIndex: number): void {
+		this.intensity.rampFactor = rampFactor;
+		this.intensity.stageIndex = stageIndex;
+	}
+
 	reset(): void {
 		for (const obstacle of this.obstacles) {
 			obstacle.active = false;
 			obstacle.consumed = false;
+			obstacle.motion = null;
+			obstacle.laneOffset = 0;
+			obstacle.moving = false;
 			resetNearMiss(obstacle);
 		}
 
@@ -248,20 +327,28 @@ export class Spawn {
 	}
 
 	private pickPattern(): Pattern | null {
+		this.intensity.recovering = this.densityPenaltySec > 0;
+
 		const allowed = this.patterns.filter((pattern) => {
 			if (pattern.id === this.lastPatternId) {
 				return false;
 			}
 
-			// Sau khi mất tim chỉ cho pattern dễ.
-			if (this.densityPenaltySec > 0 && pattern.difficulty > 1) {
-				return false;
-			}
-
-			return true;
+			// Luật khó/dễ (giảm mật độ sau khi mất tim + cửa pattern tổ hợp P2-1)
+			// nằm trong patternRules để test được mà không phải dựng cả Spawn.
+			return isPatternAllowed(pattern, this.intensity);
 		});
 
-		const pool = allowed.length > 0 ? allowed : this.patterns;
+		if (allowed.length > 0) {
+			return allowed[Math.floor(this.random() * allowed.length)] ?? null;
+		}
+
+		// Không còn lựa chọn nào (vd mọi pattern dễ vừa dùng xong): rơi về tập hợp
+		// lệ CƠ BẢN chứ không phải toàn bộ bảng — nếu không thì đúng lúc vừa mất tim
+		// người chơi lại ăn ngay một pattern tổ hợp.
+		const fallback = this.patterns.filter((pattern) => isPatternAllowed(pattern, this.intensity));
+		const pool = fallback.length > 0 ? fallback : this.patterns;
+
 		return pool[Math.floor(this.random() * pool.length)] ?? null;
 	}
 
@@ -288,6 +375,10 @@ export class Spawn {
 			slot.kind = event.type;
 			slot.zStart = baseZ - event.offset - OBSTACLE_DEPTH;
 			slot.zEnd = baseZ - event.offset;
+			slot.motion = event.motion ?? null;
+			slot.moving = event.motion !== undefined;
+			slot.laneOffset =
+				event.motion === undefined ? 0 : laneOffsetAt(event.motion, event.lane, (slot.zStart + slot.zEnd) / 2);
 		}
 	}
 
@@ -305,7 +396,7 @@ export class Spawn {
 
 		for (let z = fromZ; z > toZ; z -= tuning.spawn.coinSpacing) {
 			const blocked = this.obstacles.some(
-				(slot) => slot.active === true && slot.lane === lane && z <= slot.zEnd && z >= slot.zStart
+				(slot) => slot.active === true && bandBlocksLane(slot, lane) && z <= slot.zEnd && z >= slot.zStart
 			);
 
 			if (blocked === true) {
@@ -353,9 +444,23 @@ export class Spawn {
 			obstacle.zStart += advanceUnits;
 			obstacle.zEnd += advanceUnits;
 
+			// P2-1 — vị trí ngang của vật di động là HÀM CỦA z, nên chỉ cần đọc lại
+			// sau khi z vừa đổi. Không cấp phát gì, không giữ đồng hồ riêng: tua
+			// nhanh/chậm hay dừng thế giới đều tự khớp.
+			if (obstacle.motion !== null) {
+				obstacle.laneOffset = laneOffsetAt(
+					obstacle.motion,
+					obstacle.lane,
+					(obstacle.zStart + obstacle.zEnd) / 2
+				);
+			}
+
 			if (obstacle.zStart > tuning.world.recycleZ) {
 				obstacle.active = false;
 				obstacle.consumed = false;
+				obstacle.motion = null;
+				obstacle.laneOffset = 0;
+				obstacle.moving = false;
 				resetNearMiss(obstacle);
 			}
 		}
@@ -420,24 +525,40 @@ export class Spawn {
 		// vẫn chạy vertex shader cho MỌI instance trong `count`, kể cả slot ẩn — để
 		// count = capacity là trả tiền tam giác cho chướng ngại không tồn tại.
 		const usedByKind: Record<ObstacleKind, number> = { low: 0, high: 0, full: 0 };
+		let usedMoving = 0;
 
 		for (const obstacle of this.obstacles) {
 			if (obstacle.active === false) {
 				continue;
 			}
 
-			const mesh = this.obstacleMeshes[obstacle.kind];
-			const index = usedByKind[obstacle.kind];
-			usedByKind[obstacle.kind] += 1;
+			const isMoving = obstacle.moving === true;
+			const mesh = isMoving === true ? this.movingMesh : this.obstacleMeshes[obstacle.kind];
+			const index = isMoving === true ? usedMoving : usedByKind[obstacle.kind];
+
+			if (isMoving === true) {
+				usedMoving += 1;
+			} else {
+				usedByKind[obstacle.kind] += 1;
+			}
+
 			obstacle.instanceIndex = index;
 
 			this.scratchPosition.set(
-				laneToX(obstacle.lane),
-				OBSTACLE_Y[obstacle.kind],
+				// `laneToX` nhận số thực nên vật di động trượt mượt giữa hai làn.
+				laneToX(obstacle.lane + obstacle.laneOffset),
+				isMoving === true ? tuning.spawn.movingY : OBSTACLE_Y[obstacle.kind],
 				(obstacle.zStart + obstacle.zEnd) / 2
 			);
-			this.scratchQuaternion.identity();
-			this.scratchScale.copy(this.obstacleScale[obstacle.kind]);
+
+			if (isMoving === true) {
+				this.scratchQuaternion.setFromAxisAngle(UP, this.movingRotationY);
+				this.scratchScale.copy(this.movingScale);
+			} else {
+				this.scratchQuaternion.identity();
+				this.scratchScale.copy(this.obstacleScale[obstacle.kind]);
+			}
+
 			this.scratchMatrix.compose(this.scratchPosition, this.scratchQuaternion, this.scratchScale);
 			mesh.setMatrixAt(index, this.scratchMatrix);
 		}
@@ -447,6 +568,9 @@ export class Spawn {
 			mesh.count = usedByKind[kind];
 			mesh.instanceMatrix.needsUpdate = true;
 		}
+
+		this.movingMesh.count = usedMoving;
+		this.movingMesh.instanceMatrix.needsUpdate = true;
 
 		let coinIndex = 0;
 
@@ -478,6 +602,7 @@ export class Spawn {
 	poolCounts(): Record<string, number> {
 		return {
 			obstacles: this.obstacles.filter((slot) => slot.active === true).length,
+			movingObstacles: this.obstacles.filter((slot) => slot.active === true && slot.moving === true).length,
 			coins: this.coins.filter((slot) => slot.active === true).length
 		};
 	}
@@ -491,6 +616,7 @@ export class Spawn {
 			mesh.dispose();
 		}
 
+		this.movingMesh.dispose();
 		this.coinMesh.dispose();
 	}
 }

@@ -1,11 +1,20 @@
 {
 	"_comment": [
-		"Pattern chướng ngại P0 — nguồn: tự thiết kế (plan §4.2).",
+		"Pattern chướng ngại — nguồn: tự thiết kế (plan §4.2).",
 		"LUẬT (validator ép trong unit test, xem systems/patternRules.ts):",
 		"  1. mọi lát cắt z phải còn ít nhất 1 làn đi qua được;",
 		"  2. hai cụm liên tiếp cách >= tốc độ tối đa x 0.6s = 18.6 unit (đang dùng 21);",
-		"  3. không chồng rào thấp + rào cao trên cùng một làn (không tư thế nào qua nổi).",
-		"type: low = nhảy qua, high = trượt qua, full = phải đổi làn."
+		"  3. không chồng rào thấp + rào cao trên cùng một làn (không tư thế nào qua nổi);",
+		"  4. (P2-1) khai báo `motion` phải hợp lệ: toLane trong 0..2, phase trong [0,1),",
+		"     biên độ >= 0.5 làn — dưới mức đó mắt không thấy nó đi đâu, chỉ thấy rung;",
+		"  5. (P2-1) trong CÙNG một hàng, vật di động không được tới nơi ngay trên đầu",
+		"     một vật khác — fairness thì luật 1 đã canh, đây là chuyện hai model lồng nhau.",
+		"type: low = nhảy qua, high = trượt qua, full = phải đổi làn.",
+		"motion (P2-1): vật trôi ngang giữa `lane` và `motion.toLane`; quỹ đạo tham số theo",
+		"  QUÃNG ĐƯỜNG nên giống nhau ở mọi tốc độ. phase 0 = tới nơi ở `lane`,",
+		"  phase 0.5 = tới nơi ở `toLane`. Xem systems/movingObstacles.ts.",
+		"difficulty 4 = 'tổ hợp khó' (P2-1): chỉ xuất hiện khi ván đã nóng (ramp tốc độ",
+		"  >= 1.2 HOẶC đã qua >= 1 chặng boss) — xem `isPatternAllowed`."
 	],
 	"patterns": [
 		{
@@ -582,6 +591,200 @@
 					"lane": 1,
 					"type": "full",
 					"offset": 42
+				}
+			]
+		},
+		{
+			"id": "p23-drift-to-right",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0,
+					"motion": {
+						"toLane": 2,
+						"phase": 0.5
+					}
+				}
+			]
+		},
+		{
+			"id": "p24-drift-to-mid",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0,
+					"motion": {
+						"toLane": 2,
+						"phase": 0
+					}
+				}
+			]
+		},
+		{
+			"id": "p25-drift-then-jump",
+			"difficulty": 3,
+			"events": [
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0,
+					"motion": {
+						"toLane": 0,
+						"phase": 0.5
+					}
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 24
+				}
+			]
+		},
+		{
+			"id": "p26-combo-gauntlet",
+			"difficulty": 4,
+			"events": [
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 24,
+					"motion": {
+						"toLane": 1,
+						"phase": 0.5
+					}
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 48
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 48
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 48
+				}
+			]
+		},
+		{
+			"id": "p27-combo-double-drift",
+			"difficulty": 4,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 0,
+					"motion": {
+						"toLane": 2,
+						"phase": 0.5
+					}
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 24
+				},
+				{
+					"lane": 2,
+					"type": "full",
+					"offset": 24,
+					"motion": {
+						"toLane": 0,
+						"phase": 0.5
+					}
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 48
+				},
+				{
+					"lane": 1,
+					"type": "high",
+					"offset": 48
+				},
+				{
+					"lane": 2,
+					"type": "high",
+					"offset": 48
+				}
+			]
+		},
+		{
+			"id": "p28-combo-weave",
+			"difficulty": 4,
+			"events": [
+				{
+					"lane": 0,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 0
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 0
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 24,
+					"motion": {
+						"toLane": 0,
+						"phase": 0
+					}
+				},
+				{
+					"lane": 0,
+					"type": "high",
+					"offset": 48
+				},
+				{
+					"lane": 1,
+					"type": "full",
+					"offset": 48
+				},
+				{
+					"lane": 0,
+					"type": "full",
+					"offset": 72
+				},
+				{
+					"lane": 2,
+					"type": "low",
+					"offset": 72
 				}
 			]
 		}

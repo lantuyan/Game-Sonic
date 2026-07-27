@@ -67,6 +67,21 @@ export default defineConfig(({ command }) => ({
 				// `test/biomes.test.js` canh — thêm prop biome mới mà quên ở đây thì
 				// prop đó lặng lẽ chui vào lần tải đầu.
 				globIgnores: [
+					// P2-7: TRANG QUẢN TRỊ KHÔNG VÀO PRECACHE CỦA GAME.
+					//
+					// Hai lý do, cái thứ hai là một lỗi THẬT đã xảy ra:
+					//   · Precache là ngân sách của HỌC SINH. Không em nào mở trang quản trị,
+					//     nên mỗi KB của nó nằm trong lần cài đầu là một KB lãng phí.
+					//   · Từ P0-15 tới trước P2-7, `admin.html` NẰM trong precache với
+					//     `revision` băm từ file stub của Vite, trong khi nội dung thật lại do
+					//     `scripts/vercel-build.js` copy đè lên sau đó. Stub không đổi ⇒
+					//     revision không đổi ⇒ máy nào đã cài Service Worker thì GIỮ MÃI bản
+					//     admin cũ: các panel P1-6/P2-5/P2-6 không bao giờ hiện ra. Bỏ khỏi
+					//     manifest vừa xoá mục cũ khỏi cache lúc activate, vừa trả `/admin.html`
+					//     về đường mạng bình thường — luôn mới, đúng thứ một công cụ quản trị cần.
+					"admin.html",
+					"**/assets/admin-*.js",
+					"**/assets/admin-*.css",
 					"**/models/props/{obstacle-low-beach,obstacle-full-beach,obstacle-move-beach}.glb",
 					"**/models/props/{palm,rocks-sand,beach}-*.glb",
 					"**/models/props/{obstacle-low-snow,obstacle-high-snow,obstacle-full-snow,obstacle-move-snow,snowman}.glb",

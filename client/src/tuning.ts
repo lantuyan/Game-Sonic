@@ -184,6 +184,38 @@ export const tuning = {
 		musicRate: 1.18
 	},
 
+	/** Học tập nâng cao (plan §4.6 — P1-5). */
+	learning: {
+		/** micro-DDA: 2 sai liên tiếp hạ 1 bậc, 3 đúng liên tiếp nâng 1 bậc. */
+		ddaLowerStreak: 2,
+		ddaRaiseStreak: 3,
+		/** Không trôi quá ±1 bậc trong một ván — một ván xui không định nghĩa được em. */
+		ddaMaxShift: 1,
+		/**
+		 * Trần khoảng cách trạm khi accuracy thấp. Sàn dùng chung
+		 * `quiz.gateIntervalMinSec` (25s); 40s là trần đã chốt ở plan §4.3.
+		 * ⚠ Khác `quiz.gateIntervalMaxSec` (35s — trần dùng khi CHƯA có accuracy).
+		 */
+		gateIntervalCeilingSec: 40,
+		/** Đọc chậm: trung bình trả lời trên 12s (plan §4.6). */
+		slowReaderMs: 12000,
+		/** …và câu từ bậc này trở lên (1 = "medium") thì mở modal. */
+		slowReaderMinDifficultyIndex: 1,
+		/** Câu hồi sinh: 1 câu easy, 10s. */
+		revivalQuestionSec: 10,
+		revivalInvincibleSec: 3,
+		/** Lần đầu mỗi ngày miễn phí; từ lần 2 trả 100 coin (plan §4.6). */
+		revivalFreePerDay: 1,
+		revivalCoinCost: 100,
+		/** Đúng câu từ bậc này trở lên (2 = "hard") → tặng Khiên. */
+		shieldRewardMinDifficultyIndex: 2,
+		/** Luyện tập: chậm lại để tập trung vào đề, không tập phản xạ. */
+		practiceSpeedFactor: 0.75,
+		/** Power-up Tăng tốc (P1-5). */
+		speedBoostSec: 6,
+		speedBoostFactor: 1.35
+	},
+
 	/** Near-miss (plan §4.4 — P1-1): lướt sát chướng ngại được thưởng. */
 	nearMiss: {
 		enabled: 1,

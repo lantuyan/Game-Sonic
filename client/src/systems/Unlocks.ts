@@ -5,7 +5,7 @@
 // trừ tim: mọi đường mở khoá (mua, đạt mốc, tự động sau ván) đều đi qua đây nên
 // không có nhánh nào lỡ tay mở nhân vật mà quên trừ coin.
 
-import { loadUnlocks, saveUnlocks, loadWallet, saveWallet, type UnlocksV2 } from "@/core/SaveData";
+import { loadUnlocks, saveUnlocks, loadWallet, saveWallet, todayKey, type UnlocksV2 } from "@/core/SaveData";
 import {
 	evaluateUnlock,
 	getUnlockRule,
@@ -125,6 +125,39 @@ export class Unlocks {
 		this.state.unlocked.push(characterId);
 		this.persist();
 		return { ok: true, paidCoins: rule.price };
+	}
+
+	// --- Hồi sinh (P1-5) ------------------------------------------------------
+
+	/** Số lần hồi sinh đã dùng HÔM NAY. Sang ngày mới tự về 0. */
+	revivalUsedToday(now: Date = new Date()): number {
+		return this.state.revival.date === todayKey(now) ? this.state.revival.count : 0;
+	}
+
+	/**
+	 * Ghi nhận một lần hồi sinh. `coinCost > 0` thì trừ ví NGAY trong cùng lời gọi,
+	 * cùng lý do như `purchase`: không để nhánh nào cho sống lại mà quên trừ.
+	 * Trả về false khi không đủ coin — khi đó KHÔNG ghi nhận gì.
+	 */
+	consumeRevival(coinCost: number, now: Date = new Date()): boolean {
+		if (coinCost > 0) {
+			const wallet = loadWallet();
+
+			if (wallet.coins < coinCost) {
+				return false;
+			}
+
+			saveWallet({ ...wallet, coins: wallet.coins - coinCost });
+		}
+
+		const key = todayKey(now);
+		this.state.revival =
+			this.state.revival.date === key
+				? { date: key, count: this.state.revival.count + 1 }
+				: { date: key, count: 1 };
+
+		this.persist();
+		return true;
 	}
 
 	private persist(): void {

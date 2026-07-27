@@ -101,6 +101,7 @@ export interface QuestionBankApi {
 	// Ngoài danh sách vàng nhưng có sẵn — bridge dùng để đọc avgAnswerMs
 	// và targetDifficultyIndex (Boss Gate, P1-1).
 	getSkillProfile?(level: string): SkillProfile;
+	getDeviceId?(): string;
 	DIFFICULTY_ORDER?: string[];
 }
 

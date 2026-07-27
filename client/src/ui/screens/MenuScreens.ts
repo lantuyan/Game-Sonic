@@ -76,6 +76,8 @@ export class SplashScreen implements Screen {
 
 export interface HomeCallbacks {
 	onPlay(): void;
+	/** P1-5 — Luyện tập: không tim, không điểm, không BXH, ưu tiên câu đã sai. */
+	onPractice(): void;
 	onLeaderboard(): void;
 	onSettings(): void;
 	onTutorial(): void;
@@ -100,6 +102,11 @@ export class HomeScreen implements Screen {
 		// CHƠI NGAY là hành động chính: nút CTA ≥64px, đứng đầu thứ tự tab.
 		actions.append(
 			createButton({ label: "CHƠI NGAY", variant: "cta", onClick: callbacks.onPlay }),
+			createButton({
+				label: "Luyện tập",
+				onClick: callbacks.onPractice,
+				ariaLabel: "Luyện tập — không tính điểm, chỉ ôn câu hỏi"
+			}),
 			createButton({ label: "Bảng xếp hạng", onClick: callbacks.onLeaderboard }),
 			createButton({ label: "Cài đặt", onClick: callbacks.onSettings }),
 			createButton({ label: "Hướng dẫn", onClick: callbacks.onTutorial })

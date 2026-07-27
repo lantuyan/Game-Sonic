@@ -10,6 +10,11 @@
 
 import { tuning } from "@/tuning";
 import { computeStationDurationSec, SoftGateTracker, type GateLayout, type QuizMode } from "@/systems/quizRules";
+import {
+	computeGateIntervalSec,
+	pickQueueIndexWithShift,
+	shouldRouteToModalForSlowReader
+} from "@/systems/learningRules";
 import type { LegacyQuestion } from "@/integration/questionBank.d";
 
 export type QuizPhase = "idle" | "telegraph" | "station" | "modal" | "feedback";
@@ -52,6 +57,13 @@ export class QuizGateController {
 	private avgAnswerMs: number | null = null;
 	private levelQuizMode: QuizMode = "gate";
 	private queueExhaustedNotified = false;
+	/**
+	 * Accuracy dùng cho luật tần suất cổng (P1-5). Lấy từ RunScene mỗi lần hẹn trạm
+	 * mới, để nhịp bám theo em NGAY TRONG VÁN chứ không chỉ theo hồ sơ ván trước.
+	 */
+	private accuracyProvider: (() => number | null) | null = null;
+	/** micro-DDA (P1-5): lệch bậc cho lượt bốc kế tiếp. */
+	private difficultyShiftProvider: (() => number) | null = null;
 
 	constructor(callbacks: QuizGateCallbacks) {
 		this.callbacks = callbacks;
@@ -71,8 +83,28 @@ export class QuizGateController {
 		this.scheduleNextGate();
 	}
 
+	/** P1-5 — nguồn accuracy cho luật tần suất cổng. */
+	setAccuracyProvider(provider: (() => number | null) | null): void {
+		this.accuracyProvider = provider;
+	}
+
+	/** P1-5 — nguồn `shift` của micro-DDA cho lượt bốc kế tiếp. */
+	setDifficultyShiftProvider(provider: (() => number) | null): void {
+		this.difficultyShiftProvider = provider;
+	}
+
 	private scheduleNextGate(): void {
-		// Khoảng cách giữa 2 trạm: 25–40s (plan §4.3).
+		const accuracy = this.accuracyProvider === null ? null : this.accuracyProvider();
+
+		if (accuracy !== null) {
+			// P1-5: làm đúng nhiều thì gặp cổng dày hơn, sai nhiều thì thưa ra.
+			// ±3s ngẫu nhiên để nhịp không thành máy đếm đoán được.
+			const base = computeGateIntervalSec(accuracy);
+			this.nextGateInSec = Math.max(base + (Math.random() * 6 - 3), tuning.quiz.gateIntervalMinSec);
+			return;
+		}
+
+		// Chưa có dữ liệu (mấy trạm đầu ván): giữ nguyên dải P0 25–35s.
 		const span = tuning.quiz.gateIntervalMaxSec - tuning.quiz.gateIntervalMinSec;
 		this.nextGateInSec = tuning.quiz.gateIntervalMinSec + Math.random() * span;
 	}
@@ -150,7 +182,11 @@ export class QuizGateController {
 	}
 
 	private beginTelegraph(nowMs: number, buildLayout: (question: LegacyQuestion) => GateLayout): void {
-		const question = this.queue.pop() ?? null;
+		// micro-DDA (P1-5) chọn câu lệch bậc TRONG hàng đợi; shift = 0 thì đúng bằng
+		// `queue.pop()` như P0, nên hợp đồng "pop từ cuối mảng" vẫn giữ nguyên.
+		const shift = this.difficultyShiftProvider === null ? 0 : this.difficultyShiftProvider();
+		const pickIndex = pickQueueIndexWithShift(this.queue, shift);
+		const question = pickIndex === -1 ? null : (this.queue.splice(pickIndex, 1)[0] ?? null);
 
 		if (question === null) {
 			if (this.queueExhaustedNotified === false) {
@@ -191,6 +227,12 @@ export class QuizGateController {
 		}
 
 		if (this.levelQuizMode === "modal") {
+			return "modal";
+		}
+
+		// P1-5 — em đọc chậm gặp câu medium+ thì mở modal: trên cổng 3D đề trôi về
+		// phía mình, đọc không kịp là mất câu chứ không phải không biết làm.
+		if (shouldRouteToModalForSlowReader(question, this.avgAnswerMs) === true) {
 			return "modal";
 		}
 

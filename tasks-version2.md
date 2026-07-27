@@ -323,9 +323,18 @@ Mage/Rogue/Engineer qua pipeline; S12 Shop: giá coin (cân trong tuning: ~300/5
 · Bộ lọc từ cấm ưu tiên KHÔNG CHẶN OAN tên thật: chuỗi ngắn/đa nghĩa (`dm`, `cc`, `vl`, `cac`, `lon`, `diem`) chỉ chặn khi là TOÀN BỘ biệt danh. Chính bộ test bắt được hai lỗi thật của bản đầu: "Trần Diễm My" và "Lê Điểm 10" bị chặn oan.
 · `ANTICHEAT_ENFORCE` mặc định TẮT và đã ghi vào `.env.example` — bật là việc của Checklist release P1, không phải của task này.
 
-### [ ] P1-5 · Học tập nâng cao — *3.5 ngày*
+### [x] P1-5 · Học tập nâng cao — *3.5 ngày*
 Câu hỏi hồi sinh (hết tim → 1 câu easy 10s; đúng → sống lại + 3s bất tử; lần 2 trong ngày = 100 coin); chế độ Luyện tập từ S2 (không tim/điểm/BXH, chỉ cổng, chậm, ưu tiên review queue); micro-DDA (2 sai liên tiếp → hạ 1 bậc lượt bốc kế; 3 đúng → nâng); tần suất cổng theo accuracy (25↔40s); định tuyến modal cho avgAnswerMs >12s với câu medium+; power-up twist: đúng câu hard/expert → tặng Khiên; power-up Tăng tốc.
 **DoD:** unit test từng luật; chơi thử thấy hồi sinh + luyện tập chạy; skill sync payload thêm `gateAnswerMs`/`modeStats` không phá schema (JSONB).
+**Đã làm (nhánh `v2/p1-05-learning`):** `systems/learningRules.ts` gom cả 5 luật ở dạng thuần số học (micro-DDA, tần suất cổng theo accuracy, định tuyến modal cho em đọc chậm, câu hồi sinh, thưởng Khiên) + power-up Tăng tốc + chế độ Luyện tập vào từ S2. 18 test mới (`test/learning.test.js`).
+**Quyết định đáng nêu:**
+· micro-DDA **bất đối xứng có chủ ý** — hạ sau 2 câu sai (nhanh), nâng sau 3 câu đúng (chắc). Đang bí thì mỗi câu khó thêm là thêm một lần nản; còn 2 câu đúng có thể là may.
+· DDA KHÔNG dựng lại hàng đợi mà chỉ chọn trong đó câu lệch bậc, nên `filterAvailableQuestions` + trộn hàng đợi ôn tập vẫn được tôn trọng; `shift = 0` cho kết quả **y hệt `queue.pop()`** của P0 (hợp đồng §7.3.1).
+· `gateAnswerMs`/`modeStats` đi **nhờ trong cột JSONB `difficulty_weights`** qua route `PUT /api/players/:id/skill` đã có — không migration, không thêm cột, không chạm `questionBank.js` (quy tắc vàng #4 chỉ mở cho P1-4).
+· Luyện tập **không tính vào tiến trình mở khoá P1-3**: nếu tính thì mở nhân vật thành cày chế độ không rủi ro. Nhưng VẪN cập nhật hồ sơ kỹ năng — em vẫn đang học thật.
+· Trừ xu hồi sinh **ngay lúc mở lời mời**, không phải lúc trả lời đúng: trừ sau thì người chơi được xem đề miễn phí rồi mới quyết định.
+· Hồi sinh cho lại **đúng 1 tim**, không phải đầy máu.
+**Chưa nghiệm thu được ở môi trường này:** cảm giác nhịp cổng thay đổi theo accuracy trong một ván thật (rAF ~1 fps trong sandbox). Luyện tập và HUD của nó đã soi bằng ảnh chụp.
 
 ### [ ] P1-6 · Dashboard giáo viên — *4.5 ngày*
 Bảng `answer_events(id, device_id, level, question_id, outcome, answer_ms, mode, difficulty, run_id, created_at)` (+index theo level/question_id/created_at); `POST /api/runs/summary` batch 1 request cuối ván (client V2 gửi mảng answers); `GET /api/admin/stats?level=&from=&to=`: ván/ngày, accuracy theo lớp & độ khó, **top 10 câu sai nhiều nhất**, phân bố skill (từ `skill_profiles`); tab S17 trong admin (bảng + biểu đồ thanh thuần CSS/SVG, không lib chart) + nút xuất CSV (UTF-8 BOM cho Excel).

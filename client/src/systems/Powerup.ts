@@ -9,7 +9,8 @@
 
 import { tuning } from "@/tuning";
 
-export type PowerupKind = "magnet" | "shield" | "doublePoints";
+/** P1-5 thêm `speedBoost` — chạy nhanh hơn 6 giây, đổi lại khó né hơn. */
+export type PowerupKind = "magnet" | "shield" | "doublePoints" | "speedBoost";
 
 export interface PowerupState {
 	kind: PowerupKind;
@@ -23,7 +24,8 @@ export type PowerupEvent =
 const DURATIONS: Record<PowerupKind, number> = {
 	magnet: tuning.powerup.magnetSec,
 	shield: 0,
-	doublePoints: tuning.powerup.doublePointsSec
+	doublePoints: tuning.powerup.doublePointsSec,
+	speedBoost: tuning.learning.speedBoostSec
 };
 
 export class Powerups {
@@ -55,7 +57,7 @@ export class Powerups {
 		}
 
 		// Nhặt lại cùng loại: đặt lại đồng hồ về đủ thời lượng (không cộng dồn).
-		const duration = kind === "magnet" ? tuning.powerup.magnetSec : tuning.powerup.doublePointsSec;
+		const duration = DURATIONS[kind];
 		this.timers.set(kind, duration);
 		this.emit({ type: "started", kind, durationSec: duration });
 	}
@@ -90,6 +92,16 @@ export class Powerups {
 	/** Hệ số nhân điểm do power-up (×2 khi đang bật). */
 	get pointMultiplier(): number {
 		return this.isActive("doublePoints") === true ? tuning.powerup.doublePointsMultiplier : 1;
+	}
+
+	/**
+	 * Hệ số tốc độ do power-up Tăng tốc (P1-5).
+	 *
+	 * CỘNG vào hệ số tốc độ chứ không nhân với trần ramp: Tăng tốc là phần thưởng
+	 * ngắn hạn, không được biến thành đường vòng để vượt `speed.baseMax`.
+	 */
+	get speedMultiplier(): number {
+		return this.isActive("speedBoost") === true ? tuning.learning.speedBoostFactor : 1;
 	}
 
 	/** Bán kính hút coin: 0 khi không có Magnet và không Fever. */

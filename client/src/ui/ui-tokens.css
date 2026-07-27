@@ -277,6 +277,19 @@
 	display: none;
 }
 
+/* --- Nhãn chế độ Luyện tập (P1-5) --- */
+
+.hud__practice {
+	padding: var(--space-1) var(--space-3);
+	border-radius: var(--radius-pill);
+	background: rgba(12, 22, 44, 0.82);
+	color: var(--color-coin);
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 14px;
+	letter-spacing: 0.06em;
+}
+
 /* --- Banner giữa màn: boss / đếm ngược / kết quả (P1-1) --- */
 
 .hud__banner {

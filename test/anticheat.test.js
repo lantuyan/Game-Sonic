@@ -23,11 +23,25 @@ var badwords = require("../server/badwords-vi");
 var rootDir = path.resolve(__dirname, "..");
 var SECRET = "test-secret-key-p1-4";
 
+// ⚠ DÙNG CHUNG một thư mục dữ liệu cho mọi app trong file này.
+//
+// Trước đây mỗi test gọi `fs.mkdtempSync` riêng ⇒ mỗi test một CSDL PGlite mới,
+// mà PGlite là Postgres biên dịch WASM: mỗi instance là một cluster đầy đủ vài
+// chục MB nằm lại trong thư mục tạm. Chạy `npm test` vài chục lần trong một buổi
+// là đầy ổ đĩa thật — đã xảy ra. `server/sql.js` cache client theo `pgDataDir`,
+// nên dùng chung đường dẫn là dùng chung đúng MỘT instance.
+//
+// Các test ở đây không đọc CSDL nên không cần cô lập dữ liệu; thứ cần cô lập là
+// rate-limit và vé đã tiêu, và cả hai đã được `resetSpentTokens()` + `deviceId`
+// riêng cho từng test lo.
+var sharedRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "anticheat-"));
+
 function makeRuntime(overrides) {
 	return createApp(Object.assign({
 		rootDir: rootDir,
 		staticDir: rootDir,
-		runtimeDir: fs.mkdtempSync(path.join(os.tmpdir(), "anticheat-")),
+		runtimeDir: sharedRuntimeDir,
+		pgDataDir: path.join(sharedRuntimeDir, "pgdata"),
 		jwtSecret: SECRET,
 		adminPasswordHash: bcrypt.hashSync("admin123", 10),
 		nodeEnv: "test"

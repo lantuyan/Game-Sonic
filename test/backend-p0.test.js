@@ -11,6 +11,15 @@ var path = require("path");
 var bcrypt = require("bcrypt");
 var request = require("supertest");
 var createApp = require("../server/app").createApp;
+
+// ⚠ MỘT thư mục dữ liệu dùng chung cho cả file.
+//
+// Mỗi `mkdtempSync` riêng nghĩa là một CSDL PGlite mới, mà PGlite là Postgres biên
+// dịch WASM: mỗi instance là một cluster đầy đủ vài chục MB nằm lại trong thư mục
+// tạm. Chạy `npm test` nhiều lần trong một buổi là đầy ổ đĩa thật — đã xảy ra.
+// `server/sql.js` cache client theo `pgDataDir` nên dùng chung đường dẫn là dùng
+// chung đúng một instance.
+var sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-p0-"));
 var QuestionModel = require("../shared/questionModel");
 
 process.on("unhandledRejection", function (error) {
@@ -25,7 +34,7 @@ process.on("unhandledRejection", function (error) {
 });
 
 function createTestContext() {
-	var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-p0-"));
+	var tempDir = sharedTempDir;
 	var config = {
 		rootDir: path.resolve(__dirname, ".."),
 		staticDir: path.resolve(__dirname, ".."),
@@ -298,7 +307,7 @@ test("health giữ nguyên shape cũ và thêm dbKind/dbOk", async function () {
 });
 
 test("health vẫn trả shape cũ khi không có SQL client (dbKind none, dbOk false)", async function () {
-	var tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "game-sonic-running-nodb-"));
+	var tempDir = sharedTempDir;
 	var runtime = createApp({
 		rootDir: path.resolve(__dirname, ".."),
 		staticDir: path.resolve(__dirname, ".."),

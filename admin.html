@@ -139,6 +139,18 @@
 			.status-wrong{background:rgba(255,111,125,.16);color:#ffe0e4}
 			.status-timeout{background:rgba(244,201,93,.16);color:#fff0c4}
 			.status-shown{background:rgba(88,196,255,.14);color:#daf5ff}
+			/* P1-6 — biểu đồ thanh THUẦN CSS, không thư viện chart (task ghi rõ).
+			   Một thư viện chart là ~80KB cho ba biểu đồ cột — không đáng. */
+			.chart{display:flex;flex-direction:column;gap:8px}
+			.chart-row{display:grid;grid-template-columns:120px 1fr 72px;gap:10px;align-items:center}
+			.chart-label{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+			/* `display:block` là BẮT BUỘC: cả hai là <span>, mà phần tử inline thì bỏ
+			   qua height — thiếu dòng này biểu đồ ra toàn thanh rỗng. */
+			.chart-track{display:block;height:16px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+			.chart-bar{display:block;height:100%;min-width:2px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-strong))}
+			.chart-bar.is-low{background:linear-gradient(90deg,#ffb36b,var(--danger))}
+			.chart-value{font-size:13px;font-weight:700;text-align:right}
+			.chart-empty{font-size:13px;color:var(--muted);padding:8px 0}
 			.table-wrap{max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:14px}
 			table{width:100%;border-collapse:collapse}
 			.table-compact{min-width:100%}
@@ -397,6 +409,58 @@
 									</tr>
 								</thead>
 								<tbody id="question-table-body"></tbody>
+							</table>
+						</div>
+					</section>
+
+
+					<!-- P1-6 — S17 Dashboard giáo viên. -->
+					<section class="panel">
+						<div class="toolbar">
+							<h2 style="margin:0;">Thống kê lớp học</h2>
+							<div class="actions">
+								<button id="stats-refresh" class="button-secondary" type="button">Tải lại</button>
+								<button id="stats-csv" class="button-success" type="button">Xuất CSV</button>
+							</div>
+						</div>
+						<p class="level-meta" style="margin:0 0 14px;">
+							Số liệu lấy từ chính các ván học sinh đã chơi. Bỏ trống ngày = xem tất cả.
+						</p>
+						<div class="form-row" style="margin-bottom:14px;">
+							<div class="field">
+								<label for="stats-from">Từ ngày</label>
+								<input id="stats-from" type="date" />
+							</div>
+							<div class="field">
+								<label for="stats-to">Đến ngày</label>
+								<input id="stats-to" type="date" />
+							</div>
+						</div>
+
+						<div id="stats-summary" class="kpis" style="margin-bottom:18px;"></div>
+
+						<h3 style="margin:18px 0 10px;font-size:16px;">Số ván theo ngày</h3>
+						<div id="stats-runs-chart" class="chart"></div>
+
+						<h3 style="margin:18px 0 10px;font-size:16px;">Tỉ lệ đúng theo độ khó</h3>
+						<div id="stats-difficulty-chart" class="chart"></div>
+
+						<h3 style="margin:18px 0 10px;font-size:16px;">Phân bố trình độ học sinh</h3>
+						<div id="stats-skill-chart" class="chart"></div>
+
+						<h3 style="margin:18px 0 10px;font-size:16px;">Top 10 câu sai nhiều nhất</h3>
+						<div class="table-wrap">
+							<table class="table-compact">
+								<thead>
+									<tr>
+										<th>Mã câu</th>
+										<th>Lớp</th>
+										<th>Lượt gặp</th>
+										<th>Lượt sai</th>
+										<th>Tỉ lệ sai</th>
+									</tr>
+								</thead>
+								<tbody id="stats-wrong-body"></tbody>
 							</table>
 						</div>
 					</section>
@@ -1232,6 +1296,8 @@
 				document.getElementById("save-quiz-mode-button").addEventListener("click", handleSaveQuizMode);
 				document.getElementById("reset-answered-button").addEventListener("click", handleResetAnswered);
 				document.getElementById("moderation-refresh").addEventListener("click", loadModeration);
+				document.getElementById("stats-refresh").addEventListener("click", loadStats);
+				document.getElementById("stats-csv").addEventListener("click", downloadStatsCsv);
 				document.getElementById("block-nickname-button").addEventListener("click", handleBlockNickname);
 				QuestionBank.QUESTION_ANSWER_KEYS.forEach(function (answerKey) {
 					document.getElementById("answer-" + answerKey).addEventListener("input", function () {
@@ -1396,12 +1462,129 @@
 					});
 			}
 
+
+			// --- P1-6 · Dashboard giáo viên -----------------------------------------
+
+			function statsQuery() {
+				var params = new URLSearchParams();
+				params.set("level", appState.level);
+
+				var from = document.getElementById("stats-from").value;
+				var to = document.getElementById("stats-to").value;
+
+				if (from !== "") {
+					params.set("from", from);
+				}
+
+				if (to !== "") {
+					params.set("to", to);
+				}
+
+				return params.toString();
+			}
+
+			/** Một biểu đồ thanh. `rows` = [{label, value, ratio, display}]. */
+			function renderBarChart(containerId, rows, lowThreshold) {
+				var container = document.getElementById(containerId);
+
+				if (rows.length === 0) {
+					container.innerHTML = "<p class=\"chart-empty\">Chưa có dữ liệu trong khoảng này.</p>";
+					return;
+				}
+
+				container.innerHTML = rows.map(function (row) {
+					var percent = Math.round(Math.max(Math.min(row.ratio, 1), 0) * 100);
+					var lowClass = lowThreshold != null && row.ratio < lowThreshold ? " is-low" : "";
+
+					return "<div class=\"chart-row\">" +
+						"<span class=\"chart-label\">" + escapeHTML(row.label) + "</span>" +
+						"<span class=\"chart-track\"><span class=\"chart-bar" + lowClass + "\" style=\"width:" + percent + "%\"></span></span>" +
+						"<span class=\"chart-value\">" + escapeHTML(row.display) + "</span>" +
+					"</div>";
+				}).join("");
+			}
+
+			function renderStats(stats) {
+				var accuracy = stats.totals.answers > 0 ? stats.totals.correct / stats.totals.answers : 0;
+
+				document.getElementById("stats-summary").innerHTML =
+					"<div class=\"kpi\"><span class=\"kpi-label\">Câu đã trả lời</span><span class=\"kpi-value\">" + stats.totals.answers + "</span></div>" +
+					"<div class=\"kpi\"><span class=\"kpi-label\">Tỉ lệ đúng</span><span class=\"kpi-value\">" + Math.round(accuracy * 100) + "%</span></div>" +
+					"<div class=\"kpi\"><span class=\"kpi-label\">Số máy đã chơi</span><span class=\"kpi-value\">" + stats.totals.devices + "</span></div>";
+
+				var maxRuns = stats.runsByDay.reduce(function (best, row) {
+					return Math.max(best, row.runs);
+				}, 0);
+
+				renderBarChart("stats-runs-chart", stats.runsByDay.map(function (row) {
+					return {
+						label: row.day,
+						ratio: maxRuns > 0 ? row.runs / maxRuns : 0,
+						display: row.runs + " ván"
+					};
+				}));
+
+				// Dưới 50% đúng thì thanh chuyển đỏ — đó là chỗ giáo viên cần dạy lại.
+				renderBarChart("stats-difficulty-chart", stats.accuracyByDifficulty.map(function (row) {
+					return {
+						label: row.key + " (" + row.total + " lượt)",
+						ratio: row.accuracy,
+						display: Math.round(row.accuracy * 100) + "%"
+					};
+				}), 0.5);
+
+				var maxPlayers = stats.skillDistribution.reduce(function (best, row) {
+					return Math.max(best, row.players);
+				}, 0);
+				var bucketLabels = ["0–20%", "20–40%", "40–60%", "60–80%", "80–100%"];
+
+				renderBarChart("stats-skill-chart", stats.skillDistribution.map(function (row) {
+					return {
+						label: bucketLabels[Math.min(Math.max(row.bucket, 1), 5) - 1],
+						ratio: maxPlayers > 0 ? row.players / maxPlayers : 0,
+						display: row.players + " em"
+					};
+				}));
+
+				var wrongBody = document.getElementById("stats-wrong-body");
+
+				if (stats.topWrongQuestions.length === 0) {
+					wrongBody.innerHTML = "<tr><td colspan=\"5\" class=\"empty\">Chưa đủ dữ liệu (cần ít nhất 3 lượt/câu).</td></tr>";
+					return;
+				}
+
+				wrongBody.innerHTML = stats.topWrongQuestions.map(function (row) {
+					return "<tr>" +
+						"<td>" + escapeHTML(row.questionId) + "</td>" +
+						"<td>" + escapeHTML(row.level) + "</td>" +
+						"<td>" + row.total + "</td>" +
+						"<td>" + row.wrong + "</td>" +
+						"<td>" + Math.round(row.wrongRate * 100) + "%</td>" +
+					"</tr>";
+				}).join("");
+			}
+
+			function loadStats() {
+				return adminFetch("/api/admin/stats?" + statsQuery())
+					.then(renderStats)
+					.catch(function (error) {
+						showNotice(error.message, "error");
+					});
+			}
+
+			function downloadStatsCsv() {
+				// Mở thẳng bằng điều hướng để trình duyệt xử lý header
+				// Content-Disposition — cookie admin đi kèm vì cùng origin.
+				window.location.href = "/api/admin/stats.csv?" + statsQuery();
+			}
+
 			function initializeAdminPage() {
 				appState.isInitialized = true;
 				bindEvents();
 				resetQuestionForm();
 				loadCurrentLevelData();
 				loadModeration();
+				loadStats();
 			}
 
 			requireAdminAccess();

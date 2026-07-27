@@ -36,6 +36,26 @@ var STATEMENTS = [
 		"reason TEXT," +
 		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
 	")",
+	// P1-6 · một dòng cho MỘT câu trả lời. Đây là nguồn duy nhất của dashboard giáo
+	// viên. Cố ý KHÔNG khoá ngoại tới `players`: dữ liệu học tập không được biến mất
+	// vì một bản ghi player bị xoá lúc kiểm duyệt.
+	"CREATE TABLE IF NOT EXISTS answer_events (" +
+		"id BIGSERIAL PRIMARY KEY," +
+		"device_id TEXT NOT NULL," +
+		"level TEXT NOT NULL," +
+		"question_id TEXT NOT NULL," +
+		"outcome TEXT NOT NULL," +
+		"answer_ms INTEGER," +
+		"mode TEXT," +
+		"difficulty TEXT," +
+		"run_id TEXT," +
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+	")",
+	// 3 index theo đúng 3 câu hỏi dashboard hay hỏi: "lớp này thế nào", "câu nào
+	// sai nhiều nhất", "tuần vừa rồi ra sao".
+	"CREATE INDEX IF NOT EXISTS idx_answer_events_level ON answer_events (level, created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_answer_events_question ON answer_events (question_id)",
+	"CREATE INDEX IF NOT EXISTS idx_answer_events_created ON answer_events (created_at DESC)",
 	"CREATE TABLE IF NOT EXISTS skill_profiles (" +
 		"device_id TEXT NOT NULL," +
 		"level TEXT NOT NULL," +

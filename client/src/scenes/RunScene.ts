@@ -6,6 +6,7 @@
 import { Object3D, Scene } from "three";
 import { Track } from "@/systems/Track";
 import { Sky, BIOME_CITY_PARK } from "@/fx/Sky";
+import { biomeAt, nextBiomeIndex } from "@/fx/biomes";
 import { WorldLighting } from "@/fx/WorldLighting";
 import { syncCurvedWorldUniforms } from "@/fx/CurvedWorld";
 import { AssetManager } from "@/core/AssetManager";
@@ -17,6 +18,10 @@ import { SpeedController } from "@/systems/Speed";
 import { findCollision } from "@/systems/Collision";
 import patternData from "@/data/patterns.json";
 import { QuizGateController } from "@/systems/QuizGate";
+import { BossGateController, type BossOutcome } from "@/systems/BossGate";
+import { pickBossDifficultyIndex, pickBossQuestion } from "@/systems/bossRules";
+import { NearMissTracker } from "@/systems/NearMiss";
+import { BossVisual } from "@/entities/BossVisual";
 import { QuizGateVisual, GATE_TRIGGER_HALF_DEPTH, gateSpawnZ } from "@/entities/QuizGateVisual";
 import { buildGateLayout, SessionStatsRecorder, type GateLayout, type QuizMode } from "@/systems/quizRules";
 import { QuizModal } from "@/ui/QuizModal";
@@ -35,20 +40,6 @@ import { tuning } from "@/tuning";
 import type { GameScene } from "@/scenes/Scene";
 import type { GameContext, GameEvents } from "@/core/GameContext";
 import type { Mesh } from "three";
-
-/** Trang trí hai bên đường của biome ① — mỗi mục là 1 InstancedMesh (1 draw call). */
-const DECOR_SOURCES = [
-	// Capacity = số bản sao TỐI ĐA hiển thị cùng lúc, và cũng là trần tam giác của
-	// lớp đó. Nhà Kenney nặng hơn cây nhiều lần nên để capacity thấp hơn hẳn.
-	{ name: "tree-a", url: "models/props/tree-a.glb", capacity: 20 },
-	{ name: "tree-b", url: "models/props/tree-b.glb", capacity: 20 },
-	{ name: "tree-c", url: "models/props/tree-c.glb", capacity: 16 },
-	{ name: "building-a", url: "models/props/building-a.glb", capacity: 8 },
-	{ name: "building-b", url: "models/props/building-b.glb", capacity: 8 },
-	{ name: "building-c", url: "models/props/building-c.glb", capacity: 8 },
-	{ name: "fence", url: "models/props/fence.glb", capacity: 18 },
-	{ name: "streetlight", url: "models/props/streetlight.glb", capacity: 12 }
-];
 
 export class RunScene implements GameScene {
 	readonly name = "run";
@@ -81,6 +72,19 @@ export class RunScene implements GameScene {
 	private readonly level: string;
 	private levelQuizMode: QuizMode = "gate";
 	private answeredThisStation = false;
+
+	// --- Boss Gate + near-miss (P1-1) ---
+	private boss: BossGateController | null = null;
+	private bossVisual: BossVisual | null = null;
+	private readonly nearMiss = new NearMissTracker();
+	/** Câu đã dùng trong ván (cổng lẫn boss) — boss không hỏi lại câu đã gặp. */
+	private readonly usedQuestionIds = new Set<string>();
+	private biomeIndex = 0;
+	/** 0 → camera thường, 1 → camera cắt cảnh boss. Trôi mềm qua `boss.cameraDollySec`. */
+	private bossCameraBlend = 0;
+	private bossApproach = 0;
+	/** Phanh thế giới của boss: 1 = chạy bình thường, 0 = đứng im. */
+	private worldSpeedFactor = 1;
 
 	// --- Streak / Fever / Power-up (P0-8) ---
 	private readonly combo = new Combo();
@@ -152,12 +156,25 @@ export class RunScene implements GameScene {
 		this.hud = new Hud(context.uiRoot, context.events);
 		this.modal = new QuizModal(context.uiRoot, {
 			onAnswer: (answerKey) => {
+				// Cùng một modal phục vụ cả cổng mềm lẫn Boss Gate — boss được ưu tiên
+				// vì khi boss đang hỏi thì cổng Toán chắc chắn đang idle.
+				if (this.boss !== null && this.boss.currentPhase === "question") {
+					this.boss.answer(answerKey, performance.now());
+					return;
+				}
+
 				this.quiz?.answer(answerKey, performance.now());
 			}
 		});
 		context.events.emit("lives:changed", { lives: this.lives.current });
 
-		await Promise.all([this.loadDecor(), this.loadPlayer(), this.loadSpawn(), this.loadQuiz(context)]);
+		await Promise.all([
+			this.loadDecor(),
+			this.loadPlayer(),
+			this.loadSpawn(),
+			this.loadQuiz(context),
+			this.loadBoss()
+		]);
 		this.bindDevCharacterSwap(context);
 		this.positionCamera(0);
 	}
@@ -184,6 +201,8 @@ export class RunScene implements GameScene {
 			this.quiz = new QuizGateController(this.buildQuizCallbacks(context));
 			this.quiz.start(queue, { avgAnswerMs, levelQuizMode: this.levelQuizMode });
 			this.session.start(performance.now());
+			this.usedQuestionIds.clear();
+			this.startBoss(context, await bridge.getTargetDifficultyIndex(this.level));
 
 			// Toast tốc độ khi vào ván — hợp đồng plan §7.3.4.
 			context.events.emit("toast", { message: this.speed.toastText, durationSec: 2.5 });
@@ -200,6 +219,147 @@ export class RunScene implements GameScene {
 		}
 	}
 
+	/** Model boss dùng lại robot.glb đã có (xem chú thích BossVisual). */
+	private async loadBoss(): Promise<void> {
+		if (tuning.boss.enabled !== 1) {
+			return;
+		}
+
+		const model = await this.assets.loadModel("models/characters/robot.glb");
+		// Clone: model trong cache dùng chung với màn chọn nhân vật.
+		this.bossVisual = new BossVisual(model.scene.clone(true), model.clips);
+		this.bossVisual.attachTo(this.scene);
+	}
+
+	private startBoss(context: GameContext, targetDifficultyIndex: number): void {
+		if (tuning.boss.enabled !== 1) {
+			return;
+		}
+
+		this.boss = new BossGateController(this.buildBossCallbacks(context, targetDifficultyIndex), this.quizRandom);
+		this.boss.start();
+
+		if (context.debug === true) {
+			// `?debug`: khỏi chờ 2.5 phút mới soi được cắt cảnh + chuyển chặng.
+			this.boss.forceNextBossIn(8);
+		}
+	}
+
+	private buildBossCallbacks(context: GameContext, targetDifficultyIndex: number) {
+		return {
+			pickQuestion: (): LegacyQuestion | null => {
+				const desired = pickBossDifficultyIndex(targetDifficultyIndex, this.quizRandom);
+				return pickBossQuestion(this.allQuestions, desired, this.quizRandom, this.usedQuestionIds);
+			},
+			onIntro: (question: LegacyQuestion): void => {
+				this.audio.play("boss-appear");
+				this.audio.setBgmRate(tuning.boss.musicRate);
+				this.audio.setDucked(true);
+				this.bossApproach = 0;
+				this.bossVisual?.appear();
+				// Dọn sạch đường trong vùng cắt cảnh: người chơi đang xem, không lái được.
+				this.spawn?.clearRange(-tuning.boss.spawnDistance - 20, tuning.world.recycleZ);
+				this.hideGates();
+				context.events.emit("boss:intro", {
+					stage: this.boss?.stageIndex ?? 0,
+					questionText: question.question
+				});
+			},
+			onQuestion: (question: LegacyQuestion, durationSec: number): void => {
+				this.usedQuestionIds.add(question.id);
+				void bridge.markQuestionShown(this.level, question);
+				context.events.emit("quiz:station-open", { questionId: question.id, mode: "modal" });
+				this.modal?.show(question, durationSec, false);
+			},
+			onResolved: (question: LegacyQuestion, outcome: BossOutcome, selected: string | null): void => {
+				this.modal?.hide();
+				this.applyBossOutcome(context, question, outcome, selected);
+			},
+			onStageAdvance: (victory: boolean): void => {
+				this.advanceBiome(context);
+
+				if (victory === true) {
+					this.spawn?.coinRain(tuning.boss.coinRainCount);
+				}
+			},
+			onCountdown: (secondsLeft: number): void => {
+				this.audio.play("countdown");
+				context.events.emit("boss:countdown", { secondsLeft });
+			},
+			onClosed: (): void => {
+				this.audio.setBgmRate(1);
+				this.audio.setDucked(false);
+				this.bossVisual?.hide();
+				context.events.emit("boss:closed", {});
+			}
+		};
+	}
+
+	/**
+	 * Kết quả boss. ĐÂY là nơi duy nhất trong ván mà trả lời sai làm mất tim
+	 * (plan Q2/Q12) — và nó phải đi qua `Lives.takeBossPenalty()` để bất biến
+	 * "chỉ Lives mới trừ tim" vẫn đứng.
+	 */
+	private applyBossOutcome(
+		context: GameContext,
+		question: LegacyQuestion,
+		outcome: BossOutcome,
+		selected: string | null
+	): void {
+		void bridge.markQuestionResult(this.level, question.id, outcome);
+		this.session.record({
+			questionId: question.id,
+			status: outcome,
+			mode: "modal",
+			answeredMs: this.boss?.answerElapsedMs ?? 0,
+			selectedAnswer: selected
+		});
+		context.events.emit("quiz:answered", { questionId: question.id, result: outcome, mode: "modal" });
+
+		if (outcome === "correct") {
+			this.audio.play("boss-defeat");
+			this.reviewQueue.recordCorrect(question.id, Date.now());
+			this.combo.registerCorrect();
+			const gained = this.score.recordAnswer(true, question.point, this.combo.multiplier);
+			this.score.addCoin(tuning.boss.coinReward);
+			this.bossVisual?.breakShield();
+			context.events.emit("score:changed", { score: this.score.total, delta: gained });
+			context.events.emit("coins:changed", { coins: this.score.snapshot().coins, delta: tuning.boss.coinReward });
+			context.events.emit("boss:resolved", { result: outcome, livesLeft: this.lives.current });
+			return;
+		}
+
+		this.audio.play("answer-wrong");
+		this.reviewQueue.recordWrong(question.id, this.level, Date.now());
+		this.wrongThisRun.push({
+			question,
+			selectedAnswer: selected,
+			status: outcome === "timeout" ? "timeout" : "wrong",
+			willRepeat: this.reviewQueue.has(question.id)
+		});
+		this.combo.registerWrong();
+		this.score.recordAnswer(false, question.point, 1);
+
+		const result = this.lives.takeBossPenalty();
+		context.events.emit("boss:resolved", { result: outcome, livesLeft: this.lives.current });
+		context.events.emit("lives:changed", { lives: Math.max(this.lives.current, 0) });
+
+		if (result === "dead") {
+			this.handleGameOver(context);
+		}
+	}
+
+	/** Chuyển chặng: đổi bảng màu trời/đất + BGM (P1-2 thêm props theo biome). */
+	private advanceBiome(context: GameContext): void {
+		this.biomeIndex = nextBiomeIndex(this.biomeIndex);
+
+		const biome = biomeAt(this.biomeIndex);
+		this.sky.setPalette(this.scene, biome.palette);
+		this.track.setPalette(biome.palette);
+		this.audio.playBgm(biome.bgm);
+		context.events.emit("biome:changed", { index: this.biomeIndex, label: biome.label });
+	}
+
 	private buildQuizCallbacks(context: GameContext) {
 		return {
 			onTelegraph: (question: LegacyQuestion): void => {
@@ -213,6 +373,8 @@ export class RunScene implements GameScene {
 			onStationOpen: (question: LegacyQuestion, layout: GateLayout): void => {
 				this.answeredThisStation = false;
 				context.events.emit("quiz:station-open", { questionId: question.id, mode: "gate" });
+				// Boss không hỏi lại câu đã gặp ở cổng thường trong cùng ván.
+				this.usedQuestionIds.add(question.id);
 				void bridge.markQuestionShown(this.level, question);
 
 				layout.lanes.forEach((answerKey, lane) => {
@@ -236,6 +398,7 @@ export class RunScene implements GameScene {
 				context.events.emit("quiz:station-open", { questionId: question.id, mode: "modal" });
 
 				if (isRescue === false) {
+					this.usedQuestionIds.add(question.id);
 					void bridge.markQuestionShown(this.level, question);
 				}
 
@@ -527,7 +690,7 @@ export class RunScene implements GameScene {
 
 	private async loadDecor(): Promise<void> {
 		const loaded = await Promise.all(
-			DECOR_SOURCES.map(async (source) => ({
+			biomeAt(this.biomeIndex).decor.map(async (source) => ({
 				source,
 				model: await this.assets.loadModel(source.url)
 			}))
@@ -558,9 +721,12 @@ export class RunScene implements GameScene {
 		this.track.populateInitialDecor();
 	}
 
-	/** Tốc độ thế giới hiện tại, theo unit/giây. */
+	/**
+	 * Tốc độ thế giới hiện tại, theo unit/giây.
+	 * `worldSpeedFactor` là phanh riêng của Boss Gate (P1-1) — xem `updateBoss`.
+	 */
 	get speedUnitsPerSec(): number {
-		return this.speedFactor * tuning.speed.unitsPerSecondAtOne;
+		return this.speedFactor * tuning.speed.unitsPerSecondAtOne * this.worldSpeedFactor;
 	}
 
 	get distanceM(): number {
@@ -584,9 +750,11 @@ export class RunScene implements GameScene {
 
 		this.score.setDistance(this.track.distanceM);
 		this.updateQuiz(deltaSec, advance);
+		this.updateBoss(deltaSec);
 		this.updatePowerups(deltaSec, advance);
 		this.applyMagnet(deltaSec);
 		this.checkCollisions();
+		this.checkNearMiss();
 		this.collectCoins();
 		this.publishScore();
 		this.hud?.update(deltaSec);
@@ -622,6 +790,97 @@ export class RunScene implements GameScene {
 		}
 
 		this.detectGateCrossing(quiz);
+	}
+
+	/**
+	 * Nhịp Boss Gate mỗi frame.
+	 *
+	 * Thứ tự QUAN TRỌNG: gọi SAU `updateQuiz` để `quiz.isBusy` đã là trạng thái của
+	 * frame này — boss chỉ được xen vào khi cổng Toán đang rảnh, nếu không màn hình
+	 * sẽ có hai đề chồng nhau.
+	 *
+	 * `timeScale` ưu tiên boss > trạm: modal boss đóng băng hẳn thế giới (timeScale 0)
+	 * vì người chơi đang bị chặn đường, không phải đang lái.
+	 */
+	private updateBoss(deltaSec: number): void {
+		const boss = this.boss;
+		const context = this.context;
+
+		if (boss === null || context === null || this.gameOver === true) {
+			return;
+		}
+
+		boss.update(deltaSec, performance.now(), this.quiz === null || this.quiz.isBusy === false);
+
+		// ⚠ KHÔNG dùng `engine.timeScale = 0` để dừng thế giới: Engine nạp accumulator
+		// bằng `delta × timeScale`, nên timeScale 0 làm `update()` không bao giờ chạy
+		// nữa — kể cả đồng hồ của chính boss. Modal sẽ treo vĩnh viễn.
+		// Thay vào đó dừng riêng CHUYỂN ĐỘNG THẾ GIỚI; vòng lặp vẫn tích tắc.
+		this.worldSpeedFactor += clampStep(
+			this.bossWorldSpeedTarget(boss.currentPhase) - this.worldSpeedFactor,
+			deltaSec / (boss.currentPhase === "countdown" ? tuning.boss.countdownSec : 0.35)
+		);
+
+		// Trùm trôi vào trong lúc intro, đứng yên lúc hỏi bài, bỏ chạy sau khi xong.
+		if (boss.currentPhase === "intro") {
+			this.bossApproach = Math.min(this.bossApproach + deltaSec / tuning.boss.introSec, 1);
+		}
+
+		const fleeing = boss.currentPhase === "countdown" || (boss.currentPhase === "outro" && boss.outcome !== "correct");
+		this.bossVisual?.update(deltaSec, this.bossApproach, fleeing);
+
+		// Camera trôi mềm vào/ra góc cắt cảnh thay vì cắt cứng.
+		const target = boss.isCinematic === true || boss.isFrozen === true ? 1 : 0;
+		const step = deltaSec / Math.max(tuning.boss.cameraDollySec, 0.01);
+		this.bossCameraBlend += Math.min(Math.max(target - this.bossCameraBlend, -step), step);
+	}
+
+	/**
+	 * Thế giới chạy bao nhiêu phần trong từng pha boss.
+	 *   intro    — vẫn chạy: người chơi lao về phía trùm, cắt cảnh mới có động lực;
+	 *   question — dừng hẳn: đang đọc đề thì không được đâm chướng ngại;
+	 *   outro    — vẫn dừng, để xem khiên vỡ / trùm bỏ chạy;
+	 *   countdown— tăng dần về 1 để tới "GO" là đã đủ tốc độ, không bị giật.
+	 */
+	private bossWorldSpeedTarget(phase: string): number {
+		if (phase === "question" || phase === "outro") {
+			return 0;
+		}
+
+		return 1;
+	}
+
+	/** Near-miss (P1-1). Chạy SAU `checkCollisions` để cờ `consumed` đã đúng frame này. */
+	private checkNearMiss(): void {
+		const player = this.player;
+		const spawn = this.spawn;
+		const context = this.context;
+
+		if (player === null || spawn === null || context === null || this.gameOver === true) {
+			return;
+		}
+
+		const awarded = this.nearMiss.sample(
+			{
+				x: player.motion.x,
+				y: player.motion.y,
+				z: tuning.world.playerZ,
+				halfWidth: tuning.player.halfWidth,
+				halfDepth: player.collision.halfDepth,
+				height: tuning.player.height,
+				pose: player.motion.pose
+			},
+			spawn.activeObstacles
+		);
+
+		if (awarded <= 0) {
+			return;
+		}
+
+		const points = tuning.nearMiss.points * awarded;
+		this.score.addBonus(points);
+		this.audio.play("near-miss");
+		context.events.emit("nearmiss", { points, total: this.score.total });
 	}
 
 	/** Chạy xuyên cổng = trả lời. Chạy qua làn trống thì KHÔNG tính (plan §4.3). */
@@ -683,6 +942,25 @@ export class RunScene implements GameScene {
 		}
 	}
 
+	/** Hết tim — dùng chung cho va chạm và cho thua ở Boss Gate. */
+	private handleGameOver(context: GameContext): void {
+		if (this.gameOver === true) {
+			return;
+		}
+
+		this.gameOver = true;
+		this.audio.play("game-over");
+		this.audio.setBgmRate(1);
+		this.audio.stopBgm();
+		this.modal?.hide();
+		this.hideGates();
+		this.bossVisual?.hide();
+		this.player?.die();
+		context.engine.timeScale = 1;
+		context.events.emit("lives:changed", { lives: 0 });
+		void this.finishGame(context);
+	}
+
 	private checkCollisions(): void {
 		const player = this.player;
 		const spawn = this.spawn;
@@ -718,13 +996,7 @@ export class RunScene implements GameScene {
 		spawn.onPlayerHit();
 
 		if (result === "dead") {
-			this.audio.play("game-over");
-			this.audio.stopBgm();
-			this.gameOver = true;
-			player.die();
-			context.engine.timeScale = 1;
-			context.events.emit("lives:changed", { lives: 0 });
-			void this.finishGame(context);
+			this.handleGameOver(context);
 			return;
 		}
 
@@ -803,9 +1075,24 @@ export class RunScene implements GameScene {
 			return;
 		}
 
+		// Cắt cảnh boss: camera lùi ra + hạ xuống và nhìn thẳng vào trùm thay vì
+		// nhìn xa về phía trước. `blend` trôi mềm nên không có cú giật khi vào/ra.
+		const blend = this.bossCameraBlend;
+		const bossZ = this.bossVisual?.z ?? -tuning.boss.stopDistance;
+
 		camera.fov = tuning.world.cameraFov;
-		camera.position.set(cameraX, tuning.world.cameraHeight, tuning.world.playerZ + tuning.world.cameraDistance);
-		camera.lookAt(cameraX * 0.6, tuning.world.cameraLookAtHeight, tuning.world.cameraLookAheadZ);
+		camera.position.set(
+			cameraX * (1 - blend),
+			tuning.world.cameraHeight + (tuning.boss.cameraHeight - tuning.world.cameraHeight) * blend,
+			tuning.world.playerZ +
+				tuning.world.cameraDistance +
+				(tuning.boss.cameraDistance - tuning.world.cameraDistance) * blend
+		);
+		camera.lookAt(
+			cameraX * 0.6 * (1 - blend),
+			tuning.world.cameraLookAtHeight + 1.2 * blend,
+			tuning.world.cameraLookAheadZ + (bossZ - tuning.world.cameraLookAheadZ) * blend
+		);
 		camera.updateProjectionMatrix();
 
 		this.sky.followCamera(camera.position.z);
@@ -856,6 +1143,9 @@ export class RunScene implements GameScene {
 
 		this.gateVisuals.length = 0;
 		this.quiz = null;
+		this.bossVisual?.dispose();
+		this.bossVisual = null;
+		this.boss = null;
 		this.spawn?.dispose();
 		this.spawn = null;
 		this.track.dispose();
@@ -865,6 +1155,12 @@ export class RunScene implements GameScene {
 		this.context?.quality.onChange(null);
 		this.context = null;
 	}
+}
+
+/** Tiến tối đa `step` về phía `delta` (ease tuyến tính có trần tốc độ). */
+function clampStep(delta: number, step: number): number {
+	const limit = Math.abs(step);
+	return Math.min(Math.max(delta, -limit), limit);
 }
 
 /** Lấy mesh đầu tiên trong một GLB đã nạp để dùng làm mẫu cho InstancedMesh. */

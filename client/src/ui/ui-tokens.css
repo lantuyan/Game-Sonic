@@ -277,6 +277,118 @@
 	display: none;
 }
 
+/* --- Banner giữa màn: boss / đếm ngược / kết quả (P1-1) --- */
+
+.hud__banner {
+	position: fixed;
+	left: 50%;
+	top: 38%;
+	transform: translate(-50%, -50%);
+	padding: var(--space-3) var(--space-5);
+	border-radius: var(--radius-lg);
+	background: rgba(12, 22, 44, 0.9);
+	color: var(--color-text-invert);
+	font-family: var(--font-display);
+	font-size: clamp(28px, 7vw, 52px);
+	font-weight: 800;
+	line-height: 1.1;
+	text-align: center;
+	text-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+	box-shadow: var(--shadow-panel);
+	pointer-events: none;
+	z-index: 15;
+}
+
+.hud__banner[hidden] {
+	display: none;
+}
+
+.hud__banner[data-variant="boss"] {
+	color: var(--color-coin);
+}
+
+.hud__banner[data-variant="win"] {
+	color: var(--color-correct);
+}
+
+.hud__banner[data-variant="lose"] {
+	color: var(--color-wrong);
+}
+
+.hud__banner[data-variant="countdown"] {
+	/* Chỉ 1 chữ số: bỏ nền hộp, phóng to hẳn cho đọc được từ xa. */
+	background: transparent;
+	box-shadow: none;
+	font-size: clamp(64px, 22vw, 168px);
+}
+
+.hud__banner.is-pop {
+	animation: hud-pop var(--duration-base) var(--ease-out);
+}
+
+/* --- "SÁT NÚT! +10" (P1-1) --- */
+
+.hud__nearmiss {
+	position: fixed;
+	left: 50%;
+	top: 56%;
+	transform: translateX(-50%);
+	padding: var(--space-1) var(--space-3);
+	border-radius: var(--radius-pill);
+	background: rgba(255, 201, 60, 0.94);
+	color: var(--color-navy);
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: clamp(16px, 4.5vw, 26px);
+	pointer-events: none;
+	z-index: 14;
+}
+
+.hud__nearmiss[hidden] {
+	display: none;
+}
+
+.hud__nearmiss.is-pop {
+	animation: hud-float-up 800ms var(--ease-out) forwards;
+}
+
+@keyframes hud-pop {
+	from {
+		transform: translate(-50%, -50%) scale(0.55);
+		opacity: 0;
+	}
+
+	to {
+		transform: translate(-50%, -50%) scale(1);
+		opacity: 1;
+	}
+}
+
+@keyframes hud-float-up {
+	from {
+		transform: translate(-50%, 12px);
+		opacity: 0;
+	}
+
+	30% {
+		transform: translate(-50%, 0);
+		opacity: 1;
+	}
+
+	to {
+		transform: translate(-50%, -34px);
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* Giữ nguyên nội dung, bỏ chuyển động — chữ vẫn hiện đủ thời gian như cũ. */
+	.hud__banner.is-pop,
+	.hud__nearmiss.is-pop {
+		animation: none;
+	}
+}
+
 /* --- Modal câu hỏi (S6b) --- */
 
 .quiz-modal {

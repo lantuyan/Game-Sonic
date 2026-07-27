@@ -11,6 +11,8 @@ export interface ScoreSnapshot {
 	total: number;
 	distanceScore: number;
 	answerScore: number;
+	/** Thưởng ngoài lề: near-miss (P1-1)… — tách riêng để P1 cân lại được. */
+	bonusScore: number;
 	coins: number;
 	correctCount: number;
 	totalAnswered: number;
@@ -19,6 +21,7 @@ export interface ScoreSnapshot {
 export class Score {
 	private distanceM = 0;
 	private answerScore = 0;
+	private bonusScore = 0;
 	private coins = 0;
 	private correctCount = 0;
 	private totalAnswered = 0;
@@ -31,6 +34,7 @@ export class Score {
 	reset(): void {
 		this.distanceM = 0;
 		this.answerScore = 0;
+		this.bonusScore = 0;
 		this.coins = 0;
 		this.correctCount = 0;
 		this.totalAnswered = 0;
@@ -75,12 +79,26 @@ export class Score {
 		return gained;
 	}
 
+	/**
+	 * Thưởng thẳng vào điểm, KHÔNG qua hệ số streak/power-up (near-miss — P1-1).
+	 * Near-miss là thưởng kỹ năng lái; nhân nó với multiplier của toán sẽ làm loãng
+	 * ý nghĩa "BXH đo năng lực toán".
+	 */
+	addBonus(points: number): number {
+		if (Number.isFinite(points) === false || points <= 0) {
+			return 0;
+		}
+
+		this.bonusScore += points;
+		return points;
+	}
+
 	get distanceScore(): number {
 		return Math.floor(this.distanceM * tuning.scoring.pointsPerMeter);
 	}
 
 	get total(): number {
-		return Math.floor(this.distanceScore + this.answerScore);
+		return Math.floor(this.distanceScore + this.answerScore + this.bonusScore);
 	}
 
 	snapshot(): ScoreSnapshot {
@@ -88,6 +106,7 @@ export class Score {
 			total: this.total,
 			distanceScore: this.distanceScore,
 			answerScore: Math.floor(this.answerScore),
+			bonusScore: Math.floor(this.bonusScore),
 			coins: Math.floor(this.coins),
 			correctCount: this.correctCount,
 			totalAnswered: this.totalAnswered

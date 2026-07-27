@@ -199,6 +199,30 @@ export async function getAverageAnswerMs(level: string): Promise<number | null> 
 	return typeof profile.avgAnswerMs === "number" ? profile.avgAnswerMs : null;
 }
 
+/**
+ * `targetDifficultyIndex` của hồ sơ kỹ năng — Boss Gate bốc câu ở `target+0.5..1`
+ * (plan §4.6, P1-1). Thiếu hồ sơ (ván đầu) → 0 = "easy", boss vẫn bị sàn `hard` kéo lên.
+ */
+export async function getTargetDifficultyIndex(level: string): Promise<number> {
+	const api = await loadQuestionBank();
+
+	if (typeof api.getSkillProfile !== "function") {
+		return 0;
+	}
+
+	const index = api.getSkillProfile(level).targetDifficultyIndex;
+	return Number.isFinite(index) === true ? index : 0;
+}
+
+/**
+ * Bảng bậc độ khó của hợp đồng (`QuestionModel.DIFFICULTY_ORDER`).
+ * Thiếu (bản questionBank cũ) → trả mảng rỗng, phía gọi tự dùng bản mặc định.
+ */
+export async function getDifficultyOrder(): Promise<readonly string[]> {
+	const api = await loadQuestionBank();
+	return Array.isArray(api.DIFFICULTY_ORDER) === true ? api.DIFFICULTY_ORDER : [];
+}
+
 /** Chỉ dùng trong test — xóa cache để nạp lại từ đầu. */
 export function resetBridgeForTests(): void {
 	loadPromise = null;

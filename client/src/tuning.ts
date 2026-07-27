@@ -137,6 +137,66 @@ export const tuning = {
 		maxGates: 3
 	},
 
+	/**
+	 * Boss Gate (plan §4.3 mục 3 — P1-1). `enabled: 0` tắt hẳn boss để pilot/rollback
+	 * mà không phải gỡ code.
+	 *
+	 * Đây là NƠI DUY NHẤT kiến thức ăn vào mạng (plan Q2/Q12): sai/timeout ở boss
+	 * trừ đúng 1 tim, còn cổng thường thì không bao giờ.
+	 */
+	boss: {
+		enabled: 1,
+		/** Chặng dài 2.5–3 phút (plan §4.3). */
+		intervalMinSec: 150,
+		intervalMaxSec: 180,
+		/** Cắt cảnh vào: camera dolly + nhạc dồn. */
+		introSec: 2.6,
+		/**
+		 * Kẹp thời gian trả lời. Đề `hard/expert` của bank thật đặt time 40–60s —
+		 * đứng im 1 phút giữa ván là hỏng nhịp, nên boss dùng dải riêng.
+		 */
+		questionMinSec: 12,
+		questionMaxSec: 25,
+		/** Phá khiên + mưa coin (thắng) hoặc trùm bỏ chạy (thua). */
+		outroSec: 2,
+		/** Đếm ngược 3-2-1 trước khi chạy tiếp. */
+		countdownSec: 3,
+		/** Thưởng khi thắng (plan §4.4: boss +15 coin). */
+		coinReward: 15,
+		coinRainCount: 24,
+		/** Boss xuất hiện ở z này rồi trôi về `stopDistance`. */
+		spawnDistance: 52,
+		stopDistance: 15,
+		/** Không bao giờ bốc dưới bậc này (2 = "hard" trong DIFFICULTY_ORDER). */
+		minDifficultyIndex: 2,
+		/** Boss cao gấp mấy lần nhân vật (`player.targetHeight`). */
+		scale: 2.4,
+		/** Camera lùi ra + hạ xuống trong cắt cảnh. */
+		cameraDistance: 10.5,
+		cameraHeight: 3.1,
+		/** Thời gian camera trôi vào/ra vị trí cắt cảnh. */
+		cameraDollySec: 0.9,
+		/**
+		 * "Nhạc căng" = tăng nhịp BGM biome đang phát, KHÔNG tải track riêng.
+		 * Đổi 1 track boss = +250KB tải về cho ~10 giây mỗi 3 phút; nâng rate rẻ hơn
+		 * và vẫn đọc ra "sắp có chuyện".
+		 */
+		musicRate: 1.18
+	},
+
+	/** Near-miss (plan §4.4 — P1-1): lướt sát chướng ngại được thưởng. */
+	nearMiss: {
+		enabled: 1,
+		/** Khoảng hở < 0.4 unit (plan §4.4). */
+		thresholdUnits: 0.4,
+		points: 10,
+		/** Nửa bề rộng chướng ngại — dùng để đo khoảng hở ngang. */
+		obstacleHalfWidth: 0.85,
+		/** Mép trên rào thấp (nhảy qua) và mép dưới rào cao (trượt lọt). */
+		lowTopY: 0.9,
+		highGapY: 1.05
+	},
+
 	scoring: {
 		/** Điểm quãng đường: ×1 mỗi mét (plan §4.4). */
 		pointsPerMeter: 1,

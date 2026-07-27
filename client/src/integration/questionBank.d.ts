@@ -84,8 +84,10 @@ export interface QuestionBankApi {
 	GAME_SPEED_MIN: number;
 	GAME_SPEED_MAX: number;
 
-	// Ngoài danh sách vàng nhưng có sẵn — bridge dùng để đọc avgAnswerMs.
+	// Ngoài danh sách vàng nhưng có sẵn — bridge dùng để đọc avgAnswerMs
+	// và targetDifficultyIndex (Boss Gate, P1-1).
 	getSkillProfile?(level: string): SkillProfile;
+	DIFFICULTY_ORDER?: string[];
 }
 
 declare global {

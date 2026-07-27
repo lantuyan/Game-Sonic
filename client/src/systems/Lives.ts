@@ -67,6 +67,23 @@ export class Lives {
 		return this.lives <= 0 ? "dead" : "damaged";
 	}
 
+	/**
+	 * Trừ 1 tim vì trả lời SAI/TIMEOUT ở Boss Gate (plan §4.3 mục 3, Q12 — P1-1).
+	 *
+	 * NGOẠI LỆ DUY NHẤT của luật "sai toán không mất mạng" (Q2), và nó cố tình
+	 * KHÔNG đi qua khiên hay thời gian bất tử: khiên đỡ chướng ngại, không đỡ được
+	 * việc không biết làm bài; còn 3s ân xá sau va chạm mà cũng miễn cả boss thì
+	 * người chơi học được cách "đâm một cái rồi vào boss cho an toàn".
+	 *
+	 * Vẫn cấp ân xá SAU đó để không bị cụm chướng ngại đầu chặng mới ăn tiếp.
+	 */
+	takeBossPenalty(): HitResult {
+		this.lives -= 1;
+		this.invincibleRemainingSec = tuning.player.invincibleSec;
+
+		return this.lives <= 0 ? "dead" : "damaged";
+	}
+
 	update(deltaSec: number): void {
 		if (this.invincibleRemainingSec > 0) {
 			this.invincibleRemainingSec = Math.max(this.invincibleRemainingSec - deltaSec, 0);

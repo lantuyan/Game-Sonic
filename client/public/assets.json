@@ -246,6 +246,9 @@
 		"audio/land.ogg",
 		"audio/jump.ogg",
 		"audio/gate-bell.ogg",
+		"audio/boss-appear.ogg",
+		"audio/boss-defeat.ogg",
+		"audio/near-miss.ogg",
 		"audio/bgm-menu.ogg",
 		"audio/bgm-biome1.ogg"
 	],

@@ -124,6 +124,9 @@ Cập nhật lần cuối: **2026-07-26** · Tổng số file: **82**
 | `audio/land.ogg` | Kenney — Impact Sounds | CC0-1.0 |
 | `audio/jump.ogg` | Kenney — Digital Audio | CC0-1.0 |
 | `audio/gate-bell.ogg` | Kenney — Impact Sounds | CC0-1.0 |
+| `audio/boss-appear.ogg` | Kenney — Digital Audio | CC0-1.0 |
+| `audio/boss-defeat.ogg` | Kenney — Music Jingles | CC0-1.0 |
+| `audio/near-miss.ogg` | Kenney — Digital Audio | CC0-1.0 |
 | `audio/bgm-menu.ogg` | Short Loops Background Music Pack — "Swinging Sweet" | CC0-1.0 |
 | `audio/bgm-biome1.ogg` | Short Loops Background Music Pack — "A Brand New Wisdom" | CC0-1.0 |
 | `fonts/baloo-2-*.woff2` | Baloo 2 (subset vietnamese + latin, WOFF2) | OFL-1.1 |

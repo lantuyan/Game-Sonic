@@ -16,6 +16,13 @@ A 3D endless-runner math quiz game (grades 6–8) with a small Node.js/Express b
 - **Question bank**: a pure-JS JSON store, seeded once from `questions/lop6|7|8.json`. Works everywhere with no configuration.
 - **Player data (leaderboard + skill profiles)**: Postgres via [Neon](https://neon.tech) when `DATABASE_URL` is set; an embedded [PGlite](https://pglite.dev) database for local dev/tests. When no database is available (e.g. on Vercel before Neon is connected) these features degrade gracefully — the game still runs, the leaderboard is just empty until a database is connected.
 
+## Chạy nhanh trên máy cá nhân (Windows / macOS)
+
+👉 Xem [HUONG-DAN-CHAY-GAME.md](HUONG-DAN-CHAY-GAME.md). Tóm tắt:
+
+1. Nháy đúp `1-install.bat` (Windows) hoặc `1-install.command` (macOS) — tự cài Node.js + thư viện.
+2. Nháy đúp `2-start.bat` / `2-start.command` — mở http://localhost:3000, sửa code là trình duyệt tự cập nhật.
+
 ## Local setup
 
 1. Install dependencies:

@@ -2779,7 +2779,24 @@
 				showLevelOverlay();
 				});
 
-			if ("serviceWorker" in navigator)
+			var isLocalDev = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+
+			if (isLocalDev && "serviceWorker" in navigator)
+				{
+				// Local dev: drop the service worker and its caches so edits show up on reload.
+				navigator.serviceWorker.getRegistrations().then(function(registrations)
+					{
+					registrations.forEach(function(registration) { registration.unregister(); });
+					});
+				if ("caches" in window)
+					{
+					caches.keys().then(function(cacheNames)
+						{
+						cacheNames.forEach(function(cacheName) { caches.delete(cacheName); });
+						});
+					}
+				}
+			else if ("serviceWorker" in navigator)
 				{
 				navigator.serviceWorker.register("worker.js").then(function(registration)
 					{

@@ -9,7 +9,9 @@
     "test": "node --test",
     "migrate": "node scripts/migrate-neon.js",
     "vercel-build": "node scripts/vercel-build.js",
-    "hash-password": "node server/scripts/hash-password.js"
+    "hash-password": "node server/scripts/hash-password.js",
+    "local": "node scripts/dev.js",
+    "setup-local": "node scripts/setup-local.js"
   },
   "engines": {
     "node": "22.x"

@@ -23,8 +23,8 @@ if ! command -v node >/dev/null 2>&1; then
   pause_and_exit 1
 fi
 
-if [ ! -d node_modules ]; then
-  echo "Chua cai thu vien, dang cai (npm install)..."
+if ! node -e "require('express');require('dotenv');require('bcryptjs');require('@electric-sql/pglite')" >/dev/null 2>&1; then
+  echo "Thu vien chua cai du, dang cai (npm install)..."
   npm install --no-audit --no-fund --loglevel=error || { echo "LOI: npm install that bai. Hay chay 1-install.command."; pause_and_exit 1; }
 fi
 

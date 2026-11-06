@@ -1,6 +1,6 @@
 "use strict";
 
-var bcrypt = require("bcrypt");
+var bcrypt = require("bcryptjs");
 
 async function run() {
 	var password = process.argv[2] || "";

@@ -5,7 +5,7 @@ var assert = require("node:assert/strict");
 var fs = require("fs");
 var os = require("os");
 var path = require("path");
-var bcrypt = require("bcrypt");
+var bcrypt = require("bcryptjs");
 var request = require("supertest");
 var createApp = require("../server/app").createApp;
 

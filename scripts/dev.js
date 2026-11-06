@@ -86,7 +86,11 @@ function runParent() {
 			if (stopping) {
 				return;
 			}
-			if (code !== 0 && code !== null) {
+			if (code === 2) {
+				log("❌ Thiếu thư viện. Hãy tắt cửa sổ này và chạy lại file 1-install.");
+			} else if (code === 3) {
+				log("❌ Không mở được server vì các cổng 3000-3020 đều bận. Hãy khởi động lại máy rồi thử lại.");
+			} else if (code !== 0 && code !== null) {
 				log("❌ Server bị lỗi (xem thông báo đỏ ở trên). Hãy sửa code rồi lưu lại (Ctrl+S) — server sẽ tự chạy lại.");
 			}
 		});
@@ -122,6 +126,9 @@ function runParent() {
 	function flush() {
 		var action = pending;
 		pending = null;
+		if (!probeDone || stopping) {
+			return;
+		}
 
 		if (action === "restart") {
 			log("🔄 Code server thay đổi → đang khởi động lại server...");
@@ -165,8 +172,11 @@ function runParent() {
 	}
 
 	try {
-		fs.watch(ROOT_DIR, { recursive: true }, function (eventType, fileName) {
+		var watcher = fs.watch(ROOT_DIR, { recursive: true }, function (eventType, fileName) {
 			onChange(fileName);
+		});
+		watcher.on("error", function (error) {
+			log("⚠️  Ngừng theo dõi thay đổi file (" + error.message + "). Sửa code xong hãy bấm F5 trên trình duyệt.");
 		});
 	} catch (error) {
 		log("⚠️  Không theo dõi được thay đổi file (" + error.message + "). Sửa code xong hãy bấm F5 trên trình duyệt.");
@@ -185,8 +195,46 @@ function runParent() {
 
 	process.on("SIGINT", shutdown);
 	process.on("SIGTERM", shutdown);
+	process.on("SIGHUP", shutdown);
 
-	startChild();
+	// If the game is already running in another window, just open the browser.
+	var probePort = Number(readEnvPort()) || 3000;
+	var probeDone = false;
+	function probeFinished(alreadyRunning) {
+		if (probeDone) {
+			return;
+		}
+		probeDone = true;
+		if (alreadyRunning) {
+			stopping = true;
+			console.log("");
+			console.log("✅ Game ĐÃ ĐANG CHẠY ở một cửa sổ khác: http://localhost:" + probePort);
+			console.log("   (Không cần mở thêm. Cửa sổ này sẽ tự đóng.)");
+			openBrowser("http://localhost:" + probePort);
+			setTimeout(function () { process.exit(0); }, 3000);
+			return;
+		}
+		startChild();
+	}
+	var probe = require("http").get({ host: "127.0.0.1", port: probePort, path: "/__dev/ping", timeout: 1000 }, function (response) {
+		var body = "";
+		response.on("data", function (chunk) { body += chunk; });
+		response.on("end", function () { probeFinished(body === "game-sonic-dev"); });
+	});
+	probe.on("error", function () { probeFinished(false); });
+	probe.on("timeout", function () { probe.destroy(); probeFinished(false); });
+}
+
+function readEnvPort() {
+	if (process.env.PORT) {
+		return process.env.PORT;
+	}
+	try {
+		var match = fs.readFileSync(path.join(ROOT_DIR, ".env"), "utf8").match(/^\s*PORT\s*=\s*['"]?(\d+)/m);
+		return match ? match[1] : null;
+	} catch (error) {
+		return null;
+	}
 }
 
 function log(message) {
@@ -253,9 +301,18 @@ function openBrowser(url) {
 // ---------------------------------------------------------------------------
 
 function runChild() {
-	require("dotenv").config({ path: path.join(ROOT_DIR, ".env") });
+	var express;
+	try {
+		require("dotenv").config({ path: path.join(ROOT_DIR, ".env") });
+		express = require("express");
+		require("bcryptjs");
+		require("@electric-sql/pglite");
+	} catch (error) {
+		console.error(error && error.message ? error.message : error);
+		process.exit(2);
+		return;
+	}
 
-	var express = require("express");
 	var createApp = require("../server/app").createApp;
 
 	var runtime = createApp();
@@ -274,6 +331,10 @@ function runChild() {
 
 	outer.disable("x-powered-by");
 
+	outer.get("/__dev/ping", function (request, response) {
+		response.type("text/plain").send("game-sonic-dev");
+	});
+
 	outer.get("/__dev/reload", function (request, response) {
 		response.writeHead(200, {
 			"Content-Type": "text/event-stream",
@@ -286,6 +347,21 @@ function runChild() {
 		request.on("close", function () {
 			clients.delete(response);
 		});
+	});
+
+	// The game registers worker.js (a caching service worker). While developing,
+	// serve a replacement that wipes its caches and unregisters itself, so the
+	// browser never shows an old copy of an edited file.
+	outer.get("/worker.js", function (request, response) {
+		response.setHeader("Content-Type", "application/javascript; charset=utf-8");
+		response.setHeader("Cache-Control", "no-store");
+		response.send(
+			"self.addEventListener('install',function(){self.skipWaiting();});" +
+			"self.addEventListener('activate',function(e){e.waitUntil(" +
+			"caches.keys().then(function(k){return Promise.all(k.map(function(n){return caches.delete(n);}));})" +
+			".then(function(){return self.registration.unregister();}));});" +
+			"self.addEventListener('fetch',function(){});"
+		);
 	});
 
 	// Serve .html/.htm pages with the live-reload snippet injected and no caching.
@@ -384,6 +460,7 @@ function runChild() {
 
 	process.on("SIGINT", closeAndExit);
 	process.on("SIGTERM", closeAndExit);
+	process.on("SIGHUP", closeAndExit);
 	process.on("disconnect", closeAndExit);
 
 	var fixedPort = Number(process.env.DEV_FIXED_PORT || 0);
@@ -398,7 +475,8 @@ function runChild() {
 			}
 		});
 		server.on("error", function (error) {
-			if (error && error.code === "EADDRINUSE") {
+			// EACCES: on Windows, Hyper-V/WSL/Docker often reserve port ranges incl. 3000.
+			if (error && (error.code === "EADDRINUSE" || error.code === "EACCES")) {
 				if (fixedPort && attempt < 10) {
 					// The previous server may still be releasing the port.
 					attempt += 1;
@@ -413,7 +491,7 @@ function runChild() {
 				}
 			}
 			console.error(error);
-			process.exit(1);
+			process.exit(error && (error.code === "EADDRINUSE" || error.code === "EACCES") ? 3 : 1);
 		});
 	}
 

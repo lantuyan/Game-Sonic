@@ -37,6 +37,17 @@ Trình duyệt sẽ tự mở game. Nếu không, hãy copy link trên dán vào
 
 ## Gặp lỗi?
 
+**Windows:**
+
+- **Nhớ giải nén trước!** Nếu tải về file `.zip`: chuột phải → **Extract All** (Giải nén tất cả), rồi chạy file trong thư mục đã giải nén.
+- **"Windows protected your PC"** (màn hình xanh): bấm **More info** → **Run anyway**.
+- **Windows Firewall hỏi quyền**: bấm **Allow** (Cho phép).
+- **Cửa sổ đen như bị "đơ"** (lỡ bấm chuột vào trong cửa sổ): nhấn phím **Esc**.
+- **Thư mục game nằm trong OneDrive** (Desktop/Documents) mà bị lỗi: chép cả thư mục ra ổ `C:\` (ví dụ `C:\Game-Sonic`) rồi chạy lại.
+- Lỡ mở `2-start.bat` 2 lần: không sao, cửa sổ thứ 2 sẽ tự mở trình duyệt rồi tự đóng.
+
+**Chung:**
+
 - **macOS báo "không thể mở vì không xác minh được nhà phát triển"**: nhấn chuột phải vào file → chọn **Open** → **Open**.
   Hoặc mở Terminal, kéo thả thư mục dự án vào rồi gõ: `bash 1-install.command` (tương tự với `bash 2-start.command`).
 - **Sửa code bị lỗi**, cửa sổ đen báo ❌: chỉ cần sửa lại code cho đúng rồi lưu → server tự chạy lại.

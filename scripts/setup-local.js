@@ -68,7 +68,7 @@ async function run() {
 	}
 
 	if (isPlaceholder(getValue(lines, "ADMIN_PASSWORD_HASH"))) {
-		var bcrypt = require("bcrypt");
+		var bcrypt = require("bcryptjs");
 		var hash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
 		setValue(lines, "ADMIN_PASSWORD_HASH", hash);
 		changed = true;
